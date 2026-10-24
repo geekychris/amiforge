@@ -111,37 +111,104 @@ int App::ask(const char *title, const std::string &body, const char *buttons)
     return r;
 }
 
+// String and number input: a small window of our own, because requester.class before 53.20
+// (as in AmigaOS 4.1 Final Edition) ignores REQS_ReturnEnds, so Return would not confirm.
+// The text is marked when the window opens, so typing replaces it; Return means OK.
+static bool inputWindow(struct Window *parent, const char *title, const std::string &body,
+                        std::string &value, bool numeric)
+{
+    enum { IN_STRING = 1, IN_OK, IN_CANCEL };
+    Class *layout = ILayout->LAYOUT_GetClass();
+    Object *str = nullptr;
+    Object *root = IIntuition->NewObject(layout, nullptr,
+        LAYOUT_Orientation, LAYOUT_ORIENT_VERT, LAYOUT_SpaceOuter, TRUE,
+        LAYOUT_AddImage, IIntuition->NewObject(ILabel->LABEL_GetClass(), nullptr,
+            LABEL_Text, (uint32)body.c_str(), TAG_DONE),
+        LAYOUT_AddChild, str = IIntuition->NewObject(IString->STRING_GetClass(), nullptr,
+            GA_ID, IN_STRING, GA_RelVerify, TRUE,
+            STRINGA_MaxChars, 511, STRINGA_TextVal, (uint32)value.c_str(),
+            STRINGA_MarkActive, TRUE,
+            numeric ? STRINGA_Justification : TAG_IGNORE, GACT_STRINGCENTER,
+            TAG_DONE),
+        CHILD_MinWidth, 320,
+        LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr, LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
+            LAYOUT_EvenSize, TRUE,
+            LAYOUT_AddChild, IIntuition->NewObject(IButton->BUTTON_GetClass(), nullptr,
+                GA_ID, IN_OK, GA_RelVerify, TRUE, GA_Text, (uint32)"_OK", TAG_DONE),
+            LAYOUT_AddChild, gap(),
+            CHILD_WeightedWidth, 0,
+            LAYOUT_AddChild, IIntuition->NewObject(IButton->BUTTON_GetClass(), nullptr,
+                GA_ID, IN_CANCEL, GA_RelVerify, TRUE, GA_Text, (uint32)"_Cancel", TAG_DONE),
+            TAG_DONE),
+        TAG_DONE);
+    Object *wo = IIntuition->NewObject(IWindow->WINDOW_GetClass(), nullptr,
+        WA_Title, (uint32)title, WA_DragBar, TRUE, WA_CloseGadget, TRUE, WA_DepthGadget, TRUE,
+        WA_Activate, TRUE, WA_PubScreen, (uint32)(parent ? parent->WScreen : nullptr),
+        WA_IDCMP, IDCMP_GADGETUP | IDCMP_CLOSEWINDOW | IDCMP_RAWKEY | IDCMP_VANILLAKEY,
+        WINDOW_Position, parent ? WPOS_CENTERWINDOW : WPOS_CENTERSCREEN,
+        parent ? WINDOW_RefWindow : TAG_IGNORE, (uint32)parent,
+        WINDOW_Layout, root,
+        TAG_DONE);
+    if (!wo) return false;
+    struct Window *w = (struct Window *)IIntuition->IDoMethod(wo, WM_OPEN);
+    if (!w) {
+        IIntuition->DisposeObject(wo);
+        return false;
+    }
+    ILayout->ActivateLayoutGadget((struct Gadget *)root, w, nullptr, (uint32)str);
+    uint32 sig = 0;
+    IIntuition->GetAttr(WINDOW_SigMask, wo, &sig);
+    int done = 0;   // 1 OK, -1 cancel
+    while (!done) {
+        IExec->Wait(sig);
+        uint32 result;
+        uint16 code;
+        while ((result = IIntuition->IDoMethod(wo, WM_HANDLEINPUT, &code)) != WMHI_LASTMSG) {
+            switch (result & WMHI_CLASSMASK) {
+            case WMHI_CLOSEWINDOW:
+                done = -1;
+                break;
+            case WMHI_GADGETUP:
+                // the string gadget reports GADGETUP when Return ends editing
+                if ((result & WMHI_GADGETMASK) == IN_STRING || (result & WMHI_GADGETMASK) == IN_OK) done = 1;
+                if ((result & WMHI_GADGETMASK) == IN_CANCEL) done = -1;
+                break;
+            case WMHI_VANILLAKEY:
+                if ((result & WMHI_KEYMASK) == 27) done = -1;   // Esc
+                break;
+            }
+        }
+    }
+    if (done == 1) {
+        uint32 v = 0;
+        IIntuition->GetAttr(STRINGA_TextVal, str, &v);
+        value = v ? (const char *)v : "";
+    }
+    IIntuition->DisposeObject(wo);
+    return done == 1;
+}
+
 bool App::askString(const char *title, const std::string &body, std::string &value)
 {
-    char buf[512];
-    strncpy(buf, value.c_str(), sizeof buf - 1);
-    buf[sizeof buf - 1] = 0;
-    Object *req = IIntuition->NewObject(IRequester->REQUESTER_GetClass(), nullptr,
-        REQ_Type, REQTYPE_STRING, REQ_TitleText, (uint32)title, REQ_BodyText, (uint32)body.c_str(),
-        REQ_GadgetText, (uint32)"_OK|_Cancel", REQS_Buffer, (uint32)buf, REQS_MaxChars, sizeof buf - 1,
-        REQS_ReturnEnds, TRUE, TAG_DONE);
-    if (!req) return false;
-    bool ok = openReq(win, req) == 1;
-    IIntuition->DisposeObject(req);
-    if (ok) value = buf;
-    return ok;
+    std::string v = value;
+    if (!inputWindow(win, title, body, v, false)) return false;
+    value = v;
+    return true;
 }
 
 bool App::askInteger(const char *title, const std::string &body, int &value, int min, int max)
 {
-    Object *req = IIntuition->NewObject(IRequester->REQUESTER_GetClass(), nullptr,
-        REQ_Type, REQTYPE_INTEGER, REQ_TitleText, (uint32)title, REQ_BodyText, (uint32)body.c_str(),
-        REQ_GadgetText, (uint32)"_OK|_Cancel", REQI_Number, value, REQI_Minimum, min, REQI_Maximum, max,
-        REQI_ReturnEnds, TRUE, TAG_DONE);
-    if (!req) return false;
-    bool ok = openReq(win, req) == 1;
-    if (ok) {
-        uint32 n = 0;
-        IIntuition->GetAttr(REQI_Number, req, &n);
-        value = (int)n;
+    std::string v = strprintf("%ld", (long)value);
+    for (;;) {
+        if (!inputWindow(win, title, body, v, true)) return false;
+        char *end = nullptr;
+        long n = strtol(trim(v).c_str(), &end, 10);
+        if (end && *end == '\0' && !trim(v).empty() && n >= min && n <= max) {
+            value = (int)n;
+            return true;
+        }
+        info(strprintf("Please enter a number from %ld to %ld.", (long)min, (long)max));
     }
-    IIntuition->DisposeObject(req);
-    return ok;
 }
 
 void App::gotoLineDialog()
@@ -149,11 +216,11 @@ void App::gotoLineDialog()
     if (!cur || !editor) return;
     int lines = (int)editor->send(SCI_GETLINECOUNT);
     int line = (int)editor->send(SCI_LINEFROMPOSITION, editor->send(SCI_GETCURRENTPOS)) + 1;
-    if (askInteger("Go to Line", strprintf("Line number (1-%d):", lines), line, 1, lines))
-        gotoLocation(cur->path.empty() ? "" : cur->path, line);
-    if (cur && cur->path.empty()) {   // untitled: gotoLocation needs a file
+    if (!askInteger("Go to Line", strprintf("Line number (1-%d):", lines), line, 1, lines)) return;
+    if (cur->path.empty())   // untitled: gotoLocation needs a file
         editor->send(SCI_GOTOLINE, line - 1);
-    }
+    else
+        gotoLocation(cur->path, line);
 }
 
 void App::about()

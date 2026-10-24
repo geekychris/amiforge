@@ -178,7 +178,7 @@ bool Builder::start(const Project &p, const std::string &what)
 {
     if (running) return false;
     if (sigBit < 0 && (sigBit = IExec->AllocSignal(-1)) < 0) return false;
-    errors = warnings = 0;
+    errors = warnings = stepFailures = 0;
     lastOk = false;
 
     Job *j = new Job;
@@ -290,8 +290,9 @@ bool Builder::poll(BuildLine &out)
             else if (out.kind == MsgKind::Warning) warnings++;
         }
     } else if (out.kind == MsgKind::Error) {
-        errors++;
+        stepFailures++;     // "Failed (return code n)": counted only if no diagnostic explains it
     } else if (out.kind == MsgKind::Done) {
+        if (errors == 0) errors = stepFailures;
         lastOk = job->ok && errors == 0;
         // the process has finished (it posted Done inside Forbid after its last access)
         IExec->FreeSysObject(ASOT_MUTEX, job->mutex);

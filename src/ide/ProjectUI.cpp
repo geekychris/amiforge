@@ -33,6 +33,23 @@ static std::string stripExt(const std::string &n)
     return p == std::string::npos ? n : n.substr(0, p);
 }
 
+static void makeProjectIcon(const std::string &afp);
+
+// Before switching projects: close the old project's files and untouched untitled ones.
+// Asks about unsaved changes; false if the user cancelled.
+static bool closeProjectFiles(App &app)
+{
+    std::vector<Document *> toClose;
+    for (auto &d : app.docs) {
+        bool untouchedUntitled = d->path.empty() && !d->modified;
+        if (untouchedUntitled || (!app.project.path.empty() && app.project.contains(d->path)))
+            toClose.push_back(d.get());
+    }
+    for (Document *d : toClose)
+        if (!app.closeDocument(d)) return false;
+    return true;
+}
+
 void App::newProject()
 {
     std::string afp = requestFile("New Project - choose a name for the project file", true,
@@ -40,6 +57,7 @@ void App::newProject()
     if (afp.empty()) return;
     if (extension(afp) != "afp") afp += ".afp";
     if (!project.path.empty()) saveProject();
+    if (!closeProjectFiles(*this)) return;
     project = Project();
     project.path = absolutePath(afp);
     project.dir = dirName(project.path);
@@ -70,6 +88,7 @@ void App::newProject()
     }
     std::string err;
     if (!project.save(err)) info(err);
+    else makeProjectIcon(project.path);
     refreshProjectList();
     refreshBreakpointList();
     for (auto &f : project.files)
@@ -91,6 +110,7 @@ void App::openProject(const std::string &pathIn)
         info(err);
         return;
     }
+    if (!closeProjectFiles(*this)) return;
     project = p;
     lastDir = project.dir;
     refreshProjectList();

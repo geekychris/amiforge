@@ -14,6 +14,8 @@
 #include "dbg/dbg.h"
 
 struct Window;
+struct Screen;
+struct DrawInfo;
 struct Gadget;
 struct List;
 struct Node;
@@ -92,6 +94,7 @@ public:
     uint32_t signalMask() const;
     bool poll(BuildLine &out);
     int errors = 0, warnings = 0;
+    int stepFailures = 0;   // failed commands and other build-level errors
     bool lastOk = false;
     struct Job;
 private:
@@ -177,7 +180,7 @@ public:
     void handleMenu(uint32_t id);
     bool handleKey(uint16_t rawkey, uint16_t qual);
     uint32_t idcmpHook(struct IntuiMessage *im);
-    void layoutEditor();
+    void layoutEditor(bool reblit = true);   // place the editor on its placeholder's box
     void setStatus(const std::string &left);
     void updateTitle();
     void updateToolbar();
@@ -296,6 +299,9 @@ public:
     ListView projectList{1}, buildLog{1}, findLog{2}, locals{3}, watches{3}, regs{2}, stack{3},
              bpList{3}, memView{1}, disasm{1}, debugLogView{1};
     struct List *tabLabels = nullptr, *sideLabels = nullptr, *bottomLabels = nullptr;
+    Object *tabCloseImage = nullptr;    // close gadget on the active file tab
+    struct DrawInfo *drawInfo = nullptr;
+    struct Screen *drawInfoScreen = nullptr;
     struct TextAttr monoAttr;
     struct TextFont *monoFont = nullptr;
     bool quit = false;

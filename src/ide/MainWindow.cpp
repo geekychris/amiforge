@@ -15,6 +15,7 @@
 #include "Commands.h"
 
 #include <string.h>
+#include <algorithm>
 #include <stdio.h>
 
 #include <proto/exec.h>
@@ -44,6 +45,7 @@
 #include <libraries/gadtools.h>
 #include <intuition/icclass.h>
 #include <intuition/gadgetclass.h>
+#include <intuition/imageclass.h>
 #include <devices/inputevent.h>
 
 #include "Scintilla.h"
@@ -247,6 +249,24 @@ bool App::openMainWindow()
     static const char *findTitles[] = { "Location", "Text" };
     static const int findWeights[] = { 30, 70 };
 
+    // The file tab row: an empty clicktab has no height, so reserve a row of the screen font.
+    // The close gadget clicktab shows on the active tab: the system close image.
+    int tabHeight = 22;
+    if (struct ::Screen *scr = IIntuition->LockPubScreen(nullptr)) {
+        tabHeight = scr->Font->ta_YSize + 10;
+        drawInfo = IIntuition->GetScreenDrawInfo(scr);
+        drawInfoScreen = scr;
+        if (drawInfo)
+            tabCloseImage = IIntuition->NewObject(nullptr, "sysiclass",
+                SYSIA_Which, CLOSEIMAGE, SYSIA_DrawInfo, (uint32)drawInfo, SYSIA_Size, SYSISIZE_LOWRES, TAG_DONE);
+        IIntuition->UnlockPubScreen(nullptr, scr);
+    }
+    if (tabCloseImage) {
+        uint32 h = 0;
+        IIntuition->GetAttr(IA_Height, tabCloseImage, &h);
+        tabHeight = std::max(tabHeight + 4, (int)h + 10);
+    }
+
     Class *page = ILayout->PAGE_GetClass();
     Class *layout = ILayout->LAYOUT_GetClass();
     Class *clicktab = IClickTab->CLICKTAB_GetClass();
@@ -338,12 +358,11 @@ bool App::openMainWindow()
                 TAG_DONE),
             CHILD_WeightedHeight, 0,
             // everything that can be resized with weight bars
+            // LAYOUT_WeightBar places a draggable bar at that point among the children
             LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr,
                 LAYOUT_Orientation, LAYOUT_ORIENT_VERT,
-                LAYOUT_WeightBar, TRUE,
                 LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr,
                     LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
-                    LAYOUT_WeightBar, TRUE,
                     // project files
                     LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr,
                         LAYOUT_Orientation, LAYOUT_ORIENT_VERT,
@@ -351,6 +370,7 @@ bool App::openMainWindow()
                         LAYOUT_AddChild, projectList.create(GID_PROJECT),
                         TAG_DONE),
                     CHILD_WeightedWidth, 16,
+                    LAYOUT_WeightBar, TRUE,
                     // tabs + editor
                     LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr,
                         LAYOUT_Orientation, LAYOUT_ORIENT_VERT,
@@ -359,8 +379,11 @@ bool App::openMainWindow()
                             GA_ID, GID_TABS, GA_RelVerify, TRUE,
                             CLICKTAB_Labels, (uint32)tabLabels,
                             CLICKTAB_LabelTruncate, TRUE,
+                            tabCloseImage ? CLICKTAB_CloseImage : TAG_IGNORE, (uint32)tabCloseImage,
+                            CLICKTAB_ClosePlacement, PLACECLOSE_RIGHT,
                             TAG_DONE),
                         CHILD_WeightedHeight, 0,
+                        CHILD_MinHeight, tabHeight,
                         LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr,
                             LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
                             LAYOUT_SpaceInner, FALSE,
@@ -379,6 +402,7 @@ bool App::openMainWindow()
                         CHILD_WeightedHeight, 0,
                         TAG_DONE),
                     CHILD_WeightedWidth, 62,
+                    LAYOUT_WeightBar, TRUE,
                     // debugger side panel
                     LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr,
                         LAYOUT_Orientation, LAYOUT_ORIENT_VERT,
@@ -391,6 +415,7 @@ bool App::openMainWindow()
                     CHILD_WeightedWidth, 22,
                     TAG_DONE),
                 CHILD_WeightedHeight, 72,
+                LAYOUT_WeightBar, TRUE,
                 LAYOUT_AddChild, gad[GID_BOTTOM_TABS] = IIntuition->NewObject(clicktab, nullptr,
                     GA_ID, GID_BOTTOM_TABS, GA_RelVerify, TRUE,
                     CLICKTAB_Labels, (uint32)bottomLabels,
@@ -439,6 +464,10 @@ void App::closeMainWindow()
     if (winObj) IIntuition->DisposeObject(winObj);   // closes the window and frees the gadgets
     winObj = nullptr;
     win = nullptr;
+    if (tabCloseImage) IIntuition->DisposeObject(tabCloseImage);   // clicktab doesn't free it
+    tabCloseImage = nullptr;
+    if (drawInfo) IIntuition->FreeScreenDrawInfo(drawInfoScreen, drawInfo);
+    drawInfo = nullptr;
     for (struct List *l : { tabLabels, sideLabels, bottomLabels }) {
         if (!l) continue;
         struct Node *n;
@@ -454,16 +483,25 @@ void App::closeMainWindow()
     areaClass = nullptr;
 }
 
-void App::layoutEditor()
+void App::layoutEditor(bool reblit)
 {
     if (!editor || !win) return;
     struct Gadget *g = (struct Gadget *)gad[GID_EDITOR];
+    // The clicktab above draws its bottom bar 2 pixels into our box.
+    const int inset = 2;
+    const int left = g->LeftEdge, top = g->TopEdge + inset, width = g->Width, height = g->Height - inset;
     int l, t, w, h;
     editor->getBounds(&l, &t, &w, &h);
-    if (l != g->LeftEdge || t != g->TopEdge || w != g->Width || h != g->Height)
-        editor->setBounds(g->LeftEdge, g->TopEdge, g->Width, g->Height);
-    else
-        editor->refresh();
+    if (l == left && t == top && w == width && h == height) {
+        if (reblit) editor->refresh();
+        return;
+    }
+    editor->setBounds(left, top, width, height);
+    // While the window is resized the editor can be blitted at an intermediate, larger size
+    // after the gadgets around it were drawn: when it shrinks or moves, draw them again.
+    // (Our placeholder's GM_RENDER comes back here with unchanged bounds and just re-blits.)
+    if (width < w || height < h || left != l || top != t)
+        IIntuition->RefreshGList((struct Gadget *)gad[GID_ROOT], win, nullptr, 1);
 }
 
 void App::setGadget(uint32_t gid, uint32_t tag, uint32_t value)
@@ -487,8 +525,19 @@ void App::setStatus(const std::string &s)
     setGadget(GID_STATUS2, GA_Text, (uint32)shown.c_str());
 }
 
-void App::showBottomPage(int p) { setGadget(GID_BOTTOM_TABS, CLICKTAB_Current, p); }
-void App::showSidePage(int p) { setGadget(GID_SIDE_TABS, CLICKTAB_Current, p); }
+// Switch a clicktab's page. Setting the page that is already showing, or setting it without a
+// refresh, left the page's gadget (the build log) ignoring clicks until it was re-rendered.
+static void showPage(struct Window *win, Object *tabs, int p)
+{
+    if (!tabs || !win) return;
+    uint32 current = ~0U;
+    IIntuition->GetAttr(CLICKTAB_Current, tabs, &current);
+    if ((int)current != p)
+        IIntuition->RefreshSetGadgetAttrs((struct Gadget *)tabs, win, nullptr, CLICKTAB_Current, p, TAG_DONE);
+}
+
+void App::showBottomPage(int p) { showPage(win, gad[GID_BOTTOM_TABS], p); }
+void App::showSidePage(int p) { showPage(win, gad[GID_SIDE_TABS], p); }
 
 void App::updateTitle()
 {
@@ -661,6 +710,9 @@ void App::eventLoop()
             pendingCommands.erase(pendingCommands.begin());
             handleMenu(c);
         }
+        // Weight-bar drags lay the window out on input.device's task, where the placeholder's
+        // GM_RENDER can't touch the editor: follow its box from here.
+        layoutEditor(false);
         // SciView batches its repaints: let it paint now the loop is idle
         if (editor) editor->tick();
     }

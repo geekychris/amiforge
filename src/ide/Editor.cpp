@@ -53,14 +53,7 @@ void App::rebuildTabs()
     if (win)
         IIntuition->RefreshSetGadgetAttrs((struct Gadget *)gad[GID_TABS], win, nullptr,
             CLICKTAB_Labels, (uint32)tabLabels, CLICKTAB_Current, curIndex, TAG_DONE);
-    // an empty clicktab has no height: lay the window out again when tabs come or go
-    static bool hadTabs = false;
-    bool haveTabs = !docs.empty();
-    if (win && haveTabs != hadTabs) {
-        ILayout->RethinkLayout((struct Gadget *)gad[GID_ROOT], win, nullptr, TRUE);
-        layoutEditor();
-    }
-    hadTabs = haveTabs;
+    // (the tab row has a minimum height, so tabs coming and going don't change the layout)
 }
 
 Document *App::newDocument()
@@ -145,6 +138,14 @@ void App::activate(Document *d)
     rebuildTabs();
     updateTitle();
     updateCaretStatus();
+    // highlight the file in the Project list (nothing when it isn't a project file)
+    int row = -1;
+    for (int i = 0; i < projectList.count(); i++) {
+        intptr_t idx = (intptr_t)projectList.userData(projectList.nodeAt(i)) - 1;
+        if (!d->path.empty() && idx >= 0 && idx < (intptr_t)project.files.size() &&
+            sameFile(project.abs(project.files[idx]), d->path)) { row = i; break; }
+    }
+    projectList.select(row);
 }
 
 bool App::saveDocument(Document *d, bool saveAs)
@@ -285,10 +286,13 @@ void App::refreshMarkers()
     for (auto &b : project.breakpoints)
         if (sameFile(project.abs(b.file), cur->path))
             S(editor, SCI_MARKERADD, b.line - 1, b.enabled ? AF_MARKER_BREAKPOINT : AF_MARKER_BREAKPOINT_OFF);
-    for (auto &dl : diagnostics)
-        if (dl.line > 0 && !dl.file.empty() && (dl.kind == MsgKind::Error || dl.kind == MsgKind::Warning) &&
-            sameFile(dl.file, cur->path))
-            S(editor, SCI_MARKERADD, dl.line - 1, dl.kind == MsgKind::Error ? AF_MARKER_ERROR : AF_MARKER_WARNING);
+    // Errors first; a warning only marks lines without an error (the warning marker would
+    // draw over the error's background).
+    for (MsgKind kind : { MsgKind::Error, MsgKind::Warning })
+        for (auto &dl : diagnostics)
+            if (dl.kind == kind && dl.line > 0 && !dl.file.empty() && sameFile(dl.file, cur->path) &&
+                !(kind == MsgKind::Warning && (S(editor, SCI_MARKERGET, dl.line - 1) & (1 << AF_MARKER_ERROR))))
+                S(editor, SCI_MARKERADD, dl.line - 1, kind == MsgKind::Error ? AF_MARKER_ERROR : AF_MARKER_WARNING);
     if (execLine > 0 && !execFile.empty() && sameFile(execFile, cur->path)) {
         S(editor, SCI_MARKERADD, execLine - 1, AF_MARKER_CURRENT_LINE);
         S(editor, SCI_MARKERADD, execLine - 1, AF_MARKER_CURRENT_BG);
@@ -450,6 +454,12 @@ void App::toggleComment()
         }
     }
     S(editor, SCI_ENDUNDOACTION);
+    // Select the lines we toggled, so toggling again reverses exactly these lines.
+    if (l1 > l0 || b > a) {
+        intptr_t lines = S(editor, SCI_GETLINECOUNT);
+        intptr_t end = l1 + 1 < lines ? S(editor, SCI_POSITIONFROMLINE, l1 + 1) : S(editor, SCI_GETLINEENDPOSITION, l1);
+        S(editor, SCI_SETSEL, S(editor, SCI_POSITIONFROMLINE, l0), end);
+    }
     (void)ml;
 }
 

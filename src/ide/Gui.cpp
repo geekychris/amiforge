@@ -63,8 +63,10 @@ void ListView::detach()
 void ListView::attach(int sel)
 {
     if (detachDepth > 0 && --detachDepth == 0 && obj) {
+        // RefreshSetGadgetAttrs: with plain SetGadgetAttrs the list showed the new rows but
+        // ignored clicks until it was re-rendered (seen on the build log after a build).
         if (win)
-            IIntuition->SetGadgetAttrs((struct Gadget *)obj, win, nullptr,
+            IIntuition->RefreshSetGadgetAttrs((struct Gadget *)obj, win, nullptr,
                 LISTBROWSER_Labels, (uint32)list, LISTBROWSER_ColumnInfo, (uint32)ci,
                 sel >= 0 ? LISTBROWSER_Selected : TAG_IGNORE, (uint32)sel,
                 sel >= 0 ? LISTBROWSER_MakeVisible : TAG_IGNORE, (uint32)sel, TAG_DONE);
