@@ -1,5 +1,5 @@
 #!/bin/zsh
-# m1click.sh X Y [button] — click at screen (X,Y) on the OS4 guest via QEMU's monitor (button 1=left, 4=right).
+# m1click.sh X Y [button] — click at screen (X,Y) on the OS4 guest via QEMU's monitor (button 1=left, 2=right, 4=middle).
 M1=${M1:-chriscollins@m1.local}
 x=$1 y=$2 b=${3:-1}
 { for i in {1..12}; do echo "mouse_move -200 -200"; sleep 0.05; done
