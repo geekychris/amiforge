@@ -26,7 +26,7 @@ tools/       build.sh (Docker), m1*.sh/m1mcp.py (drive the OS4 guest on the test
 ## Build
 
 `tools/build.sh` runs `make` in `walkero/amigagccondocker:os4-gcc11` (adtools GCC 11.5).
-- C++17, newlib (`-mcrt=newlib`), `-mcpu=440fp`, `-D__USE_INLINE__`.
+- C++17, newlib (`-mcrt=newlib`), `-mcpu=440fp`. **No `-D__USE_INLINE__`**: call OS4 functions through their interfaces (`IExec->AllocVecTags`, `IGraphics->Text`). The inline macros define function-like names such as `Insert`, `Remove`, `Text`, `Move` and `Draw`, which break C++ code, Scintilla and the STL.
 - C++ programs link with `-athread=native`, or libstdc++'s gthread symbols are missing.
 - Scintilla compiles unmodified with this toolchain.
 

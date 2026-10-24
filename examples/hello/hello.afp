@@ -1,0 +1,23 @@
+# AmiForge project
+[project]
+name=hello
+output=hello
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=
+console=
+stopatmain=1
+
+[files]
+file=main.c
+file=list.c
+file=list.h
+
+[watches]
+watch=total

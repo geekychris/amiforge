@@ -1,0 +1,19 @@
+# AmiForge project
+[project]
+name=asmdemo
+output=asmdemo
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=
+console=
+stopatmain=1
+
+[files]
+file=main.c
+file=fastsum.s

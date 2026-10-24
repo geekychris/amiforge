@@ -173,7 +173,8 @@ int dbg_globals(dbg_session *s, dbg_var ***out);                     /* file-sco
 dbg_var *dbg_eval(dbg_session *s, const char *expr);                 /* never NULL: errors come back as value "<error: ...>" */
 int dbg_var_children(dbg_session *s, dbg_var *v, dbg_var ***out);
 int dbg_var_set(dbg_session *s, dbg_var *v, const char *value);
-void dbg_var_free(dbg_session *s, dbg_var **vars, int n);
+void dbg_var_free(dbg_session *s, dbg_var **vars, int n);   /* frees the vars and the array */
+void dbg_var_release(dbg_session *s, dbg_var *v);            /* frees one var (from dbg_eval) */
 
 int dbg_read_memory(dbg_session *s, uint32_t addr, void *buf, uint32_t len);   /* bytes read; unreadable bytes stop it */
 int dbg_write_memory(dbg_session *s, uint32_t addr, const void *buf, uint32_t len);

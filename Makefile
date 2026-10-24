@@ -17,7 +17,7 @@ OPT     = -O2
 endif
 
 CPU      = -mcpu=440fp
-DEFS     = -D__USE_INLINE__ -D__USE_OLD_TIMEVAL__ -DSCI_LEXER
+DEFS     = -D__USE_OLD_TIMEVAL__ -DSCI_LEXER
 INCS     = -Ithird_party/scintilla/include -Ithird_party/scintilla/src \
            -Ithird_party/lexilla/include -Ithird_party/lexilla/lexlib -Isrc
 BASE     = -mcrt=newlib $(CPU) $(OPT) $(DEFS) $(INCS)
@@ -62,11 +62,16 @@ $(B)/AmiForge: $(IDE_OBJS) $(B)/libscintilla.a $(B)/libafdbg.a
 # test programs that run on OS4
 TEST_SRC  = $(wildcard tests/os4/*.c) $(wildcard tests/os4/*.cpp)
 TESTS     = $(patsubst tests/os4/%,$(B)/tests/%,$(basename $(TEST_SRC)))
-# debuggee programs: always -O0 -gstabs, never stripped
-TARGET_SRC = $(wildcard tests/targets/*.c) $(wildcard tests/targets/*.cpp) $(wildcard tests/targets/*.S)
+# debuggee programs: always -O0 -gstabs+, never stripped. Assembler files named
+# tests/targets/<prog>_*.S are linked into <prog> (see the asmtest rule).
+TARGET_SRC = $(wildcard tests/targets/*.c) $(wildcard tests/targets/*.cpp)
 TARGETS   = $(patsubst tests/targets/%,$(B)/targets/%,$(basename $(TARGET_SRC)))
 
 tests: $(TESTS) $(TARGETS)
+
+# the editor test needs only Scintilla
+$(B)/tests/scitest: tests/os4/scitest.cpp $(B)/libscintilla.a
+	@mkdir -p $(@D); $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $< -L$(B) -lscintilla $(LIBS)
 
 $(B)/tests/%: tests/os4/%.cpp $(B)/libscintilla.a $(B)/libafdbg.a
 	@mkdir -p $(@D); $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $< -L$(B) -lscintilla -lafdbg $(LIBS)
@@ -79,8 +84,10 @@ $(B)/targets/%: tests/targets/%.c
 	@mkdir -p $(@D); $(CC) $(TFLAGS) -o $@ $< -lauto
 $(B)/targets/%: tests/targets/%.cpp
 	@mkdir -p $(@D); $(CXX) $(TFLAGS) -athread=native -o $@ $< -lauto
-$(B)/targets/%: tests/targets/%.S
-	@mkdir -p $(@D); $(CC) $(TFLAGS) -o $@ $< -lauto
+$(B)/targets/asmtest: tests/targets/asmtest.c $(patsubst tests/%.S,$(O)/tests/%.S.o,$(wildcard tests/targets/asmtest_*.S))
+	@mkdir -p $(@D); $(CC) $(TFLAGS) -o $@ $^ -lauto
+$(O)/tests/targets/%.S.o: tests/targets/%.S
+	@mkdir -p $(@D); $(CC) $(TFLAGS) -c $< -o $@
 
 # --- compile rules ---
 $(O)/third_party/%.cxx.o: third_party/%.cxx
