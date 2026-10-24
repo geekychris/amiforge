@@ -180,6 +180,10 @@ int dbg_read_memory(dbg_session *s, uint32_t addr, void *buf, uint32_t len);   /
 int dbg_write_memory(dbg_session *s, uint32_t addr, const void *buf, uint32_t len);
 int dbg_disassemble(dbg_session *s, uint32_t addr, int count, dbg_insn *out);  /* breakpoints shown as the original instruction */
 
+/* Diagnostic trace of the runtime (hits, resumes, trap writes), one line per call. The
+ * callback runs on the IDE task. NULL turns it off. */
+void dbg_set_trace(dbg_session *s, void (*fn)(void *ud, const char *line), void *ud);
+
 /* --- symbols (work while DBG_LOADED or later) --- */
 int dbg_addr_to_line(dbg_session *s, uint32_t addr, const char **file, int *line, const char **function);
 uint32_t dbg_line_to_addr(dbg_session *s, const char *file, int line, int *actual_line);

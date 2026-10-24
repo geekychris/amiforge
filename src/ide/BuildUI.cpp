@@ -124,7 +124,7 @@ void App::runProgram()
 {
     std::string exe = project.outputPath();
     if (!fileExists(exe)) {
-        info("Can't find " + exe + " — build the project first.");
+        info("Can't find " + exe + " - build the project first.");
         return;
     }
     std::string con = project.console.empty()

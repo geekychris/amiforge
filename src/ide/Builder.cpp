@@ -81,7 +81,9 @@ static int32 builderMain(STRPTR, int32, struct ExecBase *)
         BPTR in = IDOS->Open("NIL:", MODE_OLDFILE);
         int32 rc = IDOS->SystemTags(j->cmds[i].line.c_str(),
                                     SYS_Input, in, SYS_Output, out, SYS_Error, out,
-                                    SYS_Asynch, FALSE, NP_Name, "AmiForge build",
+                                    SYS_Asynch, FALSE, SYS_Name, (uint32)"AmiForge build",
+                                    // cc1plus is happier with a big stack than the shell default
+                                    SYS_StackSize, 4 * 1024 * 1024,
                                     TAG_END);
         if (in) IDOS->Close(in);
         if (out) IDOS->Close(out);
@@ -144,7 +146,7 @@ static std::string q(const std::string &s)
     return "\"" + s + "\"";
 }
 
-// True if NAME: is an assign or volume — checked without letting AmigaDOS put up an
+// True if NAME: is an assign or volume - checked without letting AmigaDOS put up an
 // "insert volume" requester.
 static bool deviceExists(const char *name)
 {
@@ -305,7 +307,7 @@ bool Builder::poll(BuildLine &out)
 bool parseDiagnostic(const std::string &text, const std::string &cwd, BuildLine &out)
 {
     const char *s = text.c_str();
-    // the file name runs to the first ':' that is followed by a digit or '(' — but an Amiga
+    // the file name runs to the first ':' that is followed by a digit or '(' - but an Amiga
     // device name ("DH1:src/x.c") also has a ':', so skip one that starts the path
     size_t start = 0;
     const char *colon = strchr(s, ':');

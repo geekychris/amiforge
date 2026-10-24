@@ -84,7 +84,8 @@ Without a project, Build, Run and Debug work on the file being edited.
   **Shift-F4** move between them.
 - Objects go into `obj/` in the project drawer.
 - C++ programs are linked with `-athread=native`, which the C++ runtime needs.
-- Compilers run with a 4 MB stack. `cc1plus` crashes with the default.
+- Compilers run with a 4 MB stack.
+- **Under QEMU** (the sam460ex machine), run `C:QEMUCopyFix` first, for example from `S:User-Startup`. QEMU doesn't emulate the 460EX's DMA engine, which exec uses for large memory copies, so without the fix `cc1plus` reads corrupted data and fails on C++ headers. Real hardware doesn't need it.
 
 **Ctrl-F5** (or F6, Amiga-E) builds, then runs the program in a console window.
 

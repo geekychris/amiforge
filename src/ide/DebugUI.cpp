@@ -98,7 +98,7 @@ void App::debugStart()
     if (debugging()) return;
     std::string exe = project.outputPath();
     if (!fileExists(exe)) {
-        info("Can't find " + exe + " — build the project first.");
+        info("Can't find " + exe + " - build the project first.");
         return;
     }
     if (!dbg) dbg = dbg_create();

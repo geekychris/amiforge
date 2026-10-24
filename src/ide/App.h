@@ -1,4 +1,4 @@
-// AmiForge — the application: main window, documents, project, build and debug.
+// AmiForge - the application: main window, documents, project, build and debug.
 #pragma once
 
 #include <string>

@@ -1,4 +1,4 @@
-/* hello — AmiForge's first example.
+/* hello - AmiForge's first example.
  *
  * Try: F9 on a line to set a breakpoint, F5 to debug, F10/F11 to step,
  * and watch `total` and `list` in the Locals and Watches panels. */

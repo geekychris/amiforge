@@ -12,6 +12,7 @@
 #include <proto/exec.h>
 #include <proto/intuition.h>
 #include <proto/clicktab.h>
+#include <proto/layout.h>
 #include <gadgets/clicktab.h>
 
 #include "Scintilla.h"
@@ -52,6 +53,14 @@ void App::rebuildTabs()
     if (win)
         IIntuition->RefreshSetGadgetAttrs((struct Gadget *)gad[GID_TABS], win, nullptr,
             CLICKTAB_Labels, (uint32)tabLabels, CLICKTAB_Current, curIndex, TAG_DONE);
+    // an empty clicktab has no height: lay the window out again when tabs come or go
+    static bool hadTabs = false;
+    bool haveTabs = !docs.empty();
+    if (win && haveTabs != hadTabs) {
+        ILayout->RethinkLayout((struct Gadget *)gad[GID_ROOT], win, nullptr, TRUE);
+        layoutEditor();
+    }
+    hadTabs = haveTabs;
 }
 
 Document *App::newDocument()

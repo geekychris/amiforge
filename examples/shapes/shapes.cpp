@@ -1,4 +1,4 @@
-// shapes — a C++ example: classes, virtual functions, std::vector and std::string.
+// shapes - a C++ example: classes, virtual functions, std::vector and std::string.
 #include <cstdio>
 #include <memory>
 #include <string>

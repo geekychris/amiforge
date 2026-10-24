@@ -15,7 +15,7 @@
 namespace af {
 
 static const char *helloC =
-    "/* %s — created by AmiForge */\n"
+    "/* %s - created by AmiForge */\n"
     "#include <stdio.h>\n"
     "\n"
     "int main(int argc, char **argv)\n"
@@ -35,7 +35,7 @@ static std::string stripExt(const std::string &n)
 
 void App::newProject()
 {
-    std::string afp = requestFile("New Project — choose a name for the project file", true,
+    std::string afp = requestFile("New Project - choose a name for the project file", true,
                                   joinPath(lastDir, "myproject.afp"), "#?.afp");
     if (afp.empty()) return;
     if (extension(afp) != "afp") afp += ".afp";
@@ -161,7 +161,7 @@ bool App::ensureProject()
 {
     if (!project.files.empty()) return true;
     if (!cur || cur->path.empty() || !isSourceFile(cur->path)) {
-        info("Open or create a project first (Project ▸ New Project), or save this file as a .c, .cpp or .s file.");
+        info("Open or create a project first (Project > New Project), or save this file as a .c, .cpp or .s file.");
         return false;
     }
     // an implicit, unsaved project for a single file

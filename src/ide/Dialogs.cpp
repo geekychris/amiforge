@@ -159,7 +159,7 @@ void App::gotoLineDialog()
 void App::about()
 {
     ask("About AmiForge",
-        "AmiForge 0.1 — a native IDE for AmigaOS 4.1\n\n"
+        "AmiForge 0.1 - a native IDE for AmigaOS 4.1\n\n"
         "Editing: Scintilla 5.5.7 and Lexilla 5.4.5 by Neil Hodgson\n"
         "Building: the AmigaOS 4.1 SDK's GCC 11.5 (C, C++) and GNU as\n"
         "Debugging: AmiForge's own debugger on the exec debug interface\n\n"

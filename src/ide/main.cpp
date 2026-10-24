@@ -54,7 +54,7 @@ int App::run(int argc, char **argv)
         else openFile(a);
     }
     if (docs.empty()) newDocument();
-    setStatus("Ready — F5 debug, F7 build, Ctrl-F5 run, F9 breakpoint");
+    setStatus("Ready - F5 debug, F7 build, Ctrl-F5 run, F9 breakpoint");
 
     eventLoop();
 

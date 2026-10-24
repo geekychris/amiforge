@@ -1,4 +1,4 @@
-# fastsum.s — PowerPC assembler called from C.
+# fastsum.s - PowerPC assembler called from C.
 #
 #   int fastsum(const int *values, int count)    r3 = values, r4 = count
 #   returns the sum in r3. Step through it with F8 (step instruction) and

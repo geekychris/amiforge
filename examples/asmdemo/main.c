@@ -1,4 +1,4 @@
-/* asmdemo — C calling a PowerPC assembler function (fastsum.s). */
+/* asmdemo - C calling a PowerPC assembler function (fastsum.s). */
 #include <stdio.h>
 
 int fastsum(const int *values, int count);

@@ -55,7 +55,7 @@ bool Project::load(const std::string &afp, std::string &err)
         } else if (section == "watches" && k == "watch") {
             watches.push_back(v);
         } else if (section == "breakpoints" && k == "bp") {
-            // file:line:enabled[:condition] — the file itself may not contain ':' (it's relative)
+            // file:line:enabled[:condition] - the file itself may not contain ':' (it's relative)
             Bp b;
             size_t c1 = v.find(':');
             if (c1 == std::string::npos) continue;
