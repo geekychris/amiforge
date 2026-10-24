@@ -52,7 +52,9 @@ public:
     virtual void setBounds(int left, int top, int width, int height) = 0;
     virtual void getBounds(int *left, int *top, int *width, int *height) const = 0;
 
-    // Scintilla message API (SCI_* from Scintilla.h).
+    // Scintilla message API (SCI_* from Scintilla.h, plus the AF_SCI_* messages below).
+    // send() does not repaint by itself: the view repaints on the next handleMessage(),
+    // tick(), setBounds(), scrollTo() or setFocus(), so a batch of messages costs one paint.
     virtual intptr_t send(unsigned int msg, uintptr_t wParam = 0, intptr_t lParam = 0) = 0;
 
     // Offer an IntuiMessage (not yet replied). Returns true if the view used it.
@@ -60,6 +62,8 @@ public:
     // key messages only when the view has focus.
     virtual bool handleMessage(const struct IntuiMessage *im) = 0;
 
+    // Focus loss takes effect at the next tick(): clicking the autocomplete list (a ToolBox
+    // window) briefly deactivates the host window, and the list must survive that.
     virtual void setFocus(bool focus) = 0;
     virtual bool hasFocus() const = 0;
 
@@ -98,5 +102,13 @@ enum {
     AF_MARKER_FRAME = 7,             // green arrow: selected (non-top) stack frame
 };
 enum { AF_MARGIN_NUMBERS = 0, AF_MARGIN_SYMBOLS = 1, AF_MARGIN_FOLD = 2 };
+
+// Messages SciView handles itself (send them like SCI_* messages). sciSetupSourceEditor
+// turns both on.
+enum {
+    AF_SCI_SETBRACEMATCH = 0x7F00,   // wParam != 0: highlight the brace pair at the caret
+    AF_SCI_SETAUTOINDENT = 0x7F01,   // wParam != 0: a new line gets the previous line's indent,
+                                     // one level more after '{'; a '}' typed first is outdented
+};
 
 } // namespace af
