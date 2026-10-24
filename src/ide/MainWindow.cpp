@@ -298,7 +298,7 @@ bool App::openMainWindow()
 
     winObj = IIntuition->NewObject(IWindow->WINDOW_GetClass(), nullptr,
         WA_Title, (uint32)"AmiForge",
-        WA_ScreenTitle, (uint32)"AmiForge — AmigaOS 4 IDE",
+        WA_ScreenTitle, (uint32)"AmiForge - AmigaOS 4 IDE",
         WA_DragBar, TRUE, WA_CloseGadget, TRUE, WA_DepthGadget, TRUE, WA_SizeGadget, TRUE,
         WA_Activate, TRUE, WA_ReportMouse, TRUE, WA_SmartRefresh, TRUE,
         WA_Left, 20, WA_Top, 30, WA_InnerWidth, 1180, WA_InnerHeight, 620,
@@ -494,8 +494,8 @@ void App::updateTitle()
 {
     static std::string title;
     title = "AmiForge";
-    if (!project.path.empty()) title += " — " + project.name;
-    if (cur) title += " — " + (cur->path.empty() ? cur->title : cur->path) + (cur->modified ? " *" : "");
+    if (!project.path.empty()) title += " - " + project.name;
+    if (cur) title += " - " + (cur->path.empty() ? cur->title : cur->path) + (cur->modified ? " *" : "");
     if (winObj) IIntuition->SetAttrs(winObj, WA_Title, (uint32)title.c_str(), TAG_DONE);
 }
 
@@ -661,6 +661,8 @@ void App::eventLoop()
             pendingCommands.erase(pendingCommands.begin());
             handleMenu(c);
         }
+        // SciView batches its repaints: let it paint now the loop is idle
+        if (editor) editor->tick();
     }
 }
 

@@ -1,4 +1,6 @@
-// scitest — a SciView in a plain Intuition window on Workbench.
+// scitest — a SciView in a ReAction window on Workbench, wired up the way the IDE does it:
+// window.class feeds the view through WINDOW_IDCMPHook, and a read-only space.gadget holds
+// the view's place in the layout (GA_ReadOnly, so clicks reach the window as MOUSEBUTTONS).
 //
 //   scitest [file]      edit a file (default: a built-in C sample with every syntax kind)
 //
@@ -17,7 +19,14 @@
 
 #include <proto/exec.h>
 #include <proto/intuition.h>
-#include <proto/graphics.h>
+#include <proto/window.h>
+#include <proto/layout.h>
+#include <proto/space.h>
+#include <proto/button.h>
+#include <classes/window.h>
+#include <gadgets/layout.h>
+#include <gadgets/space.h>
+#include <gadgets/button.h>
 #include <dos/dos.h>
 
 using namespace af;
@@ -65,8 +74,6 @@ const char sampleC[] =
     "    p.x += p.y * 2;\n"
     "    return p.x > 0 ? 0 : 20;\n"
     "}\n";
-
-constexpr int statusHeight = 18;
 
 struct Host : SciViewHost {
     struct Window *win = nullptr;
@@ -160,33 +167,66 @@ struct Host : SciViewHost {
         event = "context menu at " + std::to_string(x) + "," + std::to_string(y);
     }
 
+    Object *space = nullptr;      // the editor's place in the layout
+    Object *status = nullptr;     // read-only button showing the status line
+    std::string statusText;
+
+    // Put the view on the space gadget's render box (window coordinates), or just re-blit it
+    // when the box has not moved.
     void Layout() {
-        const int w = win->Width - win->BorderLeft - win->BorderRight;
-        const int h = win->Height - win->BorderTop - win->BorderBottom - statusHeight;
-        view->setBounds(win->BorderLeft, win->BorderTop, w, h);
-        DrawStatus();
+        struct IBox box = {};
+        IIntuition->GetAttr(SPACE_RenderBox, space, reinterpret_cast<uint32 *>(&box));
+        int l, t, w, h;
+        view->getBounds(&l, &t, &w, &h);
+        if (box.Width <= 0 || box.Height <= 0)
+            return;
+        if (box.Left != l || box.Top != t || box.Width != w || box.Height != h)
+            view->setBounds(box.Left, box.Top, box.Width, box.Height);
+        else
+            view->refresh();
     }
 
-    void DrawStatus() {
-        struct RastPort *rp = win->RPort;
-        const int x0 = win->BorderLeft, y0 = win->Height - win->BorderBottom - statusHeight;
-        const int x1 = win->Width - win->BorderRight - 1, y1 = win->Height - win->BorderBottom - 1;
-        if (x1 <= x0 || y1 <= y0)
-            return;
+    void UpdateStatus() {
         const intptr_t pos = view->send(SCI_GETCURRENTPOS);
         const intptr_t line = view->send(SCI_LINEFROMPOSITION, pos);
         const intptr_t col = view->send(SCI_GETCOLUMN, pos);
         char text[200];
         snprintf(text, sizeof(text), "Ln %ld, Col %ld   V %s   H %s   %s%s", (long)line + 1, (long)col + 1,
                  scroll[0].c_str(), scroll[1].c_str(), event.c_str(), view->hasFocus() ? "" : "   (inactive)");
-        IGraphics->SetAPen(rp, 0);
-        IGraphics->RectFill(rp, x0, y0, x1, y1);
-        IGraphics->SetAPen(rp, 1);
-        IGraphics->SetDrMd(rp, JAM1);
-        IGraphics->Move(rp, x0 + 4, y0 + 2 + rp->TxBaseline);
-        IGraphics->Text(rp, text, strlen(text));
+        if (statusText == text || !win)
+            return;
+        statusText = text;
+        IIntuition->SetGadgetAttrs(reinterpret_cast<struct Gadget *>(status), win, nullptr,
+                                   GA_Text, statusText.c_str(), TAG_END);
     }
 };
+
+// window.class calls this from WM_HANDLEINPUT, on our task, for the IDCMP classes in
+// WINDOW_IDCMPHookBits. The IntuiMessage is only valid during the call.
+uint32 IdcmpHook(struct Hook *hook, APTR, struct IntuiMessage *im) {
+    Host *host = static_cast<Host *>(hook->h_Data);
+    if (!host->view)
+        return 0;
+    host->view->handleMessage(im);
+    if (im->Class == IDCMP_EXTENDEDMOUSE && im->Code == IMSGCODE_INTUIWHEELDATA) {
+        const struct IntuiWheelData *wd = static_cast<const struct IntuiWheelData *>(im->IAddress);
+        host->event = "wheel " + std::to_string(wd->WheelX) + "," + std::to_string(wd->WheelY);
+    }
+    if (im->Class == IDCMP_INTUITICKS)
+        host->view->tick();
+    return 0;
+}
+
+// The space gadget renders after every layout (the render box is only up to date then) and
+// refresh: re-place or re-blit the view. GM_RENDER can also come from input.device's task,
+// where the view must not be touched.
+struct Task *mainTask;
+uint32 RenderHook(struct Hook *hook, APTR, struct gpRender *) {
+    Host *host = static_cast<Host *>(hook->h_Data);
+    if (host->view && IExec->FindTask(nullptr) == mainTask)
+        host->Layout();
+    return 0;
+}
 
 bool LoadFile(SciView *v, const char *path) {
     FILE *f = fopen(path, "rb");
@@ -206,30 +246,56 @@ bool LoadFile(SciView *v, const char *path) {
 
 int main(int argc, char **argv) {
     const char *path = argc > 1 ? argv[1] : nullptr;
-    struct Screen *screen = IIntuition->LockPubScreen(nullptr);
-    if (!screen)
-        return 20;
-    struct Window *win = IIntuition->OpenWindowTags(nullptr,
-        WA_PubScreen, screen,
-        WA_Title, path ? path : "scitest",
-        WA_Left, 60, WA_Top, 40, WA_Width, 900, WA_Height, 600,
-        WA_MinWidth, 200, WA_MinHeight, 120, WA_MaxWidth, ~0u, WA_MaxHeight, ~0u,
-        WA_DragBar, TRUE, WA_DepthGadget, TRUE, WA_CloseGadget, TRUE, WA_SizeGadget, TRUE,
-        WA_SizeBBottom, TRUE,
-        WA_Activate, TRUE, WA_SmartRefresh, TRUE, WA_ReportMouse, TRUE, WA_RMBTrap, TRUE,
-        WA_IDCMP, IDCMP_CLOSEWINDOW | IDCMP_NEWSIZE | IDCMP_REFRESHWINDOW | IDCMP_MOUSEBUTTONS |
-                  IDCMP_MOUSEMOVE | IDCMP_RAWKEY | IDCMP_EXTENDEDMOUSE | IDCMP_INTUITICKS |
-                  IDCMP_ACTIVEWINDOW | IDCMP_INACTIVEWINDOW,
-        TAG_END);
-    IIntuition->UnlockPubScreen(nullptr, screen);
-    if (!win)
-        return 20;
+    mainTask = IExec->FindTask(nullptr);
 
     Host host;
+    struct Hook idcmpHook = {}, renderHook = {};
+    idcmpHook.h_Entry = reinterpret_cast<HOOKFUNC>(IdcmpHook);
+    idcmpHook.h_Data = &host;
+    renderHook.h_Entry = reinterpret_cast<HOOKFUNC>(RenderHook);
+    renderHook.h_Data = &host;
+
+    Object *winObj = IIntuition->NewObject(IWindow->WINDOW_GetClass(), nullptr,
+        WA_Title, path ? path : "scitest",
+        WA_Left, 60, WA_Top, 40, WA_InnerWidth, 880, WA_InnerHeight, 560,
+        WA_DragBar, TRUE, WA_DepthGadget, TRUE, WA_CloseGadget, TRUE, WA_SizeGadget, TRUE,
+        WA_Activate, TRUE, WA_SmartRefresh, TRUE, WA_ReportMouse, TRUE, WA_RMBTrap, TRUE,
+        // WA_IDCMP replaces window.class's own set, so it lists what the class needs too.
+        WA_IDCMP, IDCMP_GADGETUP | IDCMP_GADGETDOWN | IDCMP_CLOSEWINDOW | IDCMP_NEWSIZE |
+                  IDCMP_REFRESHWINDOW | IDCMP_ACTIVEWINDOW | IDCMP_INACTIVEWINDOW |
+                  IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE | IDCMP_RAWKEY | IDCMP_EXTENDEDMOUSE |
+                  IDCMP_INTUITICKS,
+        WINDOW_IDCMPHook, &idcmpHook,
+        WINDOW_IDCMPHookBits, IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE | IDCMP_RAWKEY |
+                              IDCMP_EXTENDEDMOUSE | IDCMP_INTUITICKS,
+        WINDOW_Layout, IIntuition->NewObject(ILayout->LAYOUT_GetClass(), nullptr,
+            LAYOUT_Orientation, LAYOUT_ORIENT_VERT,
+            LAYOUT_AddChild, host.space = IIntuition->NewObject(ISpace->SPACE_GetClass(), nullptr,
+                GA_ReadOnly, TRUE,
+                SPACE_Transparent, TRUE,
+                SPACE_RenderHook, &renderHook,
+                SPACE_MinWidth, 160, SPACE_MinHeight, 80,
+                TAG_END),
+            LAYOUT_AddChild, host.status = IIntuition->NewObject(IButton->BUTTON_GetClass(), nullptr,
+                GA_ReadOnly, TRUE,
+                GA_Text, "",
+                BUTTON_Justification, BCJ_LEFT,
+                BUTTON_BevelStyle, BVS_NONE,
+                TAG_END),
+            CHILD_WeightedHeight, 0,
+            TAG_END),
+        TAG_END);
+    if (!winObj)
+        return 20;
+    struct Window *win = reinterpret_cast<struct Window *>(IIntuition->IDoMethod(winObj, WM_OPEN));
+    if (!win) {
+        IIntuition->DisposeObject(winObj);
+        return 20;
+    }
     host.win = win;
     SciView *view = SciView::create(win, &host);
     if (!view) {
-        IIntuition->CloseWindow(win);
+        IIntuition->DisposeObject(winObj);
         return 20;
     }
     host.view = view;
@@ -250,39 +316,31 @@ int main(int argc, char **argv) {
     view->send(SCI_EMPTYUNDOBUFFER);
     view->send(SCI_SETSAVEPOINT);
     host.Layout();
+    host.UpdateStatus();
     view->setFocus(true);
 
+    uint32 winSig = 0;
+    IIntuition->GetAttr(WINDOW_SigMask, winObj, &winSig);
     while (!host.quit) {
-        if (IExec->Wait((1u << win->UserPort->mp_SigBit) | SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
+        if (IExec->Wait(winSig | SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
             break;
-        struct IntuiMessage *im;
-        while ((im = reinterpret_cast<struct IntuiMessage *>(IExec->GetMsg(win->UserPort)))) {
-            view->handleMessage(im);
-            if (im->Class == IDCMP_EXTENDEDMOUSE && im->Code == IMSGCODE_INTUIWHEELDATA) {
-                const struct IntuiWheelData *wd = static_cast<const struct IntuiWheelData *>(im->IAddress);
-                host.event = "wheel " + std::to_string(wd->WheelX) + "," + std::to_string(wd->WheelY);
-            }
-            switch (im->Class) {
-            case IDCMP_CLOSEWINDOW: host.quit = true; break;
-            case IDCMP_NEWSIZE: host.Layout(); break;
-            case IDCMP_ACTIVEWINDOW: view->setFocus(true); break;
-            case IDCMP_INACTIVEWINDOW: view->setFocus(false); break;
-            case IDCMP_INTUITICKS: view->tick(); break;
-            case IDCMP_REFRESHWINDOW:
-                IIntuition->BeginRefresh(win);
-                view->refresh();
-                host.DrawStatus();
-                IIntuition->EndRefresh(win, TRUE);
-                break;
+        uint32 result;
+        uint16 code;
+        while ((result = IIntuition->IDoMethod(winObj, WM_HANDLEINPUT, &code)) != WMHI_LASTMSG) {
+            switch (result & WMHI_CLASSMASK) {
+            case WMHI_CLOSEWINDOW: host.quit = true; break;
+            case WMHI_NEWSIZE: host.Layout(); break;
+            case WMHI_ACTIVE: view->setFocus(true); break;
+            case WMHI_INACTIVE: view->setFocus(false); break;
             default: break;
             }
-            IExec->ReplyMsg(&im->ExecMessage);
         }
         view->tick();
-        host.DrawStatus();
+        host.UpdateStatus();
     }
 
     delete view;
-    IIntuition->CloseWindow(win);
+    host.view = nullptr;
+    IIntuition->DisposeObject(winObj);
     return 0;
 }
