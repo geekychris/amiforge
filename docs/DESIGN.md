@@ -1,0 +1,175 @@
+# AmiForge design
+
+AmiForge is a native IDE for AmigaOS 4.1 (PowerPC). It runs on the Amiga itself, with:
+- a multi-file editor with C, C++ and PPC assembler highlighting, using a port of Scintilla;
+- the SDK's native GCC 11.5 (C, C++, GNU as) for building projects;
+- a source-level debugger that runs on the Amiga, built on the exec debug interface.
+
+The IDE itself is cross-compiled on a Mac or Linux host (Docker, `tools/build.sh`) and tested
+in QEMU's sam460ex machine running AmigaOS 4.1 Final Edition.
+
+## Layout
+
+```
+src/sci/     Scintilla platform layer for OS4 (PlatOS4.cpp, ScintillaOS4.cpp) + SciView.h API
+src/dbg/     debugger core (dbg.h API). Portable parts (ELF/stabs reader, PPC decoder,
+             expression evaluator, value formatting) compile on the host too; os4_*.c is the
+             runtime that talks to exec/dos.
+src/ide/     the application: ReAction GUI, projects, build runner, panels
+third_party/ scintilla 5.5.7 and lexilla 5.4.5, unmodified upstream
+tests/os4/   test programs that run on OS4 (scitest, dbgtest...)
+tests/targets/ small debuggee programs, always built -O0 -gstabs+
+tests/host/  host unit tests (make -C tests/host)
+tools/       build.sh (Docker), m1*.sh/m1mcp.py (drive the OS4 guest on the test Mac)
+```
+
+## Build
+
+`tools/build.sh` runs `make` in `walkero/amigagccondocker:os4-gcc11` (adtools GCC 11.5).
+- C++17, newlib (`-mcrt=newlib`), `-mcpu=440fp`, `-D__USE_INLINE__`.
+- C++ programs link with `-athread=native`, or libstdc++'s gthread symbols are missing.
+- Scintilla compiles unmodified with this toolchain.
+
+## Testing on OS4
+
+The test machine is `chriscollins@m1.local` (override with `M1=`). QEMU sam460ex runs AmigaOS
+4.1 there with amiga_mcp's devbench on :3000. The bridge runs on the guest and gives file
+transfer, shell commands and launching.
+- `tools/m1push.sh build/AmiForge DH1:AmiForge/AmiForge` copies a file in (~160 KB/s).
+- `tools/m1dos.sh 'list DH1:AmiForge'` runs a shell command and prints its output.
+  Commands are run by the bridge daemon, so a program that never exits blocks the call; start
+  GUI programs with `run >NIL: prog` instead.
+- `tools/m1mcp.py <tool> '<json>'` calls any devbench MCP tool (`tools/m1mcp.py list`).
+- `tools/m1shot.sh out.png` takes a screenshot via QEMU's monitor. The screen is 1280x720.
+- `tools/m1click.sh X Y` clicks, and `tools/m1keys.sh a b ret ctrl-c f5` types, both via QEMU's
+  monitor.
+- Put test files under `DH1:AmiForge/` (the "chris" volume). Never use a path that may not
+  exist as a volume name (e.g. `SDK:` before the SDK is installed): AmigaDOS pops up an
+  "insert volume" requester, which blocks the bridge until someone clicks Cancel.
+- OS4 has no memory protection to speak of. A bad debugger write can hang the guest. If the
+  bridge stops answering, `ssh chriscollins@m1.local 'zsh -lc "retro restart os4"'`
+  reboots it (about 60–90 s).
+
+## Editor (src/sci)
+
+- **Threading:** SciView (src/sci/SciView.h) runs on the IDE task. The IDE uses a space.gadget
+  as a placeholder in its ReAction layout and routes IntuiMessages for that rectangle to the
+  view. It is not a BOOPSI gadget, because gadget methods run on input.device's task.
+- **Rendering:** into an off-screen bitmap (a friend of the screen's bitmap) with its own
+  Layer_Info and layer, so `InstallClipRegion` gives clipping, then a blit into the window.
+  Colours are 0xAARRGGBB set with `SetRPAttrs(RPTAG_APenColor/BPenColor)` on hi/true-colour
+  screens, or `ObtainBestPen` on palette screens.
+- **Text:**
+  - fonts come from `OpenDiskFont` (DejaVu Sans Mono outline font, in FONTS:);
+  - Scintilla runs in single-byte mode (code page 0, Latin-1, which is the Amiga's charset);
+  - `MeasureWidths` comes from `TextLength`/`TextExtent`.
+- **Platform pieces:**
+  - clipboard: textclip.library;
+  - timers: INTUITICKS plus `tick()`;
+  - autocomplete list and calltips: small borderless windows;
+  - context menu: popupmenu.class, or reported to the host.
+- **Lexers:** LexCPP (C/C++), LexAsm (GNU as, with PPC mnemonics and registers as keywords),
+  LexMake, LexProps, LexDiff.
+
+## Debugger (src/dbg)
+
+API: src/dbg/dbg.h.
+
+**Launch.** This follows adtools GDB's amigaos-nat.c:
+1. `LoadSeg`.
+2. `Forbid`.
+3. `CreateNewProcTags(NP_Seglist, NP_FreeSeglist=FALSE, NP_Cli=TRUE, NP_Arguments, NP_Input/NP_Output = console)`.
+4. `SuspendTask`.
+5. `Permit`.
+6. `IDebug->AddDebugHook(task, &hook)`.
+7. `RestartTask` once breakpoints are in.
+
+`IDebug` = `GetInterface(SysBase, "debug", 1)`, and `IMMU` = `GetInterface(SysBase, "mmu", 1)`.
+
+**Debug hook.** It is called on the debuggee's context with `(hook, task, msg)`. `msg` is
+`{uint32 type; union {struct ExceptionContext *ctx; struct Library *lib;}}`:
+- DBHMT_EXCEPTION: copy the context, `Signal()` the IDE, and return 1, which suspends the task.
+- DBHMT_REMTASK: the program ended.
+
+The hook must be short and must not call DOS. Read and write registers with
+`IDebug->ReadTaskContext`/`WriteTaskContext` (RTCF_* flags). The PC is `ip`. After a `trap`,
+`ip` points at the trap itself.
+
+**Breakpoints.**
+- A breakpoint is `0x7FE00008` (`tw 31,0,0`, i.e. `trap`), and the hit arrives as program
+  exception 0x700.
+- To write one:
+  1. Read the memory attributes with `IMMU->GetMemoryAttrs(addr, 0)`.
+  2. If needed, `SetMemoryAttrs(addr, 4, MEMATTRF_READ_WRITE)`.
+  3. Write the instruction.
+  4. Restore the old attributes.
+  5. `IExec->CacheClearE(addr, 4, CACRF_ClearI | CACRF_ClearD)`.
+- To resume from one:
+  1. Put the original instruction back.
+  2. Single-step it.
+  3. Re-insert the trap.
+  4. Continue.
+
+**Single-step.** In software: decode the instruction at the PC.
+- `b`/`bl`/`bc`/`bclr`/`bcctr` (with LR/CTR from the context) give the branch targets; anything
+  else gives PC+4.
+- Put temporary traps on the successors. Only ever place traps inside the debuggee's own
+  sections.
+- If a successor is outside them (a call into a library), trap the return address instead:
+  PC+4 for a branch-and-link, or LR for a tail branch.
+- The MSR trace bit may or may not work on QEMU's 440 model; it's optional.
+
+**Source stepping.**
+- Step over: temporary traps on every line-start address of the current function except the
+  current line, plus the return address. A hit only counts when SP >= the starting SP, which
+  handles recursion.
+- Step into: instruction steps until the line changes. Steps into code without line info turn
+  into a return-address trap.
+- Step out: a trap on the return address, with the same SP check.
+
+**Return address.** Before the prologue has run, it is LR. After the prologue, it is the word
+at `*(r1) + 4`, via the back chain.
+
+**Stack.** Walk the back chain from r1. `frame[0]` is the back chain, and `frame[1]` (at +4)
+is the saved LR of the caller's frame. Look up names with stabs/symtab for the program, and
+`IDebug->ObtainDebugSymbol` for everything else.
+
+**Debug info.** Read from the ELF file on disk: `.stab`/`.stabstr`, `.symtab`, and the section
+headers.
+- N_FUN values are absolute link addresses. N_SLINE values are relative to the function start
+  (ELF stabs).
+- N_PSYM/N_LSYM offsets are relative to the frame base (r1 after the prologue). N_RSYM gives a
+  register number.
+- N_LBRAC/N_RBRAC (function-relative) mark scopes. N_GSYM, N_STSYM and N_LCSYM are globals and
+  statics.
+- Map to load addresses per section: `GetSegListInfoTags(seg, GSLI_ElfHandle, &h)` then
+  `IElf->GetSectionTags(h, GST_SectionIndex, i, GST_Load, FALSE)` (or GST_SectionName) gives
+  each loaded section's address. Then load = link − sh_addr + section load address.
+
+**Types.** stabs type strings cover:
+- ranges, pointers (`*`), struct/union (`s`/`u`), enums (`e`), arrays (`ar`), typedefs (`t`/`T`),
+  const/volatile (`k`/`B`), functions (`f`/`F`), cross-references (`x`);
+- with `-gstabs+`, the C++ extensions (methods, base classes). Parse what is needed and skip
+  the rest.
+
+**Memory safety.** Validate before reading (`IMMU->GetMemoryAttrs` / `TypeOfMem`); a bad
+pointer must show `<unreadable>`, not crash the IDE.
+
+**Expressions.** Covers:
+- identifiers (locals, params, then globals), `.`, `->`, `[i]`, unary `*` and `&`, casts to known
+  types, integer arithmetic;
+- `$r3`, `$pc`, `$lr` and similar;
+- hex/decimal literals, and comparisons for conditions.
+
+**C++.** Demangle with `abi::__cxa_demangle`.
+
+## IDE (src/ide)
+
+- **GUI:** ReAction (window.class, layout.gadget, clicktab, listbrowser, speedbar, scroller,
+  string, chooser), with menus via window.class and the menuclass.
+- **Project files:** `*.afp`, ini-style: name, sources, target, compiler flags and link flags.
+- **Builds:** run per file in a separate process using `SystemTags`, so the GUI stays live.
+  Output is parsed into clickable errors (`file:line:col: error|warning|note: msg`, GNU as
+  `file:line: Error:`, ld `undefined reference`).
+- **Native toolchain:** the SDK installed in `SDK:` (gcc 11.5 in SDK:gcc/bin). `S:User-Startup`
+  assigns SDK: and runs `SDK:S/sdk-startup`.
