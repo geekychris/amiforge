@@ -311,6 +311,7 @@ void App::refreshMarkers()
     }
     if (frameLine > 0 && !frameFile.empty() && sameFile(frameFile, cur->path))
         S(editor, SCI_MARKERADD, frameLine - 1, AF_MARKER_FRAME);
+    applyProfileAnnotations();   // --- debugtools ---
 }
 
 void App::clearMarkers(int marker)

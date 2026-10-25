@@ -18,6 +18,11 @@
 #include "Snippets.h"
 #include "Symbols.h"
 #include <functional>
+// --- debugtools ---
+#include "InspectModel.h"
+#include "LeakModel.h"
+#include "ProfileModel.h"
+// --- end debugtools ---
 
 struct Window;
 struct Screen;
@@ -69,6 +74,7 @@ struct Project {
     std::string args;
     std::string console;        // empty = default CON: window
     bool stopAtMain = true;
+    bool trackLeaks = false;    // --- debugtools: Debug > Track Leaks ---
     std::vector<std::string> files;    // relative to dir
     std::vector<std::string> watches;
     struct Bp { std::string file; int line; bool enabled; std::string cond; };
@@ -176,6 +182,9 @@ enum Gid {
     GID_MEM_ADDR, GID_MEM_VIEW, GID_DISASM, GID_DEBUGLOG, GID_STATUS, GID_STATUS2,
     // --- editor features ---
     GID_LEFT_TABS, GID_LEFT_PAGES, GID_SYMBOLS,
+    // --- debugtools ---
+    GID_INSPECT, GID_INSPECT_REFRESH, GID_INSPECT_HIGHLIGHT, GID_LEAKS, GID_PROFILE, GID_PROFILE_CLEAR,
+    // --- end debugtools ---
     GID_LAST
 };
 
@@ -359,6 +368,36 @@ public:
     void debugLog(const std::string &s, int pen = -1);
     bool debugging() const { return dbg && dbg_get_state(dbg) != DBG_NONE && dbg_get_state(dbg) != DBG_EXITED; }
     bool stopped() const { return dbg && dbg_get_state(dbg) == DBG_STOPPED; }
+
+    // --- debugtools (DebugTools.cpp): Intuition inspector, leak tracker, profiler ---
+    enum { BOTTOM_WINDOWS = 7, BOTTOM_LEAKS = 8, BOTTOM_PROFILE = 9 };   // bottom panel pages
+    void dtBeforeRun();                 // debugStart, before dbg_run: switch tracking/profiling on
+    void dtPoll();                      // drain the debugger's leak events and profile samples
+    void dtSessionEnded();              // the program has ended (before dbg_unload): build the reports
+    void startProfiling();              // Debug > Profile
+    void toggleTrackLeaks();
+    void refreshInspector();
+    void inspectorClicked();
+    void highlightWindow(uint32_t window, int gadget);
+    void refreshLeaks();
+    void leakClicked();
+    void refreshProfile();
+    void profileClicked();
+    void applyProfileAnnotations();     // end-of-line heat on the current document
+    void clearProfile();
+    CodeLoc resolveCode(uint32_t addr);
+    ListView inspectView{2}, leaksView{3}, profileView{5};
+    LeakModel leakModel;
+    ProfileModel profileModel;
+    bool profileNext = false, profileRun = false, trackRun = false;
+    InspectSnapshot inspectSnap;
+    std::vector<InspRow> inspectRowList;
+    std::set<uint32_t> screensAtStart;
+    struct NavTarget { std::string file; int line = 0; };
+    std::vector<NavTarget> leakTargets, profileTargets;      // per row (userData - 1)
+    std::map<std::string, std::map<int, std::string>> profileNotes;   // absolute file -> line -> note
+    std::set<void *> annotatedDocs;     // Scintilla documents with our annotations
+    // --- end debugtools ---
 
     // --- dialogs (Dialogs.cpp) ---
     std::string requestFile(const char *title, bool save, const std::string &initial = "", const char *pattern = nullptr);

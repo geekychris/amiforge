@@ -110,10 +110,17 @@ void App::handleMenu(uint32_t cmd)
 
     // debug
     case CMD_DEBUG_START:
+        profileNext = false;   // --- debugtools ---
         if (stopped()) debugContinue();
         else if (!debugging()) buildBeforeRun(2);
         break;
     case CMD_DEBUG_STOP: debugStop(); break;
+    // --- debugtools ---
+    case CMD_TRACK_LEAKS: toggleTrackLeaks(); break;
+    case CMD_PROFILE: startProfiling(); break;
+    case CMD_PROFILE_CLEAR: clearProfile(); break;
+    case CMD_INSPECT: refreshInspector(); showBottomPage(BOTTOM_WINDOWS); break;
+    // --- end debugtools ---
     case CMD_DEBUG_PAUSE: debugPause(); break;
     case CMD_STEP_OVER: debugStep(0); break;
     case CMD_STEP_INTO: debugStep(1); break;

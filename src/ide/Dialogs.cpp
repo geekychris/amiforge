@@ -379,7 +379,7 @@ void App::handleFindWindow()
 bool App::editProjectSettings()
 {
     enum { PS_NAME = 1, PS_OUTPUT, PS_CC, PS_CXX, PS_CFLAGS, PS_CXXFLAGS, PS_ASFLAGS, PS_LDFLAGS, PS_LIBS,
-           PS_ARGS, PS_CONSOLE, PS_STOPMAIN, PS_OK, PS_CANCEL, PS_N };
+           PS_ARGS, PS_CONSOLE, PS_STOPMAIN, PS_OK, PS_CANCEL, PS_TRACKLEAKS /* debugtools */, PS_N };
     Object *g[PS_N] = {};
     Class *string = IString->STRING_GetClass();
     Class *layout = ILayout->LAYOUT_GetClass();
@@ -409,6 +409,9 @@ bool App::editProjectSettings()
             LAYOUT_AddChild, field(PS_CONSOLE, project.console), CHILD_Label, label("Console (empty: a window)"),
             LAYOUT_AddChild, g[PS_STOPMAIN] = IIntuition->NewObject(ICheckBox->CHECKBOX_GetClass(), nullptr,
                 GA_ID, PS_STOPMAIN, GA_Text, (uint32)"Stop at main() when debugging", GA_Selected, project.stopAtMain, TAG_DONE),
+            // --- debugtools ---
+            LAYOUT_AddChild, g[PS_TRACKLEAKS] = IIntuition->NewObject(ICheckBox->CHECKBOX_GetClass(), nullptr,
+                GA_ID, PS_TRACKLEAKS, GA_Text, (uint32)"Track leaks when debugging", GA_Selected, project.trackLeaks, TAG_DONE),
             LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr, LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
                 LAYOUT_EvenSize, TRUE,
                 LAYOUT_AddChild, g[PS_OK] = IIntuition->NewObject(IButton->BUTTON_GetClass(), nullptr,
@@ -462,6 +465,9 @@ bool App::editProjectSettings()
         uint32 v = 0;
         IIntuition->GetAttr(GA_Selected, g[PS_STOPMAIN], &v);
         project.stopAtMain = v;
+        IIntuition->GetAttr(GA_Selected, g[PS_TRACKLEAKS], &v);   // --- debugtools ---
+        project.trackLeaks = v;
+        rebuildMenus();
         if (project.output.empty()) project.output = project.name.empty() ? "program" : project.name;
     }
     IIntuition->DisposeObject(wo);

@@ -192,6 +192,75 @@ int dbg_addr_to_line(dbg_session *s, uint32_t addr, const char **file, int *line
 uint32_t dbg_line_to_addr(dbg_session *s, const char *file, int line, int *actual_line);
 uint32_t dbg_function_addr(dbg_session *s, const char *function);
 
+/* --- debugtools: resource tracking, profiling, the debuggee's task ---
+ * Resource tracking patches exec, dos and the program's newlib interface while the program
+ * runs (see os4_tools.c) and records every acquire/release the program makes itself (calls
+ * made inside those functions are not recorded). Profiling samples the program's IP from a
+ * high-priority process. Both are switched on before dbg_run and drained by the IDE while
+ * the program runs and once more when it has exited (before dbg_unload). */
+typedef enum {
+    DBG_RES_VEC = 1,      /* AllocVec / AllocVecTagList / AllocVecTags  - FreeVec */
+    DBG_RES_MEM,          /* AllocMem - FreeMem (size must match) */
+    DBG_RES_SYSOBJ,       /* AllocSysObject(Tags) - FreeSysObject (size = ASOT_ type) */
+    DBG_RES_POOL,         /* CreatePool - DeletePool */
+    DBG_RES_LIBRARY,      /* OpenLibrary - CloseLibrary (size = version) */
+    DBG_RES_INTERFACE,    /* GetInterface - DropInterface */
+    DBG_RES_FILE,         /* Open / FOpen / OpenFromLock - Close */
+    DBG_RES_LOCK,         /* Lock / DupLock / ParentDir / CreateDir / DupLockFromFH / ParentOfFH - UnLock */
+    DBG_RES_MALLOC,       /* malloc / calloc / realloc - free (newlib; from main() on) */
+    DBG_RES_KINDS
+} dbg_res_kind;
+
+/* dbg_res_event.fn: the call that was made */
+enum {
+    DBG_FN_ALLOCVEC, DBG_FN_ALLOCVECTAGLIST, DBG_FN_ALLOCVECTAGS, DBG_FN_FREEVEC, DBG_FN_ALLOCMEM, DBG_FN_FREEMEM,
+    DBG_FN_ALLOCSYSOBJECT, DBG_FN_ALLOCSYSOBJECTTAGS, DBG_FN_FREESYSOBJECT, DBG_FN_CREATEPOOL, DBG_FN_DELETEPOOL,
+    DBG_FN_OPENLIBRARY, DBG_FN_CLOSELIBRARY, DBG_FN_GETINTERFACE, DBG_FN_DROPINTERFACE,
+    DBG_FN_OPEN, DBG_FN_FOPEN, DBG_FN_OPENFROMLOCK, DBG_FN_CLOSE, DBG_FN_LOCK, DBG_FN_DUPLOCK, DBG_FN_PARENTDIR,
+    DBG_FN_CREATEDIR, DBG_FN_DUPLOCKFROMFH, DBG_FN_PARENTOFFH, DBG_FN_UNLOCK,
+    DBG_FN_MALLOC, DBG_FN_CALLOC, DBG_FN_REALLOC, DBG_FN_FREE, DBG_FN_COUNT
+};
+
+#define DBG_RES_CALLERS 6
+typedef struct {
+    uint8_t kind;         /* dbg_res_kind */
+    uint8_t is_free;      /* 0 acquired, 1 released */
+    uint16_t fn;          /* which call: dbg_res_function_name(fn) */
+    uint32_t addr;        /* memory, object, library, interface, BPTR */
+    uint32_t size;        /* bytes; version for libraries; ASOT_ type for system objects */
+    uint32_t seq;         /* order of the call */
+    uint32_t callers[DBG_RES_CALLERS];   /* return addresses, innermost first (0 ends) */
+} dbg_res_event;
+
+const char *dbg_res_function_name(int fn);
+const char *dbg_res_kind_name(int kind);
+int dbg_track_resources(dbg_session *s, int on);                       /* before dbg_run */
+int dbg_resource_events(dbg_session *s, dbg_res_event *out, int max);   /* drains; returns count */
+uint32_t dbg_resources_lost(dbg_session *s);                            /* events dropped (buffer full) */
+const char *dbg_resources_note(dbg_session *s);                         /* e.g. why malloc isn't tracked, or "" */
+
+enum { DBG_SAMPLE_RUNNING = 0, DBG_SAMPLE_WAITING = 1 };
+#define DBG_SAMPLE_CALLERS 7
+typedef struct {
+    uint32_t ip;
+    uint8_t state;        /* DBG_SAMPLE_* */
+    uint8_t ncallers;
+    uint16_t weight;      /* microseconds since the previous sample (the time it stands for), 0 = unknown */
+    uint32_t callers[DBG_SAMPLE_CALLERS];   /* LR, then the back chain's return addresses */
+} dbg_sample;
+
+int dbg_profile(dbg_session *s, int on, uint32_t interval_us);          /* before dbg_run */
+int dbg_profile_samples(dbg_session *s, dbg_sample *out, int max);      /* drains */
+uint32_t dbg_profile_lost(dbg_session *s);
+const char *dbg_profile_note(dbg_session *s);                           /* sampler statistics, for diagnostics */
+
+int dbg_addr_in_program(dbg_session *s, uint32_t addr);                 /* inside the program's code */
+/* An address outside the program: "newlib.library: malloc" (via ObtainDebugSymbol). 0 if unknown. */
+int dbg_addr_module(dbg_session *s, uint32_t addr, char *buf, int n);
+/* The debuggee's task (the process that runs the program), NULL when it isn't running. */
+void *dbg_task(dbg_session *s);
+/* --- end debugtools --- */
+
 #ifdef __cplusplus
 }
 #endif

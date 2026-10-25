@@ -34,6 +34,7 @@
 #include <strings.h>
 #include <stdarg.h>
 #include "dbg_int.h"
+#include "os4_tools.h"   /* --- debugtools --- */
 
 #define POLL_MS        10       /* hit polling while the program runs */
 #define QUICK_WAIT_MS  40       /* how long an internal resume waits for its next hit */
@@ -142,7 +143,19 @@ struct dbg_session {
     int nresolved;
     void (*trace_fn)(void *ud, const char *line);
     void *trace_ud;
+    /* --- debugtools --- */
+    void *dt;                   /* os4_tools.c state (resource tracking, profiler) */
+    volatile int returned;      /* RunCommand has returned: DOS is cleaning the process up */
+    int returned_polls;         /* polls since then (debugtools: see dbg_poll) */
 };
+
+/* --- debugtools: accessors for os4_tools.c --- */
+struct Task *dbg__proc(dbg_session *s) { return (struct Task *)s->proc; }
+struct DebugIFace *dbg__idebug(dbg_session *s) { return s->idebug; }
+dbg_info *dbg__info(dbg_session *s) { return s->di; }
+void **dbg__dt(dbg_session *s) { return &s->dt; }
+volatile uint32_t *dbg__exc_count(dbg_session *s) { return &s->exc_count; }
+/* --- end debugtools --- */
 
 
 /* ======================================================================== utilities */
@@ -625,6 +638,8 @@ void dbg_destroy(dbg_session *s)
 {
     if (!s) return;
     if (s->di || s->proc) dbg_unload(s);
+    dt_stop(s);                                      /* --- debugtools --- */
+    dt_free(s);
     for (size_t i = 0; i < s->bps.n; i++) {
         bpoint *b = &VEC_AT(&s->bps, bpoint, i);
         free(b->file); free(b->function); free(b->condition);
@@ -716,6 +731,7 @@ static void kill_now(dbg_session *s);
 void dbg_unload(dbg_session *s)
 {
     if (s->proc) kill_now(s);
+    dt_stop(s);                                      /* --- debugtools --- */
     unload_seg(s);
     if (s->di) { info_free(s->di); s->di = NULL; }
     for (size_t i = 0; i < s->bps.n; i++) {
@@ -917,6 +933,7 @@ static void report_exit(dbg_session *s)
     s->nframes = 0;
     s->generation++;
     s->just_exited = 1;
+    dt_after_exit(s);                                /* --- debugtools --- */
     push_event(s, &ev);
 }
 
@@ -1168,7 +1185,7 @@ static int handle_trap(dbg_session *s, trap *t)
         s->have_entry = 1;
         t->kinds &= ~TK_PENTRY;
     }
-    if (kinds & TK_MAIN) t->kinds &= ~TK_MAIN;      /* main is reached once */
+    if (kinds & TK_MAIN) { t->kinds &= ~TK_MAIN; dt_at_main(s); }   /* main is reached once; debugtools */
     int cond_err, id = (kinds & TK_USER) ? user_bp_at(s, pc, &cond_err) : 0;
     if (id) { report_stop(s, DBG_STOP_BREAKPOINT, id); return 1; }
     if ((kinds & TK_MAIN) && s->stop_at_main) { report_stop(s, DBG_STOP_ENTRY, 0); return 1; }
@@ -1270,9 +1287,19 @@ int dbg_poll(dbg_session *s, dbg_event *ev)
             break;
         }
         check_death(s);
+        /* (debugtools) DOS cleans an ended process up at priority -10, spinning in the kernel
+         * until it gets the CPU; with a busy machine (a profiler, another program) that can take
+         * forever. Once the program has returned, every ~200 ms that the process is still here
+         * with a lowered priority, give it a normal one so it can finish. */
+        if (s->proc && s->returned && ++s->returned_polls % 20 == 0 && ((struct Task *)s->proc)->tc_Node.ln_Pri < 0) {
+            trace(s, "process still in DOS's cleanup: raising its priority");
+            IExec->SetTaskPri((struct Task *)s->proc, 0);
+        }
         /* OS4 sometimes stops dispatching a ready debuggee (with a debug hook) until something
-         * reschedules it; it then sits ready at the same address. Kick it when we see that. */
-        if (s->state == DBG_RUNNING && s->proc) {
+         * reschedules it; it then sits ready at the same address. Kick it when we see that.
+         * (debugtools) Not once the program has returned: the hook is off, and suspending a
+         * process in DOS's cleanup left it hanging there. */
+        if (s->state == DBG_RUNNING && s->proc && !s->returned && !dt_sampling(s)) {
             struct Task *t = (struct Task *)s->proc;
             if (t->tc_State == TS_READY) {
                 struct ExceptionContext c;
@@ -1337,7 +1364,10 @@ static int32 launcher(STRPTR args, int32 len, struct ExecBase *sysbase)
     IExec->SetSignal(0, SIGBREAKF_CTRL_F);
     s->launcher_ready = 1;
     IExec->Wait(SIGBREAKF_CTRL_F);
+    dt_program_starting(s);                          /* --- debugtools --- */
     int32 rc = IDOS->RunCommand(s->seg, DEFAULT_STACK, s->run_args, s->run_arglen);
+    dt_program_returned(s);                          /* --- debugtools --- */
+    s->returned = 1;                                 /* debugtools: no more kicks (see dbg_poll) */
     /* and leave without the hook: DOS's process cleanup then runs as for any program */
     s->idebug->AddDebugHook(me, NULL);
     IDOS->SelectErrorOutput(olderr);
@@ -1401,6 +1431,8 @@ int dbg_run(dbg_session *s, int stop_at_main)
 
     s->exc_count = s->seen = 0;
     s->remtask = 0;
+    s->returned = 0;                                 /* debugtools */
+    s->returned_polls = 0;
     s->have_entry = 0;
     s->stop_at_main = stop_at_main;
 
@@ -1430,12 +1462,13 @@ int dbg_run(dbg_session *s, int stop_at_main)
     s->ran = 1;
 
     add_kind(s, s->entry_addr, TK_PENTRY);
-    if (stop_at_main && s->main_addr) add_kind(s, s->main_addr, TK_MAIN);
+    if ((stop_at_main || dt_wants_main(s)) && s->main_addr) add_kind(s, s->main_addr, TK_MAIN);   /* debugtools */
     refresh_user_traps(s);
     sync_traps(s);
     s->op = OP_CONT;
     s->state = DBG_RUNNING;
     s->generation++;
+    dt_before_go(s);                                 /* --- debugtools --- */
     IExec->Signal((struct Task *)s->proc, SIGBREAKF_CTRL_F);   /* go */
     arm_timer(s);
     return 1;
@@ -1503,6 +1536,14 @@ static void kill_now(dbg_session *s)
 {
     if (!s->proc) return;
     trace(s, "kill: state %d have_entry %d", s->state, s->have_entry);
+    if (s->returned) {
+        /* (debugtools) the program has already returned and DOS is cleaning the process up:
+         * the entry context means nothing any more (restoring it crashed the process). Let it
+         * finish, at a normal priority. */
+        IExec->SetTaskPri((struct Task *)s->proc, 0);
+        wait_death(s, 5000);
+        if (!s->proc) return;
+    }
     if (s->state == DBG_RUNNING) {
         IExec->SuspendTask((struct Task *)s->proc, 0);
         if (s->exc_count != s->seen) { s->seen = s->exc_count; wait_suspended(s); }
