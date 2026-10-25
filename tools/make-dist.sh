@@ -7,6 +7,7 @@
 #   AmiForge/Docs/                README.txt, user-guide.txt (Latin-1 text from the Markdown)
 #   AmiForge/Install-AmiForge     AmigaDOS script: copies the drawer to a destination
 #   AmiForge/Templates/<id>/      project templates (template.def + files)
+#   AmiForge/Rexx/                example ARexx macros (the Macros menu)
 #
 # Build the IDE first (tools/build.sh), or set AMIFORGE_BIN. Icons come from tools/make-icons.py (needs Pillow).
 # The archive is made with LHa for UNIX from the build image (the host's lha may be Lhasa,
@@ -40,6 +41,11 @@ if [ -f $root/build/QEMUCopyFix ]; then
     cp $root/build/QEMUCopyFix $d/Tools/QEMUCopyFix
     cp $icons/drawer.info $d/Tools.info
 fi
+
+# --- integrations --- ARexx macros for the Macros menu
+mkdir -p $d/Rexx
+cp $root/Rexx/*.rexx $d/Rexx/
+cp $icons/drawer.info $d/Rexx.info
 
 # examples: sources plus a project icon per .afp
 cp $icons/drawer.info $d/Examples.info

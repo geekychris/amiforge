@@ -96,6 +96,7 @@ void App::pollBuild()
             setStatus(summary);
             updateToolbar();
             if (!pendingCloneDir.empty()) gitAfterClone(ok);
+            integrationsGitDone(ok);   // --- integrations ---
             return;
         }
         if (l.kind == MsgKind::Done) {
@@ -142,6 +143,7 @@ void App::pollBuild()
         diagnostics.push_back(l);
         struct Node *n = buildLog.add({text}, (void *)(intptr_t)diagnostics.size());
         if (n && pen >= 0) buildLog.setPens(n, pen);
+        integrationsBuildLine(l, (int)diagnostics.size() - 1);   // --- integrations --- (explanations)
         if (l.kind == MsgKind::Output && l.text.find("Unknown command") != std::string::npos) {
             BuildLine hint;
             hint.kind = MsgKind::Error;

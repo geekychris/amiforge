@@ -50,6 +50,7 @@
 
 #include "Scintilla.h"
 #include "sci/Theme.h"
+#include "Integrations.h"   // --- integrations ---
 
 namespace af {
 
@@ -131,6 +132,7 @@ static struct NewMenu menus[] = {
     TITLE("File"),
     ITEM("New", "N", CMD_NEW_FILE),
     ITEM("Open...", "O", CMD_OPEN_FILE),
+    ITEM("Open as Hex...", 0, CMD_OPEN_HEX),   // --- integrations ---
     ITEM("Save", "S", CMD_SAVE),
     ITEM("Save As...", "A", CMD_SAVE_AS),
     ITEM("Save All", 0, CMD_SAVE_ALL),
@@ -197,6 +199,9 @@ static struct NewMenu menus[] = {
     BAR,
     ITEM("Next Error  (F4)", 0, CMD_NEXT_ERROR),
     ITEM("Previous Error  (Shift F4)", 0, CMD_PREV_ERROR),
+    ITEM("Explain Error", 0, CMD_EXPLAIN),                         // --- integrations ---
+    BAR,
+    ITEM("Distributed Builds (distcc)...", 0, CMD_DISTCC_SETTINGS),  // --- integrations ---
 
     TITLE("Debug"),
     ITEM("Start / Continue  (F5)", "D", CMD_DEBUG_START),
@@ -220,8 +225,14 @@ static struct NewMenu menus[] = {
     ITEM("Clear Profile", 0, CMD_PROFILE_CLEAR),
     ITEM("Inspect Windows", 0, CMD_INSPECT),
     // --- end debugtools ---
+    BAR,
+    ITEM("Explain Crash", 0, CMD_EXPLAIN),   // --- integrations ---
 
     TITLE("Git"),
+    ITEM("Git Panel", 0, CMD_GIT_PANEL),        // --- integrations ---
+    ITEM("Blame (toggle)", 0, CMD_GIT_BLAME),
+    ITEM("New Branch...", 0, CMD_GIT_NEW_BRANCH),
+    BAR,
     ITEM("Status", 0, CMD_GIT_STATUS),
     ITEM("Diff", 0, CMD_GIT_DIFF),
     ITEM("Log", 0, CMD_GIT_LOG),
@@ -256,6 +267,8 @@ void App::rebuildMenus()
     menuLabels.reserve(recentProjects.size());
     for (auto &p : recentProjects) menuLabels.push_back(fileName(p) + "  (" + dirName(p) + ")");
     for (struct NewMenu *m = menus; ; m++) {
+        // --- integrations --- the Macros menu goes before Help
+        if (m->nm_Type == NM_TITLE && strcmp((const char *)m->nm_Label, "Help") == 0) appendMacroMenu(this, menuData);
         menuData.push_back(*m);
         if (m->nm_Type == NM_END) break;
         // --- editor features: check marks, the Theme submenu ---
@@ -344,7 +357,9 @@ bool App::openMainWindow()
 
     static const char *sideNames[] = { "Locals", "Watches", "Registers", nullptr };
     static const char *bottomNames[] = { "Build", "Find", "Call Stack", "Breakpoints", "Memory", "Disassembly", "Debug Log",
-                                         "Windows", "Leaks", "Profile", nullptr };   // debugtools: the last three
+                                         "Windows", "Leaks", "Profile",   // debugtools
+                                         "Git",   // --- integrations ---
+                                         nullptr };
     sideLabels = tabList(sideNames);
     static const char *leftNames[] = { "Project", "Symbols", nullptr };   // --- editor features ---
     leftLabels = tabList(leftNames);
@@ -458,6 +473,7 @@ bool App::openMainWindow()
             CHILD_WeightedHeight, 0,
             TAG_DONE),
         // --- end debugtools ---
+        PAGE_Add, createGitPage(),   // --- integrations ---
         TAG_DONE);
     gad[GID_BOTTOM_PAGES] = bottomPages;
 
@@ -761,6 +777,7 @@ uint32_t App::idcmpHook(struct IntuiMessage *im)
             pendingCommands.push_back(CMD_COMPLETE);
             return 0;
         }
+        if (cur && editorFocus && integrationsKey(im)) return 0;   // --- integrations --- (hex editor)
         if (editor && editorFocus) editor->handleMessage(im);
         return 0;
     }
@@ -863,7 +880,8 @@ void App::eventLoop()
         if (docWinObj) IIntuition->GetAttr(WINDOW_SigMask, docWinObj, &docSig);
         uint32 dbgSig = dbg ? dbg_signal_mask(dbg) : 0;
         uint32 designerSig = designerSignals();   // designer
-        uint32 got = IExec->Wait(winSig | findSig | docSig | builder.signalMask() | dbgSig | designerSig | SIGBREAKF_CTRL_C);
+        uint32 integSig = integrationsSignals();   // --- integrations ---
+        uint32 got = IExec->Wait(winSig | findSig | docSig | builder.signalMask() | dbgSig | designerSig | integSig | SIGBREAKF_CTRL_C);
         if (got & SIGBREAKF_CTRL_C) quit = true;
 
         if (got & winSig) {
@@ -906,12 +924,14 @@ void App::eventLoop()
         if (got & designerSig) handleDesigner(got);   // designer
         if (got & builder.signalMask()) pollBuild();
         if (dbg && (got & dbgSig)) pollDebugger();
+        if (got & integSig) integrationsHandle(got);   // --- integrations ---
 
         while (!pendingCommands.empty()) {
             uint32_t c = pendingCommands.front();
             pendingCommands.erase(pendingCommands.begin());
             handleMenu(c);
         }
+        integrationsIdle();   // --- integrations ---
         // Weight-bar drags lay the window out on input.device's task, where the placeholder's
         // GM_RENDER can't touch the editor: follow its box from here.
         layoutEditor(false);
@@ -922,6 +942,7 @@ void App::eventLoop()
 
 void App::handleGadget(uint32_t gid, uint16_t code)
 {
+    if (integrationsGadget(gid, code)) return;   // --- integrations ---
     switch (gid) {
     case GID_TB_NEW: handleMenu(CMD_NEW_FILE); break;
     case GID_TB_OPEN: handleMenu(CMD_OPEN_FILE); break;

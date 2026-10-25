@@ -38,6 +38,11 @@ enum Command {
     // --- designer ---
     CMD_NEW_FROM_TEMPLATE = 1200, CMD_GUI_DESIGNER, CMD_PACKAGE_RELEASE,
     // --- end designer ---
+    // --- integrations ---
+    CMD_OPEN_HEX = 1000, CMD_GIT_PANEL, CMD_GIT_BLAME, CMD_GIT_NEW_BRANCH, CMD_DISTCC_SETTINGS,
+    CMD_EXPLAIN, CMD_MACROS_RESCAN, CMD_MACROS_FOLDER, CMD_REXX_HELP,
+    CMD_MACRO_FIRST = 1100, CMD_MACRO_LAST = 1139,
+    // --- end integrations ---
 };
 
 } // namespace af

@@ -86,6 +86,8 @@ bool Project::load(const std::string &afp, std::string &err)
             else if (k == "description") description = unescapeNewlines(v);
             else if (k == "releaseflags") releaseFlags = v;
             // --- end designer ---
+            else if (k == "distcc") distcc = v == "1";          // --- integrations ---
+            else if (k == "distcchosts") distccHosts = v;       // --- integrations ---
         } else if (section == "files" && k == "file") {
             files.push_back(v);
         } else if (section == "watches" && k == "watch") {
@@ -136,6 +138,8 @@ bool Project::save(std::string &err)
     if (!description.empty()) s += "description=" + escapeNewlines(description) + "\n";
     if (!releaseFlags.empty()) s += "releaseflags=" + releaseFlags + "\n";
     // --- end designer ---
+    // --- integrations ---
+    if (distcc || !distccHosts.empty()) s += std::string("distcc=") + (distcc ? "1" : "0") + "\ndistcchosts=" + distccHosts + "\n";
     s += "\n[files]\n";
     for (auto &f : files) s += "file=" + f + "\n";
     if (!breakpoints.empty()) {

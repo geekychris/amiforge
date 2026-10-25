@@ -274,6 +274,7 @@ void App::onStopped(const dbg_event &ev)
     if (crash) {
         showBottomPage(2);
         IIntuition->DisplayBeep(nullptr);
+        integrationsCrash(ev);   // --- integrations ---
     }
     updateToolbar();
 }

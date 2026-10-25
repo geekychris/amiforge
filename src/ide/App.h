@@ -80,6 +80,10 @@ struct Project {
     std::string author, version = "1.0", shortDesc, aminetType = "util/misc", description;
     std::string releaseFlags;   // empty = the debug flags without -g, -O0 -> -O2
     // --- end designer ---
+    // --- integrations ---
+    bool distcc = false;        // compile with distcc (Build > Distributed Builds)
+    std::string distccHosts;    // empty: ENV:AmiForge/DistccHosts
+    // --- end integrations ---
     std::vector<std::string> files;    // relative to dir
     std::vector<std::string> watches;
     struct Bp { std::string file; int line; bool enabled; std::string cond; };
@@ -147,6 +151,14 @@ struct Document {
     std::string tabText;        // the clicktab keeps a pointer to it
     // view state, saved when switching away
     intptr_t firstLine = 0, caret = 0, anchor = 0, xOffset = 0;
+    // --- integrations ---
+    std::string lexerName;      // a file name to pick the lexer by when path doesn't ("x.diff")
+    bool hex = false;           // a hex editor view of `bytes` (HexEditor.cpp)
+    std::string bytes;
+    std::vector<std::pair<size_t, int>> hexUndo;   // offset, old byte (-1: was appended)
+    int hexNibble = 0;
+    bool readOnly = false;      // diffs and other generated text
+    // --- end integrations ---
 };
 
 // --- listbrowser helper (Gui.cpp) ---
@@ -194,6 +206,13 @@ enum Gid {
     GID_INSPECT, GID_INSPECT_REFRESH, GID_INSPECT_HIGHLIGHT, GID_LEAKS, GID_PROFILE, GID_PROFILE_CLEAR,
     // --- end debugtools ---
     GID_LAST
+};
+// --- integrations --- gadget ids of the Git tab (kept in App::igad, outside gad[])
+enum IntegGid {
+    GID_INTEG_FIRST = 1000,
+    GID_GIT_BRANCH = GID_INTEG_FIRST, GID_GIT_NEWBRANCH, GID_GIT_REFRESH, GID_GIT_FILES, GID_GIT_STAGE,
+    GID_GIT_UNSTAGE, GID_GIT_DISCARD, GID_GIT_DIFF, GID_GIT_COMMIT, GID_GIT_BLAME, GID_GIT_STATUS,
+    GID_INTEG_LAST
 };
 
 class App : public SciViewHost {
@@ -560,6 +579,78 @@ public:
     bool releaseDialog();
     struct ReleaseJob *releaseJob = nullptr;
     // --- end designer ---
+    // --- integrations (Git panel, hex/icon/image editors, ARexx, distcc, explanations) ---
+    // hooks called from the shared code
+    void integrationsInit();                     // after the main window opened
+    void integrationsCleanup();                  // before it closes
+    uint32_t integrationsSignals();              // extra signals for the event loop
+    void integrationsHandle(uint32_t got);       // after Wait()
+    void integrationsIdle();                     // each pass of the event loop
+    void integrationsActivated(Document *d);     // a document became the current one
+    void integrationsTextChanged();              // the current document's text changed
+    void integrationsCaretMoved();
+    void integrationsSaved(Document *d);
+    bool integrationsGadget(uint32_t gid, uint16_t code);   // true if it was one of ours
+    bool integrationsCommand(uint32_t cmd);      // true if handled (menu commands, overrides for hex docs)
+    bool integrationsKey(struct IntuiMessage *im);          // RAWKEY for special documents
+    bool integrationsOpen(const std::string &path, const std::string &data, Document *&doc);   // non-text files
+    bool integrationsMarginClick(int margin, int line);
+    void integrationsBuildLine(const BuildLine &l, int index);   // a new build log row
+    void integrationsGitDone(bool ok);           // a git command started by the panel finished
+    void integrationsCrash(const dbg_event &ev); // the debugger stopped on an exception
+    int bottomPageIndex(const char *name);       // index of a bottom tab by its label
+    // git panel (GitPanel.cpp)
+    struct GitState;
+    GitState *gitState = nullptr;
+    ListView gitFiles{2};
+    Object *igad[24] = {};                       // our gadgets, by (gid - GID_INTEG_FIRST)
+    std::vector<std::string> gitBranchNames;
+    struct List *gitBranchLabels = nullptr;
+    bool blameOn = false;
+    bool gitPanelWanted = false;                 // refresh the Git tab when idle
+    Object *createGitPage();
+    void gitRefreshPanel();
+    void gitUpdateMarkers();
+    void gitUpdateBlame();
+    void gitApplyMargins();
+    void gitPanelAction(int what);
+    void gitSwitchBranch(int index);
+    void gitNewBranch();
+    void gitShowFileDiff(const std::string &repoRel, bool staged);
+    void gitReloadOpenFiles();
+    void gitBlameStatus(int line);
+    std::string gitPendingRefresh;
+    // hex editor (HexEditor.cpp)
+    Document *openHex(const std::string &path, const std::string &data);
+    bool hexKey(struct IntuiMessage *im);
+    void hexRender(Document *d, intptr_t caretOffset, int area, int nibble);
+    void hexGoto();
+    void hexFind(bool again);
+    void hexUndoLast();
+    void hexHighlightTwin();
+    std::string hexLastFind;
+    // icon editor and image viewer (ResourceEditors.cpp)
+    struct ResourceWindow;
+    std::vector<ResourceWindow *> resourceWindows;
+    void openIconEditor(const std::string &path);
+    void openImageViewer(const std::string &path);
+    void closeResourceWindow(ResourceWindow *w);
+    // ARexx (RexxPort.cpp)
+    Object *rexxObj = nullptr;
+    std::string rexxResult;                      // RESULT of the last command (arexx.class keeps the pointer)
+    std::vector<std::string> macroFiles;         // Macros menu entries
+    bool openRexxPort();
+    void closeRexxPort();
+    std::string rexxCommand(const std::string &line, int &rc);
+    void runMacro(const std::string &path);
+    void scanMacros();
+    // distcc (Build > Distributed Builds...)
+    void distccSettings();
+    // explanations (ExplainUI.cpp)
+    std::vector<std::string> explanations;       // per build log row index (empty: none)
+    void explainRow(int index);
+    std::string lastCrashExplanation;
+    // --- end integrations ---
 };
 
 extern App *gApp;

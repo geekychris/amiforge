@@ -14,6 +14,7 @@ static inline intptr_t S(SciView *v, unsigned m, uintptr_t w = 0, intptr_t l = 0
 
 void App::handleMenu(uint32_t cmd)
 {
+    if (integrationsCommand(cmd)) { updateToolbar(); return; }   // --- integrations ---
     switch (cmd) {
     // project
     case CMD_NEW_PROJECT: newProject(); break;

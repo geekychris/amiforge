@@ -15,6 +15,10 @@
 #include <dos/dostags.h>
 #include <dos/dosextens.h>
 #include <dos/path.h>
+#include <dos/var.h>
+
+#include "DistccCmd.h"      // --- integrations ---
+#include "Integrations.h"
 
 namespace af {
 
@@ -29,6 +33,7 @@ struct Builder::Job {
     std::vector<Cmd> cmds;
     std::vector<std::string> mkdirs;
     std::string dir;
+    std::string distccHosts;   // --- integrations --- DISTCC_HOSTS for distcc compiles
     APTR mutex = nullptr;
     struct MinList out;
     struct Task *owner = nullptr;
@@ -83,6 +88,17 @@ static int32 builderMain(STRPTR, int32, struct ExecBase *)
 {
     Builder::Job *j = gJob;
     addSdkToPath();
+    // --- integrations --- distcc reads its hosts from the environment (a local variable here
+    // is inherited by the commands SystemTags runs)
+    if (!j->distccHosts.empty()) {
+        IDOS->SetVar("DISTCC_HOSTS", j->distccHosts.c_str(), j->distccHosts.size(), GVF_LOCAL_ONLY);
+        // distcc keeps its state under $HOME/.distcc (or DISTCC_DIR) and refuses to work without one
+        BPTR l = IDOS->CreateDir("T:distcc");
+        if (l) IDOS->UnLock(l);
+        IDOS->SetVar("DISTCC_DIR", "T:distcc", -1, GVF_LOCAL_ONLY);
+        char home[8];
+        if (IDOS->GetVar("HOME", home, sizeof home, 0) < 0) IDOS->SetVar("HOME", "T:", -1, GVF_LOCAL_ONLY);
+    }
     BPTR dirLock = IDOS->Lock(j->dir.c_str(), SHARED_LOCK);
     BPTR oldDir = dirLock ? IDOS->SetCurrentDir(dirLock) : 0;
     bool ok = dirLock != 0;
@@ -232,6 +248,7 @@ bool Builder::start(const Project &p, const std::string &what)
     j->mutex = IExec->AllocSysObjectTags(ASOT_MUTEX, TAG_END);
     IExec->NewList((struct List *)&j->out);
 
+    j->distccHosts = distccHostsFor(p);   // --- integrations ---
     bool rebuild = what == "rebuild";
     bool clean = what == "clean" || rebuild;
     std::string only;
@@ -269,6 +286,12 @@ bool Builder::start(const Project &p, const std::string &what)
                 else if (isCppFile(f)) cmd = tool(p.cxx) + " " + p.cxxflags;
                 else cmd = tool(p.cc) + " " + p.cflags;
                 cmd += " -c " + q(f) + " -o " + q(obj);
+                // --- integrations --- distributed builds
+                if (!j->distccHosts.empty() && distcc::distributable(f)) {
+                    j->cmds.push_back({"Compiling " + f + " (distcc)", distcc::wrapCompile("SDK:C/distcc", cmd)});
+                    anyCompiled = true;
+                    continue;
+                }
                 j->cmds.push_back({"Compiling " + f, cmd});
                 anyCompiled = true;
             } else {

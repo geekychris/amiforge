@@ -37,6 +37,7 @@ int App::run(int argc, char **argv)
         return 20;
     }
     initPens(this);
+    integrationsInit();   // --- integrations ---
 
     std::vector<std::string> args;
     if (argc == 0) {
@@ -65,6 +66,7 @@ int App::run(int argc, char **argv)
 
     eventLoop();
 
+    integrationsCleanup();   // --- integrations ---
     closeFindWindow();
     closeDocWindow();
     closeDesigner();   // designer

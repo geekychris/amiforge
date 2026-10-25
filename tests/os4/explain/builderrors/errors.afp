@@ -1,0 +1,18 @@
+# AmiForge project
+[project]
+name=errors
+output=errors
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=
+console=
+stopatmain=0
+
+[files]
+file=errors.c
