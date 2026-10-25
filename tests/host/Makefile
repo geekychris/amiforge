@@ -49,3 +49,17 @@ clean:
 
 .PHONY: all run clean
 .PRECIOUS: $(DUMPS)
+
+# --- IDE unit tests (tests/host/ide/*.mk) ---
+IDE_AREAS :=
+include $(wildcard ide/*.mk)
+IDE_CXXFLAGS = -std=c++17 -g -O1 -Wall -I$(ROOT)/src -I$(ROOT)/src/ide -Iide -DAF_HOST_TEST
+define ide_area
+$(OUT)/ide_$(1): ide/main.cpp $$(addprefix ide/,$$($(1)_TESTS)) $$(addprefix $(ROOT)/,$$($(1)_SRCS)) ide/aftest.h
+	@mkdir -p $$(@D)
+	$$(CXX) $$(IDE_CXXFLAGS) ide/main.cpp $$(addprefix ide/,$$($(1)_TESTS)) $$(addprefix $(ROOT)/,$$($(1)_SRCS)) -o $$@
+endef
+$(foreach a,$(IDE_AREAS),$(eval $(call ide_area,$(a))))
+ide: $(foreach a,$(IDE_AREAS),$(OUT)/ide_$(a))
+	@set -e; for a in $(IDE_AREAS); do echo "== $$a"; $(OUT)/ide_$$a; done
+.PHONY: ide
