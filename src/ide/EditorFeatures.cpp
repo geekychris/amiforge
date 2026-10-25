@@ -107,6 +107,7 @@ void App::styleView(SciView *v)
     S(v, SCI_SETWRAPMODE, wrapLines ? SC_WRAP_WORD : SC_WRAP_NONE);
     S(v, SCI_SETVIEWWS, showWhitespace ? SCWS_VISIBLEALWAYS : SCWS_INVISIBLE);
     S(v, SCI_SETVIEWEOL, showWhitespace);
+    gitApplyMarginsTo(v);   // --- integrations --- the git change and blame margins (not on the minimap)
     if (v == miniView) {
         // a tiny, plain, read-only overview: no margins, no caret; the selection shows the
         // part of the document the main view shows

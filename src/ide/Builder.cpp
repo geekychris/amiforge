@@ -34,6 +34,7 @@ struct Builder::Job {
     std::vector<std::string> mkdirs;
     std::string dir;
     std::string distccHosts;   // --- integrations --- DISTCC_HOSTS for distcc compiles
+    int okRc = 0;              // return codes up to this one count as success (startCommands)
     APTR mutex = nullptr;
     struct MinList out;
     struct Task *owner = nullptr;
@@ -98,6 +99,24 @@ static int32 builderMain(STRPTR, int32, struct ExecBase *)
         IDOS->SetVar("DISTCC_DIR", "T:distcc", -1, GVF_LOCAL_ONLY);
         char home[8];
         if (IDOS->GetVar("HOME", home, sizeof home, 0) < 0) IDOS->SetVar("HOME", "T:", -1, GVF_LOCAL_ONLY);
+        // distcc starts the local preprocessor as plain "gcc", and gcc then can't work out where
+        // it is installed: it falls back to its built-in /gcc prefix, misses its own include
+        // directory, and every file that includes a system header fails ("stddef.h: No such
+        // file", from newlib's #include_next). GCC_EXEC_PREFIX tells it.
+        char gep[8];
+        if (IDOS->GetVar("GCC_EXEC_PREFIX", gep, sizeof gep, 0) < 0) {
+            static const char *const prefixes[][2] = {
+                { "SDK:gcc/ppc-amigaos/bin/lib/gcc", "/SDK/gcc/ppc-amigaos/bin/lib/gcc/" },   // SDK 54
+                { "SDK:gcc/lib/gcc", "/SDK/gcc/lib/gcc/" },
+            };
+            for (auto &p : prefixes) {
+                BPTR pl = IDOS->Lock(p[0], SHARED_LOCK);
+                if (!pl) continue;
+                IDOS->UnLock(pl);
+                IDOS->SetVar("GCC_EXEC_PREFIX", p[1], -1, GVF_LOCAL_ONLY);
+                break;
+            }
+        }
     }
     BPTR dirLock = IDOS->Lock(j->dir.c_str(), SHARED_LOCK);
     BPTR oldDir = dirLock ? IDOS->SetCurrentDir(dirLock) : 0;
@@ -145,7 +164,7 @@ static int32 builderMain(STRPTR, int32, struct ExecBase *)
             }
             IDOS->Close(fh);
         }
-        if (rc != 0) {
+        if (rc != 0 && !(rc > 0 && rc <= j->okRc)) {
             char msg[96];
             snprintf(msg, sizeof msg, rc < 0 ? "Couldn't run the command (is the SDK installed?)" : "Failed (return code %ld)", (long)rc);
             postStr(j, MsgKind::Error, msg);
@@ -256,10 +275,13 @@ bool Builder::start(const Project &p, const std::string &what)
 
     std::vector<std::string> objs;
     if (clean) {
+        // only what exists: Delete returns 5 for a missing file, which failed Rebuild All and
+        // Clean on a project that wasn't (completely) built yet
         std::string list;
         for (auto &f : p.files)
-            if (isSourceFile(f)) list += " " + q(objectFor(p, f));
-        j->cmds.push_back({"Cleaning", "Delete" + list + " " + q(p.output) + " QUIET FORCE"});
+            if (isSourceFile(f) && fileTime(p.abs(objectFor(p, f))) >= 0) list += " " + q(objectFor(p, f));
+        if (fileTime(p.abs(p.output)) >= 0) list += " " + q(p.output);
+        if (!list.empty()) j->cmds.push_back({"Cleaning", "Delete" + list + " QUIET FORCE"});
     }
     if (what != "clean") {
         j->mkdirs.push_back(p.abs(p.objdir));
@@ -340,14 +362,15 @@ bool Builder::start(const Project &p, const std::string &what)
     return true;
 }
 
-bool Builder::startCommands(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds)
+bool Builder::startCommands(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds, int okRc)
 {
     if (running || cmds.empty()) return false;
     if (sigBit < 0 && (sigBit = IExec->AllocSignal(-1)) < 0) return false;
-    errors = warnings = 0;
+    errors = warnings = stepFailures = 0;
     lastOk = false;
     Job *j = new Job;
     j->dir = dir;
+    j->okRc = okRc;
     j->owner = IExec->FindTask(nullptr);
     j->sig = 1UL << sigBit;
     j->mutex = IExec->AllocSysObjectTags(ASOT_MUTEX, TAG_END);

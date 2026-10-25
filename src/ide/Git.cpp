@@ -97,7 +97,7 @@ static std::string q(const std::string &s)
     return s.find_first_of(" \t\"") == std::string::npos ? s : "\"" + s + "\"";
 }
 
-bool App::gitRun(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds, const std::string &title)
+bool App::gitRun(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds, const std::string &title, int okRc)
 {
     if (builder.busy()) {
         setStatus("A build or git command is already running");
@@ -116,7 +116,7 @@ bool App::gitRun(const std::string &dir, const std::vector<std::pair<std::string
     buildLog.clear();
     showBottomPage(0);
     gitBusy = true;
-    if (!builder.startCommands(dir, full)) {
+    if (!builder.startCommands(dir, full, okRc)) {
         gitBusy = false;
         return false;
     }
