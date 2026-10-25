@@ -275,10 +275,13 @@ bool Builder::start(const Project &p, const std::string &what)
 
     std::vector<std::string> objs;
     if (clean) {
+        // only what exists: Delete returns 5 for a missing file, which failed Rebuild All and
+        // Clean on a project that wasn't (completely) built yet
         std::string list;
         for (auto &f : p.files)
-            if (isSourceFile(f)) list += " " + q(objectFor(p, f));
-        j->cmds.push_back({"Cleaning", "Delete" + list + " " + q(p.output) + " QUIET FORCE"});
+            if (isSourceFile(f) && fileTime(p.abs(objectFor(p, f))) >= 0) list += " " + q(objectFor(p, f));
+        if (fileTime(p.abs(p.output)) >= 0) list += " " + q(p.output);
+        if (!list.empty()) j->cmds.push_back({"Cleaning", "Delete" + list + " QUIET FORCE"});
     }
     if (what != "clean") {
         j->mkdirs.push_back(p.abs(p.objdir));
