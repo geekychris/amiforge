@@ -174,37 +174,46 @@ static std::string commitDate(int64_t t, const std::string &tz)
 
 // --- margins and markers ---
 
-void App::gitApplyMargins()
+// The git and blame margins of one edit view. Margins and marker definitions belong to a
+// view, not to the document, so every edit view needs them (the split view too), and again
+// after sciSetupSourceEditor (a theme change) has reset its margins.
+void App::gitApplyMarginsTo(SciView *view)
 {
-    if (!editor || !cur) return;
-    if (S(editor, SCI_GETMARGINS) < 5) S(editor, SCI_SETMARGINS, 5);
-    S(editor, SCI_SETMARGINTYPEN, MARGIN_GIT, SC_MARGIN_SYMBOL);
-    S(editor, SCI_SETMARGINMASKN, MARGIN_GIT,
+    if (!view || view == miniView || !cur) return;
+    if (S(view, SCI_GETMARGINS) < 5) S(view, SCI_SETMARGINS, 5);
+    S(view, SCI_SETMARGINTYPEN, MARGIN_GIT, SC_MARGIN_SYMBOL);
+    S(view, SCI_SETMARGINMASKN, MARGIN_GIT,
       (1 << MARK_GIT_ADDED) | (1 << MARK_GIT_CHANGED) | (1 << MARK_GIT_DELETED_TOP));
-    S(editor, SCI_SETMARGINWIDTHN, MARGIN_GIT, cur->hex || cur->readOnly ? 0 : 5);
-    S(editor, SCI_SETMARGINSENSITIVEN, MARGIN_GIT, 1);
-    S(editor, SCI_MARKERDEFINE, MARK_GIT_ADDED, SC_MARK_FULLRECT);
-    S(editor, SCI_MARKERSETBACK, MARK_GIT_ADDED, bgr(0x2DA44E));
-    S(editor, SCI_MARKERDEFINE, MARK_GIT_CHANGED, SC_MARK_FULLRECT);
-    S(editor, SCI_MARKERSETBACK, MARK_GIT_CHANGED, bgr(0x3B82E8));
-    S(editor, SCI_MARKERDEFINE, MARK_GIT_DELETED, SC_MARK_UNDERLINE);   // a red line under the line before
-    S(editor, SCI_MARKERSETBACK, MARK_GIT_DELETED, bgr(0xE5534B));
-    S(editor, SCI_MARKERDEFINE, MARK_GIT_DELETED_TOP, SC_MARK_FULLRECT);
-    S(editor, SCI_MARKERSETBACK, MARK_GIT_DELETED_TOP, bgr(0xE5534B));
+    S(view, SCI_SETMARGINWIDTHN, MARGIN_GIT, cur->hex || cur->readOnly ? 0 : 5);
+    S(view, SCI_SETMARGINSENSITIVEN, MARGIN_GIT, 1);
+    S(view, SCI_MARKERDEFINE, MARK_GIT_ADDED, SC_MARK_FULLRECT);
+    S(view, SCI_MARKERSETBACK, MARK_GIT_ADDED, bgr(0x2DA44E));
+    S(view, SCI_MARKERDEFINE, MARK_GIT_CHANGED, SC_MARK_FULLRECT);
+    S(view, SCI_MARKERSETBACK, MARK_GIT_CHANGED, bgr(0x3B82E8));
+    S(view, SCI_MARKERDEFINE, MARK_GIT_DELETED, SC_MARK_UNDERLINE);   // a red line under the line before
+    S(view, SCI_MARKERSETBACK, MARK_GIT_DELETED, bgr(0xE5534B));
+    S(view, SCI_MARKERDEFINE, MARK_GIT_DELETED_TOP, SC_MARK_FULLRECT);
+    S(view, SCI_MARKERSETBACK, MARK_GIT_DELETED_TOP, bgr(0xE5534B));
     // the symbol margin mustn't draw ours too
-    intptr_t m1 = S(editor, SCI_GETMARGINMASKN, AF_MARGIN_SYMBOLS);
-    S(editor, SCI_SETMARGINMASKN, AF_MARGIN_SYMBOLS,
+    intptr_t m1 = S(view, SCI_GETMARGINMASKN, AF_MARGIN_SYMBOLS);
+    S(view, SCI_SETMARGINMASKN, AF_MARGIN_SYMBOLS,
       m1 & ~((1 << MARK_GIT_ADDED) | (1 << MARK_GIT_CHANGED) | (1 << MARK_GIT_DELETED) | (1 << MARK_GIT_DELETED_TOP)));
     // blame
-    S(editor, SCI_SETMARGINTYPEN, MARGIN_BLAME, SC_MARGIN_TEXT);
-    S(editor, SCI_SETMARGINMASKN, MARGIN_BLAME, 0);
-    S(editor, SCI_SETMARGINSENSITIVEN, MARGIN_BLAME, 1);
-    S(editor, SCI_STYLESETFONT, STYLE_BLAME, (intptr_t)"DejaVu Sans Mono");
-    S(editor, SCI_STYLESETSIZE, STYLE_BLAME, std::max(8, fontSize - 2));
-    S(editor, SCI_STYLESETFORE, STYLE_BLAME, bgr(0x505A66));
-    S(editor, SCI_STYLESETBACK, STYLE_BLAME, bgr(0xEEF1F5));
-    int w = blameOn && !cur->hex && !cur->readOnly ? (int)S(editor, SCI_TEXTWIDTH, STYLE_BLAME, (intptr_t)"a1b2c3d Annabelle Co 2024-01-02 ") : 0;
-    S(editor, SCI_SETMARGINWIDTHN, MARGIN_BLAME, w);
+    S(view, SCI_SETMARGINTYPEN, MARGIN_BLAME, SC_MARGIN_TEXT);
+    S(view, SCI_SETMARGINMASKN, MARGIN_BLAME, 0);
+    S(view, SCI_SETMARGINSENSITIVEN, MARGIN_BLAME, 1);
+    S(view, SCI_STYLESETFONT, STYLE_BLAME, (intptr_t)"DejaVu Sans Mono");
+    S(view, SCI_STYLESETSIZE, STYLE_BLAME, std::max(8, fontSize - 2));
+    S(view, SCI_STYLESETFORE, STYLE_BLAME, bgr(0x505A66));
+    S(view, SCI_STYLESETBACK, STYLE_BLAME, bgr(0xEEF1F5));
+    int w = blameOn && !cur->hex && !cur->readOnly ? (int)S(view, SCI_TEXTWIDTH, STYLE_BLAME, (intptr_t)"a1b2c3d Annabelle Co 2024-01-02 ") : 0;
+    S(view, SCI_SETMARGINWIDTHN, MARGIN_BLAME, w);
+}
+
+void App::gitApplyMargins()
+{
+    for (SciView *v : { mainView, splitView }) gitApplyMarginsTo(v);
+    if (editor != mainView && editor != splitView) gitApplyMarginsTo(editor);
 }
 
 void App::gitUpdateMarkers()
@@ -263,7 +272,7 @@ void App::gitUpdateBlame()
     std::string dir = repoOf(cur->path);
     git::Repo *r = repoFor(gitState, dir);
     if (!r) {
-        S(editor, SCI_SETMARGINWIDTHN, MARGIN_BLAME, 0);
+        for (SciView *v : { mainView, splitView }) S(v, SCI_SETMARGINWIDTHN, MARGIN_BLAME, 0);
         setStatus("Blame: this file isn't in a git repository");
         return;
     }
@@ -574,7 +583,8 @@ void App::gitPanelAction(int what)
     case GID_GIT_UNSTAGE:
         if (s->staged == ' ' || s->staged == '?') { setStatus(path + " isn't staged"); return; }
         gitPendingRefresh = "panel";
-        gitRun(dir, { { "Unstaging " + path, "reset HEAD -- " + q(path) } }, "git reset");
+        // sgit's "reset" returns 1 even when it has unstaged the file
+        gitRun(dir, { { "Unstaging " + path, "reset HEAD -- " + q(path) } }, "git reset", 1);
         break;
     case GID_GIT_DISCARD: {
         if (s->staged == '?') {
@@ -647,16 +657,51 @@ void App::gitSwitchBranch(int index)
     if (!r || dir.empty()) return;
     std::string to = gitBranchNames[index];
     if (to == r->headBranch() || to[0] == '(') return;
-    bool dirty = false;
-    for (auto &s : gitState->rows) if (s.staged != '?') dirty = true;
-    if (dirty && ask("Switch Branch", "There are uncommitted changes. Switching to " + to + " may overwrite them.\nSwitch anyway?",
-                     "_Switch|_Cancel") != 1) {
-        gitRefreshPanel();   // put the chooser back
+    if (!saveAll()) return;
+    // a branch at the current commit: only HEAD changes, the files and the index stay as they
+    // are (like git switch). sgit's checkout would reset them.
+    std::string head = r->resolve("HEAD");
+    if (!head.empty() && r->resolve("refs/heads/" + to) == head) {
+        gitPointHead(dir, to);
         return;
     }
-    if (!saveAll()) return;
+    // sgit's checkout throws away uncommitted changes and deletes untracked files (not ignored
+    // ones), so say exactly what will be lost
+    std::string changed, untracked;
+    int nChanged = 0, nUntracked = 0;
+    for (auto &s : gitState->rows) {
+        std::string &list = s.staged == '?' ? untracked : changed;
+        int &n = s.staged == '?' ? nUntracked : nChanged;
+        if (++n <= 6) list += "\n    " + s.path;
+        else if (n == 7) list += "\n    ...";
+    }
+    if (nChanged || nUntracked) {
+        std::string msg = "Switching to " + to + " (with SimpleGit's checkout) will";
+        if (nChanged) msg += strprintf(" throw away the uncommitted changes to %d file%s:", nChanged, nChanged == 1 ? "" : "s") + changed;
+        if (nChanged && nUntracked) msg += "\nand";
+        if (nUntracked) msg += strprintf(" delete %d untracked file%s:", nUntracked, nUntracked == 1 ? "" : "s") + untracked;
+        msg += "\n\nCommit them (or copy them somewhere) first. Switch anyway?";
+        if (ask("Switch Branch", msg, "_Switch and lose them|_Cancel") != 1) {
+            gitRefreshPanel();   // put the chooser back
+            return;
+        }
+    }
     gitPendingRefresh = "panel";
     gitRun(dir, { { "Switching to " + to, "checkout " + q(to) } }, "git checkout");
+}
+
+// Points HEAD at a branch that is at the current commit, without touching the files or the
+// index (sgit's checkout would reset modified files and delete untracked ones).
+void App::gitPointHead(const std::string &dir, const std::string &branch)
+{
+    if (!writeFile(joinPath(dir, ".git/HEAD"), "ref: refs/heads/" + branch + "\n")) {
+        info("Couldn't switch to " + branch + " (can't write .git/HEAD).");
+        gitRefreshPanel();
+        return;
+    }
+    gitPendingRefresh = "panel";
+    integrationsGitDone(true);    // re-read the repository: new branch, same files
+    setStatus("Switched to " + branch + " (your changes are kept)");
 }
 
 void App::gitNewBranch()
@@ -684,8 +729,9 @@ void App::gitNewBranch()
         if (l) IDOS->UnLock(l);
     }
     if (!writeFile(refPath, head + "\n")) { info("Couldn't create the branch (" + refPath + ")."); return; }
-    gitPendingRefresh = "panel";
-    gitRun(dir, { { "Switching to the new branch " + name, "checkout " + q(name) } }, "git checkout");
+    // the new branch is at the current commit: switch by pointing HEAD at it, keeping the
+    // uncommitted changes (sgit's checkout would throw them away and delete untracked files)
+    gitPointHead(dir, name);
 }
 
 // After a checkout or discard: files that changed on disk are read again (unless edited).

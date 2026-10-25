@@ -113,7 +113,8 @@ public:
     // Start building `targets` ("build", "rebuild", "clean", "compile:<file>"). Lines arrive via poll().
     bool start(const Project &p, const std::string &what);
     // Run arbitrary commands (label, command line) in dir, reporting like a build.
-    bool startCommands(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds);
+    // okRc: the highest return code that still counts as success (for tools that return 1 when they worked)
+    bool startCommands(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds, int okRc = 0);
     bool busy() const { return running; }
     void stop();
     // --- hotpatch
@@ -343,7 +344,7 @@ public:
     intptr_t pendingDocLink = -1;
     // git (Git.cpp)
     std::string gitRepoDir();
-    bool gitRun(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds, const std::string &title);
+    bool gitRun(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds, const std::string &title, int okRc = 0);
     void gitStatus();
     void gitDiff();
     void gitLog();
@@ -612,10 +613,12 @@ public:
     void gitRefreshPanel();
     void gitUpdateMarkers();
     void gitUpdateBlame();
-    void gitApplyMargins();
+    void gitApplyMargins();                    // on every edit view
+    void gitApplyMarginsTo(SciView *view);
     void gitPanelAction(int what);
     void gitSwitchBranch(int index);
     void gitNewBranch();
+    void gitPointHead(const std::string &dir, const std::string &branch);
     void gitShowFileDiff(const std::string &repoRel, bool staged);
     void gitReloadOpenFiles();
     void gitBlameStatus(int line);

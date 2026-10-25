@@ -34,6 +34,7 @@ struct Builder::Job {
     std::vector<std::string> mkdirs;
     std::string dir;
     std::string distccHosts;   // --- integrations --- DISTCC_HOSTS for distcc compiles
+    int okRc = 0;              // return codes up to this one count as success (startCommands)
     APTR mutex = nullptr;
     struct MinList out;
     struct Task *owner = nullptr;
@@ -145,7 +146,7 @@ static int32 builderMain(STRPTR, int32, struct ExecBase *)
             }
             IDOS->Close(fh);
         }
-        if (rc != 0) {
+        if (rc != 0 && !(rc > 0 && rc <= j->okRc)) {
             char msg[96];
             snprintf(msg, sizeof msg, rc < 0 ? "Couldn't run the command (is the SDK installed?)" : "Failed (return code %ld)", (long)rc);
             postStr(j, MsgKind::Error, msg);
@@ -340,14 +341,15 @@ bool Builder::start(const Project &p, const std::string &what)
     return true;
 }
 
-bool Builder::startCommands(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds)
+bool Builder::startCommands(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds, int okRc)
 {
     if (running || cmds.empty()) return false;
     if (sigBit < 0 && (sigBit = IExec->AllocSignal(-1)) < 0) return false;
-    errors = warnings = 0;
+    errors = warnings = stepFailures = 0;
     lastOk = false;
     Job *j = new Job;
     j->dir = dir;
+    j->okRc = okRc;
     j->owner = IExec->FindTask(nullptr);
     j->sig = 1UL << sigBit;
     j->mutex = IExec->AllocSysObjectTags(ASOT_MUTEX, TAG_END);
