@@ -71,6 +71,8 @@ int App::run(int argc, char **argv)
     eventLoop();
 
     integrationsCleanup();   // --- integrations ---
+    closeBrowser();          // --- robust ---
+    runCleanup();
     closeFindWindow();
     closeDocWindow();
     closeDesigner();   // designer

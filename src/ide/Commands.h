@@ -46,6 +46,9 @@ enum Command {
     // --- projects ---
     CMD_BROWSE_PROJECTS = 1400, CMD_SET_PROJECTS_FOLDER,
     // --- end projects ---
+    // --- robust ---
+    CMD_STOP_PROGRAM = 1500,
+    // --- end robust ---
 };
 
 } // namespace af

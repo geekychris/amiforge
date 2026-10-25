@@ -202,10 +202,30 @@ The OS-independent logic of each feature lives in a model file that also compile
 | ARexx | `RexxCmd.*` (command parser) | `RexxPort.cpp` | arexx.class port `AMIFORGE`; the Macros menu lists `PROGDIR:Rexx` and the project's `Rexx/` |
 | distcc | `DistccCmd.*` | `Builder.cpp` | Sets `DISTCC_HOSTS`, `HOME`/`DISTCC_DIR` and `GCC_EXEC_PREFIX`; `tools/distcc-server.sh` runs distccd with the cross-compiler in Docker |
 | Explanations | `Explain.*` (rules for GCC/ld messages and crash states) | `BuildUI.cpp`, `DebugUI.cpp` | Rules are tested against real GCC 11.5 output |
-| Projects folder and browser | `ProjectIndex.*` (scan two drawers deep, descriptions from `.afp`/README, recent merge, Open Project's start drawer) | `ProjectBrowser.cpp` | Settings in `ENVARC:AmiForge/ProjectsFolder` and `ShowBrowser`; the browser is modal, like the template chooser |
+| Projects folder and browser | `ProjectIndex.*` (scan two drawers deep, descriptions from `.afp`/README, recent merge, Open Project's start drawer) | `ProjectBrowser.cpp` | Settings in `ENVARC:AmiForge/ProjectsFolder` and `ShowBrowser`; the browser is a normal window handled by the event loop (`browserSignal`/`handleBrowser`) |
+| Modal dialogs, Stop Program | `Robust.*` (run/stop states, what a modal dialog does with other windows' input) | `Modal.cpp`, `RunControl.cpp` | See below |
+
+**Modal dialogs.** Every modal window runs `beginModal(wo)`, `waitModal(wo)` instead of
+`IExec->Wait(its signal)`, and `endModal()`. While one is open, the IDE's other windows (main,
+Find, AutoDocs, project browser) get an empty blocking requester (no gadget, menu or key input;
+refreshes still happen) and the main window the busy pointer. `waitModal` also waits on those
+windows: their input is drained without acting on it, and a click, key or activation there,
+or any other window of this task becoming active, brings the dialog back in front. Build and
+debugger signals are not waited on, so they stay pending for the main loop (pollBuild can start a
+program, a debug session or packaging, which must not happen under a dialog editing the
+project). `WA_StayTop` isn't used: the dialogs' own asl/requester.class requesters would open
+behind it.
+
+**Stop Program.** Run starts the program with `SystemTags(SYS_Asynch)` and
+`NP_NotifyOnDeathMessage`; DOS replies the DeathMessage to the IDE's port when the shell process
+ends. Stop Program finds the process by `pr_DeathMessage` inside `ProcessScan` (the list can't
+change meanwhile) and signals Ctrl-C; after 3 s (timer.device on the same port) it offers Ctrl-C
+again, Ctrl-C/D/E/F, or leaving it. Nothing is ever force-killed. If AmiForge quits while a
+program runs, the port is set to `PA_IGNORE` and left allocated with the DeathMessages, so the
+late reply is harmless.
 
 Each area keeps its code in shared files (`App.h`, `Commands.*`, `MainWindow.cpp`) inside
-`// --- <area> ---` blocks. Command IDs: projects 1400-, editor 1300-1359, designer 1200-, integrations
+`// --- <area> ---` blocks. Command IDs: robust 1500-, projects 1400-, editor 1300-1359, designer 1200-, integrations
 1000- (macros 1100-1139), debugtools 650-, Edit and Continue 660. The bottom tabs Windows,
 Leaks and Profile are at fixed indices 7-9 (`BOTTOM_*`); Git is found by name.
 

@@ -424,6 +424,9 @@ Settings isn't needed to set it), or else the first line of a `README`, `README.
 Double-click a project, or select it and click **Open**. **Change Folder** sets the projects
 folder and lists it; **Refresh** reads it again.
 
+The browser is an ordinary window: the main window keeps working while it is open, and Amiga-U
+brings it back to the front (with a fresh list) if it got covered. Opening a project closes it.
+
 When AmiForge starts with no project to open (none given, and no last project), it shows the
 browser. **Show at startup** turns that off.
 
@@ -659,6 +662,22 @@ XAD can read into LhA. So AmiForge packs the drawer with the SDK's `tar`, then c
 
 **Ctrl-F5** (or F6, Amiga-E) builds if needed, then runs the program in a console window in the
 project's drawer, with the program arguments from the project settings.
+
+The program runs on its own, so the IDE stays usable even if it hangs. While it runs, the
+status bar says so and the toolbar's **Stop** button is enabled. **Build > Stop Program**
+(**Shift-Ctrl-F5**, or **Stop** when nothing is being debugged) sends it Ctrl-C, and the status
+bar shows when it has ended and its return code.
+
+A program has to check for Ctrl-C itself (`SetSignal`/`Wait` with `SIGBREAKF_CTRL_C`; newlib's
+`printf` also checks). If it is still running three seconds later, AmiForge asks whether to send
+Ctrl-C again, send Ctrl-C, D, E and F (some programs use those), or leave it running. AmigaOS
+has no safe way to force a program to quit: its memory, windows and files would be left
+behind, so AmiForge never tries. If a program won't react, close its windows yourself, or save
+your work and reboot. Quitting AmiForge while a program it started is running asks first; the
+program can keep running after AmiForge has gone.
+
+With `/WAIT` in the console specification (the default), the console window stays open after
+the program ends until you close it.
 
 ## Debugging
 
@@ -1195,6 +1214,8 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | AmiForge ignores clicks and shows a busy pointer | A dialog (such as the project browser or Project Settings) is open behind the main window. Click the main window's depth gadget (top right) to send it back, then finish with the dialog |
 | The editor shows two or three columns of code | The split view and/or the minimap is on: click the pressed **Split** or **Map** button on the toolbar |
 | The program's drawer can't be deleted after stopping a crashed program | A known limitation: Stop ends the program without running its C library cleanup, so a lock it held (such as its current directory) stays until a reboot |
+| The IDE seems frozen: the busy pointer, clicks do nothing, "A build is already running" | A dialog (Project Settings, New Project, a requester) is waiting for an answer, probably hidden behind the main window. Clicking or typing in the main window now brings the dialog back to the front; answer or cancel it and the IDE carries on, including any build that finished meanwhile. The project browser is not a dialog and never blocks the IDE |
+| The program you ran hangs | **Build > Stop Program** (Shift-Ctrl-F5) sends it Ctrl-C; see [Building and running](#building-and-running). The IDE itself keeps working |
 | An installer from Package Release says "not executable" in a Shell | Archives don't keep the script bit: use `Execute Install <drawer>`, or double-click its icon |
 
 ## Keyboard reference
@@ -1210,6 +1231,7 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | F5 | Debug / continue |
 | Shift-F5 | Stop debugging |
 | Ctrl-F5 / F6 | Build and run |
+| Shift-Ctrl-F5 | Stop the program Run started (sends Ctrl-C) |
 | F7 | Build |
 | F8 | Step one instruction |
 | F9 | Toggle breakpoint |

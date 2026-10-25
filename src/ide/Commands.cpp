@@ -42,6 +42,7 @@ void App::handleMenu(uint32_t cmd)
     case CMD_QUIT:
         if (debugging() && ask("Quit", "A program is being debugged. Stop it and quit?", "_Quit|_Cancel") != 1) break;
         if (debugging()) debugStop();
+        if (!runQuitCheck()) break;   // --- robust --- a program Run started is still running
         if (!project.path.empty()) saveProject();
         if (closeAll()) quit = true;
         break;
@@ -100,6 +101,7 @@ void App::handleMenu(uint32_t cmd)
     case CMD_CLEAN: build("clean"); break;
     case CMD_STOP_BUILD: builder.stop(); break;
     case CMD_RUN: buildBeforeRun(1); break;
+    case CMD_STOP_PROGRAM: stopProgram(); break;   // --- robust ---
     case CMD_NEXT_ERROR:
     case CMD_PREV_ERROR: {
         // walk the diagnostics that point at a file, wrapping around

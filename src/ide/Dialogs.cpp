@@ -171,11 +171,10 @@ static bool inputWindow(struct Window *parent, const char *title, const std::str
         return false;
     }
     ILayout->ActivateLayoutGadget((struct Gadget *)root, w, nullptr, (uint32)str);
-    uint32 sig = 0;
-    IIntuition->GetAttr(WINDOW_SigMask, wo, &sig);
+    gApp->beginModal(wo);   // --- robust ---
     int done = 0;   // 1 OK, -1 cancel
     while (!done) {
-        IExec->Wait(sig);
+        gApp->waitModal(wo);   // --- robust ---
         uint32 result;
         uint16 code;
         while ((result = IIntuition->IDoMethod(wo, WM_HANDLEINPUT, &code)) != WMHI_LASTMSG) {
@@ -199,6 +198,7 @@ static bool inputWindow(struct Window *parent, const char *title, const std::str
         IIntuition->GetAttr(STRINGA_TextVal, str, &v);
         value = v ? (const char *)v : "";
     }
+    gApp->endModal();   // --- robust ---
     IIntuition->DisposeObject(wo);
     return done == 1;
 }
@@ -432,12 +432,10 @@ bool App::editProjectSettings()
         IIntuition->DisposeObject(wo);
         return false;
     }
-    busyPointer(true);
-    uint32 sig = 0;
-    IIntuition->GetAttr(WINDOW_SigMask, wo, &sig);
+    beginModal(wo);   // --- robust ---
     int done = 0;   // 1 save, -1 cancel
     while (!done) {
-        IExec->Wait(sig);
+        waitModal(wo);   // --- robust ---
         uint32 result;
         uint16 code;
         while ((result = IIntuition->IDoMethod(wo, WM_HANDLEINPUT, &code)) != WMHI_LASTMSG) {
@@ -474,8 +472,8 @@ bool App::editProjectSettings()
         rebuildMenus();
         if (project.output.empty()) project.output = project.name.empty() ? "program" : project.name;
     }
+    endModal();   // --- robust ---
     IIntuition->DisposeObject(wo);
-    busyPointer(false);
     updateTitle();
     return done == 1;
 }

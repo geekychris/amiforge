@@ -276,9 +276,7 @@ void App::newProjectFromTemplate()
     for (size_t i = 0; i < defs.size(); i++) list.add({ defs[i].name, defs[i].description }, (void *)(intptr_t)i);
     list.attach(0);
 
-    busyPointer(true);
-    uint32 sig = 0;
-    IIntuition->GetAttr(WINDOW_SigMask, wo, &sig);
+    beginModal(wo);   // --- robust ---
     auto getStr = [&](int id) {
         uint32 v = 0;
         IIntuition->GetAttr(STRINGA_TextVal, g[id], &v);
@@ -288,7 +286,7 @@ void App::newProjectFromTemplate()
     std::vector<std::string> toOpen;
     bool done = false;
     while (!done) {
-        IExec->Wait(sig);
+        waitModal(wo);   // --- robust ---
         uint32 result;
         uint16 code;
         while ((result = IIntuition->IDoMethod(wo, WM_HANDLEINPUT, &code)) != WMHI_LASTMSG) {
@@ -326,9 +324,9 @@ void App::newProjectFromTemplate()
         }
     }
     list.win = nullptr;
+    endModal();   // --- robust ---
     IIntuition->DisposeObject(wo);
     list.obj = nullptr;
-    busyPointer(false);
     if (afp.empty()) return;
     openProject(afp);
     for (auto &f : toOpen)

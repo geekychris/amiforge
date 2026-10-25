@@ -359,6 +359,7 @@ void App::showShortcuts()
         "\n"
         "Building\n"
         "  F7              build            Ctrl-F5 / F6   build and run\n"
+        "  Shift-Ctrl-F5   stop the program Run started (sends Ctrl-C)\n"   // --- robust ---
         "  F4 / Shift-F4   next / previous error\n"
         "\n"
         "Debugging\n"
