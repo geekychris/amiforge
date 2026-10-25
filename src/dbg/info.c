@@ -202,6 +202,7 @@ dbg_info *info_load(const char *path, char *err, size_t errlen)
     vec_init(&di->cus, sizeof(dcu)); vec_init(&di->files, sizeof(dfile));
     vec_init(&di->globals, sizeof(dvar)); vec_init(&di->structs, sizeof(dtype *));
     vec_init(&di->typedefs, sizeof(dtype *));
+    vec_init(&di->patches, sizeof(dbg_info *));   /* --- hotpatch */
     if (elf_open(&di->elf, path)) {
         snprintf(err, errlen, "%s", di->elf.err);
         info_free(di);
@@ -233,6 +234,11 @@ void info_free(dbg_info *di)
     if (!di) return;
     vec_free(&di->funcs); vec_free(&di->lines); vec_free(&di->cus); vec_free(&di->files);
     vec_free(&di->globals); vec_free(&di->structs); vec_free(&di->typedefs);
+    /* --- hotpatch */
+    for (size_t i = 0; i < di->patches.n; i++) info_free(VEC_AT(&di->patches, dbg_info *, i));
+    vec_free(&di->patches);
+    free(di->patch_code);
+    /* --- end hotpatch */
     free(di->reloc);
     arena_free(&di->mem);
     elf_close(&di->elf);
@@ -281,6 +287,8 @@ uint32_t info_r2l(const dbg_info *di, uint32_t a)
 
 int info_in_program(const dbg_info *di, uint32_t run)
 {
+    for (int i = 0; i < di->npatch_code; i++)          /* --- hotpatch: patch code */
+        if (run >= di->patch_code[i][0] && run < di->patch_code[i][1]) return 1;
     uint32_t link = info_r2l(di, run);
     if (di->nreloc) {
         int hit = 0;
@@ -332,6 +340,7 @@ const dfunc *info_func_named(const dbg_info *di, const char *name)
             size_t bl = strlen(f->base);
             if (bl > nl + 1 && !strcmp(f->base + bl - nl, name) && f->base[bl - nl - 1] == ':') score = 2;
         }
+        if (score && f->superseded) score = 1;          /* --- hotpatch: the newest version wins */
         if (score > best_score) { best = f; best_score = score; }
     }
     return best;
@@ -420,15 +429,17 @@ uint32_t info_line_addr(const dbg_info *di, const char *file, int line, int *act
         score[i] = info_file_matches(di, i, file);
         if (score[i] > best) best = score[i];
     }
+    const dfunc *FF = di->funcs.data;   /* --- hotpatch: lines of replaced functions don't count */
+#define LIVE(i) (L[i].func < 0 || !FF[L[i].func].superseded)
     uint32_t addr = 0;
     int found = 0;
     if (best) {
         int target = 0;
         for (size_t i = 0; i < di->lines.n; i++)   /* smallest line >= requested */
-            if (score[L[i].file] == best && L[i].line >= line && (!target || L[i].line < target)) target = L[i].line;
+            if (score[L[i].file] == best && LIVE(i) && L[i].line >= line && (!target || L[i].line < target)) target = L[i].line;
         if (target) {
             for (size_t i = 0; i < di->lines.n; i++)
-                if (score[L[i].file] == best && L[i].line == target) { addr = L[i].addr; found = target; break; }
+                if (score[L[i].file] == best && LIVE(i) && L[i].line == target) { addr = L[i].addr; found = target; break; }
             /* a function's opening line: move past the prologue */
             const dfunc *f = func_at_link(di, addr);
             if (f && addr == f->lo && f->body != f->lo) {
@@ -438,6 +449,7 @@ uint32_t info_line_addr(const dbg_info *di, const char *file, int line, int *act
             }
         }
     }
+#undef LIVE
     free(score);
     if (actual) *actual = found;
     return found ? info_l2r(di, addr) : 0;

@@ -160,6 +160,7 @@ typedef struct {
     dvar *params, *locals;
     dtype *ret;
     uint8_t has_lines;
+    uint8_t superseded;      /* --- hotpatch: replaced by a newer version (Edit and Continue) */
 } dfunc;
 
 typedef struct {
@@ -197,6 +198,10 @@ typedef struct dbg_info {
     int nreloc;
     dreloc *reloc;           /* NULL = identity (host tests) */
     char err[128];
+    /* --- hotpatch --- applied Edit and Continue patches (hotpatch.c) */
+    int npatch_code;
+    uint32_t (*patch_code)[2];   /* executable [lo, hi) of each patch: part of the program */
+    vec patches;                 /* struct dbg_info *: their debug info (owns what merged entries point to) */
 } dbg_info;
 
 dbg_info *info_load(const char *path, char *err, size_t errlen);
