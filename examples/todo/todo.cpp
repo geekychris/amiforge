@@ -72,7 +72,7 @@ public:
         winObj = IIntuition->NewObject(IWindow->WINDOW_GetClass(), nullptr,
             WA_Title, "To Do", WA_ScreenTitle, "To Do - an AmiForge example",
             WA_DragBar, TRUE, WA_CloseGadget, TRUE, WA_DepthGadget, TRUE, WA_SizeGadget, TRUE,
-            WA_Activate, TRUE, WA_InnerWidth, 360, WA_InnerHeight, 300,
+            WA_Activate, TRUE, WA_InnerWidth, 360, WA_InnerHeight, 300, WA_IDCMP, IDCMP_RAWKEY,
             WINDOW_Position, WPOS_CENTERSCREEN,
             WINDOW_Layout, root,
             TAG_DONE);
