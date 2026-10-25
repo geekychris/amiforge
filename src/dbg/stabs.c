@@ -855,7 +855,16 @@ void stabs_finish_funcs(dbg_info *di)
     char buf[1024];
     for (size_t i = 0; i < di->funcs.n; i++) {
         dfunc *f = &F[i];
-        if (f->hi <= f->lo) f->hi = i + 1 < di->funcs.n ? F[i + 1].lo : f->lo + 4;
+        if (f->hi <= f->lo) {
+            /* -gstabs (C) has no end-of-function stab: up to the next function, but not past
+             * the end of the unit (the last function of a unit, or of the program) */
+            uint32_t end = i + 1 < di->funcs.n ? F[i + 1].lo : 0;
+            if (f->cu >= 0 && (size_t)f->cu < di->cus.n) {
+                uint32_t cu_hi = VEC_AT(&di->cus, dcu, f->cu).hi;
+                if (cu_hi > f->lo && (!end || cu_hi < end)) end = cu_hi;
+            }
+            f->hi = end > f->lo ? end : f->lo + 4;
+        }
         const char *dm = dbg_demangle(f->name, buf, sizeof buf);
         f->display = dm ? arena_strdup(&di->mem, dm) : f->name;
         f->base = dm ? func_base(&di->mem, f->display) : f->name;

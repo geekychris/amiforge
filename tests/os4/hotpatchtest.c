@@ -103,7 +103,15 @@ static void test(void)
     if (!dbg_load(S, prog, "", g_dir, "T:hptarget.out")) { ok(0, "load %s: %s", prog, dbg_last_error(S)); return; }
     int bp = dbg_bp_add_function(S, "compute");
     ok(bp >= 0, "breakpoint on compute()");
-    uint32_t old_fn = dbg_function_addr(S, "compute"), old_bp = bp_addr(bp);
+    uint32_t old_fn = dbg_function_addr(S, "compute"), old_bp = bp_addr(bp);   /* the body (after the prologue) */
+    /* the entry: back from the body to the prologue's stwu r1,-N(r1) */
+    uint32_t entry = 0;
+    for (uint32_t a = old_fn; a + 64 > old_fn && a >= 4; a -= 4) {
+        uint32_t w = 0;
+        dbg_read_memory(S, a, &w, 4);
+        if ((w & 0xFFFF0000u) == 0x94210000u) { entry = a; break; }
+    }
+    ok(entry != 0, "compute()'s entry is at %08lx", (unsigned long)entry);
     ok(dbg_run(S, 0), "run");
     dbg_event ev;
     if (!expect_stop("first call (version 1)", "compute", 7, &ev)) return;
@@ -121,10 +129,10 @@ static void test(void)
     uint32_t v2_fn = dbg_function_addr(S, "compute");
     ok(v2_fn && v2_fn != old_fn, "compute() is now at %08lx (was %08lx)", (unsigned long)v2_fn, (unsigned long)old_fn);
     uint32_t nb = bp_addr(bp);
-    ok(nb && nb != old_bp && nb > v2_fn && nb < v2_fn + 0x100, "the breakpoint moved into the new code (%08lx)", (unsigned long)nb);
+    ok(nb && nb != old_bp && nb == v2_fn, "the breakpoint moved into the new code (%08lx)", (unsigned long)nb);
     uint32_t word = 0;
-    dbg_read_memory(S, old_fn, &word, 4);
-    ok((word >> 26) == 18 || (word >> 26) == 15, "the old entry is a branch now (%08lx)", (unsigned long)word);
+    dbg_read_memory(S, entry, &word, 4);
+    ok((word >> 26) == 18 || (word & 0xFFFF0000u) == 0x3C000000u, "the old entry is a branch now (%08lx)", (unsigned long)word);
     ok(dbg_hotpatch_count(S) == 1, "one patch");
 
     /* call 1 finishes in version 1; call 2 runs version 2 */

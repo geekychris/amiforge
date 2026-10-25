@@ -321,3 +321,30 @@ TEST(cplusplus_method_and_vtable)
     }
     hp_patch_free(&p);
 }
+
+TEST(plain_gstabs_function_ranges)
+{
+    // C built with -gstabs has no end-of-function stab: the last function of the patch
+    // must still cover its whole body (it ends where the unit ends)
+    Elf prog(fx("v1/prog"), 0), obj(fx("gs/compute.o"), 1);
+    if (!prog.e || !obj.e) { CHECK(false); return; }
+    hp_patch p;
+    char err[256] = "";
+    if (!hp_prepare(&p, obj.e, prog.e, "compute.c", l2r, nullptr, err, sizeof err) || !hp_link(&p, 0x7F000000u, err, sizeof err)) {
+        std::printf("  %s\n", err); CHECK(false); return;
+    }
+    dbg_info *pi = hp_debug_info(&p, err, sizeof err);
+    CHECK(pi != nullptr);
+    const hp_func *nc = nullptr;
+    for (int i = 0; i < p.nfuncs; i++) if (!strcmp(p.funcs[i].name, "compute")) nc = &p.funcs[i];
+    if (pi && nc) {
+        uint32_t last = nc->new_addr + nc->new_size - 4;   // its blr
+        const dfunc *f = info_func_at(pi, last);
+        CHECK(f && !strcmp(f->name, "compute"));
+        const dline *l = info_line_at(pi, nc->new_addr + nc->new_size / 2);
+        CHECK(l != nullptr);
+        CHECK(info_func_at(pi, nc->new_addr + nc->new_size) == nullptr);
+    }
+    if (pi) info_free(pi);
+    hp_patch_free(&p);
+}

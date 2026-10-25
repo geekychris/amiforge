@@ -16,4 +16,7 @@ cp $src/shape.h $out/cpp2/; cp $src/shape_v2.cpp $out/cpp2/shape.cpp
 (cd $out/cpp1 && ppc-amigaos-g++ $F -c shape.cpp -o shape.o && ppc-amigaos-g++ $F -c shapes_main.cpp -o main.o &&
   ppc-amigaos-g++ -mcrt=newlib -athread=native -o prog main.o shape.o -lauto)
 (cd $out/cpp2 && ppc-amigaos-g++ $F -c shape.cpp -o shape.o)
+# plain -gstabs (C): no end-of-function stabs
+mkdir -p $out/gs; cp $src/compute_v2.c $out/gs/compute.c
+(cd $out/gs && ppc-amigaos-gcc -mcrt=newlib -mcpu=440fp -O0 -gstabs -Wall -c compute.c -o compute.o)
 touch $out/.fixtures
