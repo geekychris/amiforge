@@ -1289,9 +1289,9 @@ int dbg_poll(dbg_session *s, dbg_event *ev)
         check_death(s);
         /* (debugtools) DOS cleans an ended process up at priority -10, spinning in the kernel
          * until it gets the CPU; with a busy machine (a profiler, another program) that can take
-         * forever. Once the program has returned and the process is still here after ~200 ms,
-         * give it a normal priority so it can finish. */
-        if (s->proc && s->returned && ++s->returned_polls == 20 && ((struct Task *)s->proc)->tc_Node.ln_Pri < 0) {
+         * forever. Once the program has returned, every ~200 ms that the process is still here
+         * with a lowered priority, give it a normal one so it can finish. */
+        if (s->proc && s->returned && ++s->returned_polls % 20 == 0 && ((struct Task *)s->proc)->tc_Node.ln_Pri < 0) {
             trace(s, "process still in DOS's cleanup: raising its priority");
             IExec->SetTaskPri((struct Task *)s->proc, 0);
         }
@@ -1536,6 +1536,14 @@ static void kill_now(dbg_session *s)
 {
     if (!s->proc) return;
     trace(s, "kill: state %d have_entry %d", s->state, s->have_entry);
+    if (s->returned) {
+        /* (debugtools) the program has already returned and DOS is cleaning the process up:
+         * the entry context means nothing any more (restoring it crashed the process). Let it
+         * finish, at a normal priority. */
+        IExec->SetTaskPri((struct Task *)s->proc, 0);
+        wait_death(s, 5000);
+        if (!s->proc) return;
+    }
     if (s->state == DBG_RUNNING) {
         IExec->SuspendTask((struct Task *)s->proc, 0);
         if (s->exc_count != s->seen) { s->seen = s->exc_count; wait_suspended(s); }

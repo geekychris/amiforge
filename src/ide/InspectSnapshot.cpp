@@ -108,7 +108,8 @@ void takeInspectSnapshot(struct Task *task, const std::set<uint32_t> &screensAtS
             if (any || fresh) {
                 ScreenInfo si;
                 si.addr = (uint32_t)s;
-                si.title = copyText((const char *)s->Title);
+                // DefaultTitle is the screen's own; Title follows the active window
+                si.title = copyText((const char *)(s->DefaultTitle ? s->DefaultTitle : s->Title));
                 si.width = s->Width; si.height = s->Height;
                 si.depth = s->RastPort.BitMap ? (int)IGraphics->GetBitMapAttr(s->RastPort.BitMap, BMA_DEPTH) : 0;
                 si.front = s == ib->FirstScreen;

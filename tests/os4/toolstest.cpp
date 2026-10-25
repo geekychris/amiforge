@@ -176,6 +176,8 @@ static bool endsWith(const std::string &s, const char *suffix)
     return s.size() >= n && s.compare(s.size() - n, n, suffix) == 0;
 }
 
+static void probe_task();
+
 /* ------------------------------------------------------------------ leaks */
 
 static void test_leaks()
@@ -191,8 +193,7 @@ static void test_leaks()
     int got = wait_event(&ev, 30000, drain);
     ok(got && ev.type == DBG_EV_EXITED && ev.exit_code == 0, "leaky ran to the end (exit code %d)", got ? ev.exit_code : -1);
     if (!got) {
-        struct Task *t = (struct Task *)dbg_task(S);
-        out("  (state %d, task %p state %d)\n", (int)dbg_get_state(S), (void *)t, t ? t->tc_State : -1);
+        probe_task();
         if (dbg_pause(S) && wait_event(&ev, 3000, drain)) {
             dbg_frame fr[16];
             int n = dbg_stack(S, fr, 16);

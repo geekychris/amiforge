@@ -87,16 +87,16 @@ Limitations:
 
 ## Profile: where the time goes
 
-**Debug > Profile** builds the program if needed and runs it under the profiler. It doesn't stop
-at `main()` or at breakpoints. A sampler process at priority 10 reads the program's registers
-every millisecond. When the program ends (or you press Stop), the **Profile** tab lists its
-functions, and the editor marks its hot lines.
+**Debug > Profile** (**Shift-F7**) builds the program if needed and runs it under the profiler. It
+doesn't stop at `main()` or at breakpoints. A sampler process at priority 10 reads the program's
+registers about every millisecond. When the program ends (or you press Stop), the **Profile** tab
+lists its functions, and the editor marks its hot lines.
 
 ![The Profile tab and line heat](../images/debugtools-profile.png)
 
 | Column | Meaning |
 |---|---|
-| **Self** | Samples with the program counter inside the function. |
+| **Self** | Time with the program counter inside the function: a percentage, and milliseconds. |
 | **In OS** | Samples in the OS (a library, the kernel, or waiting) when this function was the nearest program function on the call chain: it called the OS and the OS was busy, or the task was waiting. `w` is the waiting share. |
 | **Total** | Samples with the function anywhere on the call chain (itself or its callees). |
 | **Hottest line** | Click the row to go there. |
@@ -108,8 +108,32 @@ functions, and the editor marks its hot lines.
   - `<< 30.1% in OS (151)` is time spent in calls made from that line.
 - **Clear** (or Debug > Clear Profile) removes the notes.
 - The header shows the number of samples and how much of the time the program was waiting.
-- Under QEMU, timer resolution and emulation speed make 1 ms sampling coarse. Run the program
-  long enough to collect a few hundred samples.
+- **Samples are weighted by time.** Each sample stands for the time since the previous one,
+  measured with the EClock. Under QEMU the sampler's wakeups come late while the CPU is busy
+  (every 15–25 ms instead of every 1 ms), but percentages and milliseconds still add up to the real
+  run time. Fewer samples means coarser detail: run the program for a second or more.
+- Code with no stabs function range (for example the last function of a file built with
+  `-gstabs`) is named after its symbol; offsets are merged (`main+0x30` counts as `main`).
+
+## Notes on the debugger itself
+
+Making these tools work turned up three things about the debugger core (`os4_session.c`, each in
+a block marked `debugtools`):
+
+- **The stall "kick" is skipped while the profiler samples, and once the program has returned.**
+  A CPU-bound debuggee hits the OS4 dispatch stall described in `debugger-notes.md` over and
+  over, and every kick costs it 20 ms or more: a 1 s program could take more than 30 s under the
+  debugger. The sampler's frequent rescheduling keeps the task dispatched, so no kick is needed
+  then. After the program has returned, the process belongs to DOS's cleanup and must not be
+  suspended.
+- **A process stuck in DOS's cleanup gets a normal priority.** DOS cleans an ended process up at
+  priority -10, spinning in the kernel (kernel+0x127F0, the spin in `debugger-notes.md`). On a
+  busy machine it could stay there indefinitely, so the program's exit was never reported. Every
+  200 ms after the program returns, if the process is still there with a lowered priority, it is
+  set to 0, and it then finishes at once. Seen and fixed on both guests.
+- **Kill doesn't restore the entry context once the program has returned.** Doing that to a
+  process in DOS's cleanup crashed it (a DSI in dos.library). Now the process is given a normal
+  priority and allowed to finish.
 
 ## Testing
 
@@ -127,5 +151,8 @@ functions, and the editor marks its hot lines.
   sources to its `src/` drawer, then run:
 
   ```
-  toolstest DH1:AF-debugtools all RAM:toolstest.log
+  toolstest DH1:AF-debugtools all RAM:toolstest.log [trace]
   ```
+
+  The sections are `leaks`, `profile`, `inspect` and `baseline` (CPU-bound `hot` under the
+  debugger with no tools: it must still end).
