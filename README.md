@@ -12,6 +12,8 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
     makefiles and diffs.
   - Line numbers, folding, brace matching and auto-indent.
   - Find/replace with regular expressions, Find in Files, go to line, and comment/uncomment.
+  - Light and dark themes, a split view, a minimap, multiple cursors and snippets with fields.
+  - A symbol outline, Find All References and Rename Symbol across the project.
 - **Code completion**:
   - pops up as you type;
   - `IExec->` lists exec.library's functions;
@@ -28,15 +30,34 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
   - Projects build incrementally, in the background.
   - Errors and warnings are marked in the editor and clickable in the build log.
   - Ctrl-F5 builds and runs.
+  - Common compiler errors get a plain-language explanation of the fix.
+  - Optional distributed builds with distcc (to a cross-compiler on another machine).
+  - **Package Release** builds an optimised version and makes an Aminet-ready `.lha` with icons,
+    a readme and an install script.
 - **Debugging**: AmiForge has its own debugger, built on the exec debug interface; it doesn't
   use GDB.
   - Breakpoints, including conditional ones; step over, into and out; run to cursor; instruction
     stepping.
   - Locals and watches with expandable structs, arrays and pointers, and changed values in red.
   - Registers, call stack, memory and disassembly views.
-  - Crashes are caught and shown at the source line.
+  - Crashes are caught and shown at the source line, with an explanation of the likely cause.
+  - **Edit and Continue**: change a function while stopped, press Ctrl-F9 and the program carries
+    on with the new code, keeping its data.
+  - A live **Intuition inspector** of the program's screens, windows and gadgets.
+  - A **leak tracker** that lists memory, files, locks, libraries and objects never released,
+    at the line that acquired them.
+  - A sampling **profiler** that annotates the hottest lines in the editor.
 - **Git and GitHub**: clone, status, diff, log, commit, pull and push from the Git menu, using
   SimpleGit from the SDK.
+  - A Git panel to stage, unstage, discard, commit and switch or create branches.
+  - Change markers in the editor's margin, and blame for each line.
+- **GUI designer**: lay out a ReAction window with a live preview and generate its C code;
+  hand-written code is kept when you regenerate.
+- **Templates**: new projects from nine templates (console C and C++, ReAction app, Intuition
+  window with menus, commodity, screen blanker, shared library, device, AHI player).
+- **Hex, icon and picture editors**: binaries open in a hex editor; `.info` icons and IFF/PNG
+  pictures open in their own viewers.
+- **ARexx**: an `AMIFORGE` port to script the IDE, and a Macros menu of your own `.rexx` macros.
 - **Projects**: `.afp` files with Workbench icons, recent projects, and breakpoints and watches
   that are saved with the project.
 
@@ -46,6 +67,12 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
 | *F1 opens the AutoDoc; references are links* | *`win->` lists the fields of `struct Window` from the SDK headers* |
 | ![Context menu](docs/images/context-menu.png) | ![Registers and disassembly](docs/images/registers-disassembly.png) |
 | *Right-click: headers, definitions, docs, debugging* | *Registers, and disassembly with source lines* |
+| ![Dark theme, split view and minimap](docs/images/editor-dark-split-minimap.png) | ![The GUI designer](docs/images/designer-window.png) |
+| *Dark theme, split view and minimap* | *The GUI designer with its live preview* |
+| ![Edit and Continue](docs/images/hotpatch-applied.png) | ![The leak tracker](docs/images/debugtools-leaks.png) |
+| *Edit and Continue: Ctrl-F9 while stopped* | *Leaks, at the line that acquired them* |
+| ![The Git panel](docs/images/integrations-git-panel.png) | ![The profiler](docs/images/debugtools-profile.png) |
+| *The Git panel, with change markers in the editor* | *The profiler, with the hottest lines annotated* |
 
 ## Getting started
 

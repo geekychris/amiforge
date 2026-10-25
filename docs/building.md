@@ -62,3 +62,44 @@ the guest. Set `M1=user@host` for a remote Mac or Linux box, or `M1=local` for t
 Run the debugger's tests on the guest with
 `dbgtest DH1:AmiForge all memtrace DH1:AmiForge/dbgtest.log`. It needs the `tests/targets`
 programs in `DH1:AmiForge` and their sources in `DH1:AmiForge/src`.
+
+## Testing the features
+
+`make -C tests/host ide` builds one test runner per feature area from `tests/host/ide/*.mk`
+(the shared harness is `tests/host/ide/aftest.h`). The areas also have tests that run on AmigaOS 4:
+
+### Edit and Continue
+
+- `make -C tests/host ide` (area `hotpatch`): the linker against objects and programs built
+  by the cross-compiler: data kept at the program's addresses, long-branch stubs, refusals
+  (new static, resized variable, function not in the program, wrong file), debug-info merge,
+  successive patches, C++ vtables, plain `-gstabs` function ranges.
+- `hotpatchtest DIR` on AmigaOS 4 (with `hptarget`, `hpcpp` and `hotpatch/*/compute.o`,
+  `hotpatch/cpp2/shape.o` in DIR): runs the programs under the debugger and patches them
+  twice, checking output, kept data, moved breakpoints, stepping into a new function and a
+  refused change. `setenv AFHOTPATCH_FAR 1` makes it take the long-branch and stub paths
+  even when the patch is within branch range.
+
+### Debugger tools
+
+- **Host unit tests:** `make -C tests/host ide` runs `tests/host/ide/debugtools_*_test.cpp`. They
+  cover:
+  - leak matching and grouping, double and mismatched frees, `FreeMem` size checks;
+  - profile attribution (self, in OS, total, hottest lines, annotations);
+  - the inspector's flag decoders and panel rows.
+- **On OS4:** `tests/os4/toolstest` runs the real thing against three programs in `tests/targets`:
+  - `leaky` leaks one resource of each kind;
+  - `hot` has a known hot loop and a 0.4 s wait;
+  - `windows` opens a window with two gadgets.
+
+  Copy `build/tests/toolstest` and `build/targets/{leaky,hot,windows}` to a drawer, and the target
+  sources to its `src/` drawer, then run:
+
+  ```
+  toolstest DH1:AF-debugtools all RAM:toolstest.log [trace]
+  ```
+
+  The sections are `leaks`, `profile`, `inspect` and `baseline` (CPU-bound `hot` under the
+  debugger with no tools: it must still end).
+
+`tests/templates/check.sh` cross-compiles every project template (and a sample GUI with each gadget kind) with `-Werror`.

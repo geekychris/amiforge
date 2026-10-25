@@ -1,7 +1,7 @@
 // Edit and Continue: Debug > Apply Code Changes (Ctrl-F9). While the program is stopped,
 // the C and C++ sources changed since it was built (or since their last apply) are compiled
 // with the project's flags into obj/<name>.hot.o, and the debugger patches them into the
-// running program (dbg_hotpatch: new code, same data). See docs/features/hotpatch.md.
+// running program (dbg_hotpatch: new code, same data). See "Edit and Continue" in docs/user-guide.md.
 #include "App.h"
 #include "dbg/dbg.h"
 
