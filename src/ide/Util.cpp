@@ -182,4 +182,12 @@ bool isSourceFile(const std::string &path)
     return extension(path) == "c" || isCppFile(path) || isAsmFile(path);
 }
 
+bool sdkInstalled()
+{
+    struct DosList *dl = IDOS->LockDosList(LDF_ALL | LDF_READ);
+    bool found = IDOS->FindDosEntry(dl, "SDK", LDF_ALL) != nullptr;
+    IDOS->UnLockDosList(LDF_ALL | LDF_READ);
+    return found;
+}
+
 } // namespace af

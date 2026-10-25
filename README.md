@@ -1,90 +1,98 @@
 # AmiForge
 
-A native IDE for **AmigaOS 4.1** (PowerPC), running on the Amiga itself:
+**A native IDE for AmigaOS 4.1 (PowerPC).** It runs on the Amiga itself, with a modern editor,
+the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
 
-- **Editor**: tabbed, multi-file editing on a port of [Scintilla](https://www.scintilla.org/).
-  It highlights C, C++, PowerPC assembler, makefiles and diffs, and has line numbers, folding,
-  brace matching, auto-indent, find/replace (with regular expressions), Find in Files,
-  go to line and comment/uncomment.
-- **Toolchain**: the AmigaOS 4.1 SDK's native GCC 11.5, which covers C, C++ and GNU `as` for
-  `.s` files. Projects build file by file, with compiler errors you can click to jump to.
-- **Code navigation**: Ctrl-click (or F12) opens `#include`d headers and goes to definitions.
-  Completion pops up as you type (OS functions, `IExec->` members, project words), and calltips
-  show OS prototypes. The right mouse button gives a context menu.
-- **AutoDocs**: press F1 on an OS function (`OpenWindowTags`, `IExec->AllocVecTags`) to read its
-  AutoDoc from the SDK. Help > AutoDocs Browser searches all of them, and references in an entry
-  are links.
+![AmiForge debugging a C program](docs/images/debugging.png)
+
+## Features
+
+- **Editor**: a port of [Scintilla](https://www.scintilla.org/) to AmigaOS 4.
+  - Tabbed, multi-file editing with syntax highlighting for C, C++, PowerPC assembler (GNU `as`),
+    makefiles and diffs.
+  - Line numbers, folding, brace matching and auto-indent.
+  - Find/replace with regular expressions, Find in Files, go to line, and comment/uncomment.
+- **Code completion**:
+  - pops up as you type;
+  - `IExec->` lists exec.library's functions;
+  - `os::` lists a namespace's contents;
+  - `win->` lists the members of `win`'s type, including OS structs from the SDK headers;
+  - calltips show the parameters of OS functions, your functions, constructors and methods, with
+    the current argument highlighted.
+- **Navigation**: Ctrl-click (or F12) opens an `#include`d header or goes to a definition. A
+  context menu on the right mouse button has everything that applies to the word under the
+  pointer.
+- **AutoDocs**: F1 on an OS function opens its AutoDoc. The browser searches all of them, and
+  references between entries are links.
+- **Building**: the AmigaOS 4.1 SDK's native GCC 11.5 (C, C++, assembler).
+  - Projects build incrementally, in the background.
+  - Errors and warnings are marked in the editor and clickable in the build log.
+  - Ctrl-F5 builds and runs.
+- **Debugging**: AmiForge has its own debugger, built on the exec debug interface; it doesn't
+  use GDB.
+  - Breakpoints, including conditional ones; step over, into and out; run to cursor; instruction
+    stepping.
+  - Locals and watches with expandable structs, arrays and pointers, and changed values in red.
+  - Registers, call stack, memory and disassembly views.
+  - Crashes are caught and shown at the source line.
 - **Git and GitHub**: clone, status, diff, log, commit, pull and push from the Git menu, using
-  SimpleGit (`sgit`) from the SDK.
-- **Debugger**: source-level, on the exec debug interface. It has:
-  - breakpoints (with conditions), run to cursor, step over / into / out, and instruction step;
-  - locals, watches, registers, call stack, memory and disassembly views;
-  - crash reports that point at the source line.
+  SimpleGit from the SDK.
+- **Projects**: `.afp` files with Workbench icons, recent projects, and breakpoints and watches
+  that are saved with the project.
 
-```
-+--------------------------------------------------------------------------+
-| New Open Save | Build Run | Debug Step-Over Step-Into Step-Out Stop | Find |
-+-----------+---------------------------------------------+----------------+
-| Project   | [main.c x][list.c x]                        | Locals|Watches |
-|  main.c   |  12  int main(void)                         |  total  15     |
-|  list.c   |  13  {                                     ^|  i      6      |
-|  list.h   |=>14      list = list_push(list, ...        v|  list   0x...  |
-+-----------+---------------------------------------------+----------------+
-| Build | Find | Call Stack | Breakpoints | Memory | Disassembly | Log     |
-+--------------------------------------------------------------------------+
-```
-
-## Keys
-
-| Key | Action |
+| | |
 |---|---|
-| F5 | Start debugging / continue |
-| Shift-F5 | Stop debugging |
-| Ctrl-F5 / F6 | Build and run |
-| F7 | Build |
-| F9 | Toggle breakpoint (or click the margin) |
-| F10 / F11 / Shift-F11 | Step over / into / out |
-| Ctrl-F10 | Run to cursor |
-| F8 | Step one instruction |
-| F1 (or Help) | AutoDoc for the function under the cursor |
-| Ctrl-Space | Complete the word (the list also appears by itself after 3 letters) |
-| Ctrl-click / F12 | Open an `#include`d header / go to a definition |
-| Right mouse button | Context menu: include, definition, docs, completion, breakpoint, watch |
-| F3 / Shift-F3 | Find next / previous |
-| F4 / Shift-F4 | Next / previous error |
-| Amiga-N/O/S/W | New / open / save / close file |
-| Amiga-F/R/H/L | Find / replace / find in files / go to line |
-| Amiga-B / Amiga-E | Build / run |
+| ![AutoDocs](docs/images/autodocs.png) | ![Completion of SDK struct members](docs/images/completion-struct.png) |
+| *F1 opens the AutoDoc; references are links* | *`win->` lists the fields of `struct Window` from the SDK headers* |
+| ![Context menu](docs/images/context-menu.png) | ![Registers and disassembly](docs/images/registers-disassembly.png) |
+| *Right-click: headers, definitions, docs, debugging* | *Registers, and disassembly with source lines* |
 
-## Projects
+## Getting started
 
-A project is an `.afp` file, ini-style, listing the sources and the compiler settings. It also
-keeps your breakpoints and watches. The `examples/` directory has four:
+1. Install the **AmigaOS 4.1 SDK** with GCC 11 (from Hyperion), so that `SDK:` is assigned.
+2. Unpack **AmiForge.lha** and run **Install-AmiForge**, or copy the `AmiForge` drawer anywhere.
+3. Open `Examples/hello/hello.afp`, then press **F7** to build, **Ctrl-F5** to run and **F5** to
+   debug.
 
-- `hello`: C, with a linked list to explore in the debugger.
-- `shapes`: C++, with classes, virtual functions and `std::vector`.
-- `asmdemo`: C calling a PowerPC assembler function.
-- `bouncer`: C++ using the OS. It has RAII wrappers for an Intuition window with a GadTools
-  menu, graphics.library drawing, IDCMP input, and timer.device for the frame rate.
+Under QEMU's `sam460ex`, also run `Tools/QEMUCopyFix` at boot. QEMU doesn't emulate the DMA
+engine that exec uses for large memory copies, and without it C++ compiles fail.
 
-Without a project, Build and Run work on the current file.
+The **[user guide](docs/user-guide.md)** covers everything: a five-minute tour, editing,
+completion and navigation, AutoDocs, projects, building, debugging, Git and GitHub, the
+examples, QEMU, troubleshooting, and every key.
 
-## Requirements (on the Amiga)
+## Examples
+
+| Example | What it shows |
+|---|---|
+| `hello` | C: a linked list across two files, to step through in the debugger |
+| `shapes` | C++: classes, virtual functions, `std::vector`, `std::unique_ptr` |
+| `asmdemo` | C calling a PowerPC assembler function |
+| `bouncer` | C++ using the OS: an Intuition window with a GadTools menu, graphics.library drawing, IDCMP input and timer.device |
+
+## Requirements
 
 - AmigaOS 4.1 Final Edition (exec 53.70 or newer).
-- The AmigaOS 4.1 SDK (54.x) with GCC 11, installed as `SDK:`. `tools/sdk/` has a script that
-  installs it without the GUI installer.
+- The AmigaOS 4.1 SDK (54.x) with GCC 11, as `SDK:`.
+- For Git: SimpleGit (`sgit.lha` from the SDK), networking, and a disk with long file names
+  (FFS `DOS\7`, SFS/02 or NGFS).
 
-## Building AmiForge (cross-compiling)
+## Building AmiForge
+
+AmiForge is cross-compiled with the adtools GCC 11 toolchain in Docker:
 
 ```
-tools/build.sh            # Docker: walkero/amigagccondocker:os4-gcc11
+tools/build.sh            # build/AmiForge
+tools/make-dist.sh        # dist/AmiForge.lha
 ```
 
-It produces `build/AmiForge`. See [docs/DESIGN.md](docs/DESIGN.md) for how it fits together.
+See **[docs/building.md](docs/building.md)** for the details, the source layout and how to test
+on an OS4 machine. [docs/DESIGN.md](docs/DESIGN.md) describes the architecture, and
+[docs/debugger-notes.md](docs/debugger-notes.md) records what was learned about debugging on
+AmigaOS 4.
 
-## Credits
+## Licence
 
-- Scintilla and Lexilla © Neil Hodgson, under the Historical Permission Notice and Disclaimer
-  (`third_party/*/License.txt`).
-- AmigaOS 4.1 SDK and GCC (adtools) by their respective authors.
+AmiForge is under the MIT licence (see [LICENSE](LICENSE)). It includes Scintilla and Lexilla by
+Neil Hodgson, under their own licence (`third_party/*/License.txt`). The AmigaOS 4.1 SDK and GCC
+are not included; they come from Hyperion and the adtools project.

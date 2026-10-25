@@ -28,6 +28,7 @@ static const char *cKeywords =
     "STRPTR CONST_STRPTR APTR BPTR BOOL";
 
 static bool identChar(int c) { return isalnum(c) || c == '_'; }
+static bool identStartChar(int c) { return isalpha(c) || c == '_'; }
 
 static void collectWords(const std::string &text, std::set<std::string> &out)
 {
@@ -169,25 +170,113 @@ void App::showCompletion(bool explicitRequest)
     S(editor, SCI_AUTOCSHOW, len, (intptr_t)list.c_str());
 }
 
-// "(" after an OS function: its prototype from the AutoDoc's SYNOPSIS.
+// "(" typed: the parameters of what is being called. A method ("win.fill("), a constructor
+// ("os::AppWindow win(", "new Ball("), a function in the project, or an OS function (AutoDoc).
 void App::showCallTip()
 {
     if (!editor) return;
-    intptr_t pos = S(editor, SCI_GETCURRENTPOS) - 1;            // the "("
-    intptr_t e = pos;
+    intptr_t paren = S(editor, SCI_GETCURRENTPOS) - 1;          // the "("
+    intptr_t e = paren;
     while (e > 0 && (char)S(editor, SCI_GETCHARAT, e - 1) == ' ') e--;
     intptr_t s = S(editor, SCI_WORDSTARTPOSITION, e, 1);
     if (e <= s) return;
-    std::vector<char> buf(e - s + 1);
-    struct Sci_TextRangeFull tr = { { s, e }, buf.data() };
-    S(editor, SCI_GETTEXTRANGEFULL, 0, (intptr_t)&tr);
-    std::string name = buf.data();
-    if (name.size() < 3) return;
-    const DocEntry *d = findDoc(name);
-    if (!d) return;
-    std::string proto = docPrototype(*d, name);
-    if (proto.empty()) return;
-    S(editor, SCI_CALLTIPSHOW, pos + 1, (intptr_t)proto.c_str());
+    auto text = [&](intptr_t a, intptr_t b) {
+        std::vector<char> buf(b - a + 1);
+        struct Sci_TextRangeFull tr = { { a, b }, buf.data() };
+        S(editor, SCI_GETTEXTRANGEFULL, 0, (intptr_t)&tr);
+        return std::string(buf.data());
+    };
+    std::string name = text(s, e);
+    if (name.empty() || isdigit((unsigned char)name[0])) return;
+    intptr_t line = S(editor, SCI_LINEFROMPOSITION, paren);
+    std::vector<std::string> sigs;
+    std::string scopeName;
+    int kind = scopeAt(s, scopeName);
+    busyPointer(true);
+    if (kind == 2) {
+        // obj.method( / obj->method(: IExec->Foo( is an OS call
+        if (!libraryForInterface(scopeName).empty() && findDoc(name)) {}
+        else {
+            std::string type = typeOfVariable(scopeName, line);
+            if (!type.empty()) signatures(name, type, false, sigs);
+        }
+    } else if (kind == 1) {
+        // Class::method( or ns::function( / Class::Class(
+        signatures(name, scopeName, false, sigs);
+        if (sigs.empty()) signatures(name, name, true, sigs);
+        if (sigs.empty()) signatures(name, "", false, sigs);
+    } else {
+        // "Type var(" (a declaration: the constructor of Type), "new Type(" / "Type(" (a constructor)
+        intptr_t b = s;
+        while (b > 0 && (char)S(editor, SCI_GETCHARAT, b - 1) == ' ') b--;
+        intptr_t a = b;
+        while (a > 0) {
+            char c = (char)S(editor, SCI_GETCHARAT, a - 1);
+            if (identChar((unsigned char)c) || c == ':' || c == '<' || c == '>' || c == '*' || c == '&') a--;
+            else break;
+        }
+        std::string before = b > a ? text(a, b) : "";
+        while (!before.empty() && (before.back() == '*' || before.back() == '&')) before.pop_back();
+        if (!before.empty() && identStartChar((unsigned char)before[0]) && before != "return" && before != "new" &&
+            before != "else" && before != "case")
+            signatures(name, before, true, sigs);                      // Type var(
+        if (sigs.empty()) signatures(name, name, true, sigs);          // Type( / new Type(
+        if (sigs.empty()) signatures(name, "", false, sigs);           // a function in the project
+    }
+    busyPointer(false);
+    if (sigs.empty()) {
+        // an OS function: its AutoDoc prototype
+        const DocEntry *d = findDoc(name);
+        if (d) {
+            std::string proto = docPrototype(*d, name);
+            if (!proto.empty()) sigs.push_back(proto);
+        }
+    }
+    if (sigs.empty()) return;
+    std::string tip;
+    for (auto &g : sigs) tip += (tip.empty() ? "" : "\n") + g;
+    callTipParen = paren;
+    callTipFirst = sigs.front();
+    S(editor, SCI_CALLTIPSHOW, paren + 1, (intptr_t)tip.c_str());
+    updateCallTipHighlight();
+}
+
+// Highlight the argument being typed in the first signature.
+void App::updateCallTipHighlight()
+{
+    if (!editor || callTipParen < 0 || !S(editor, SCI_CALLTIPACTIVE)) return;
+    intptr_t pos = S(editor, SCI_GETCURRENTPOS);
+    int depth = 0, arg = 0;
+    for (intptr_t p = callTipParen + 1; p < pos; p++) {
+        char c = (char)S(editor, SCI_GETCHARAT, p);
+        if (c == '(' || c == '[' || c == '{') depth++;
+        else if (c == ')' || c == ']' || c == '}') {
+            if (depth == 0) { S(editor, SCI_CALLTIPCANCEL); callTipParen = -1; return; }
+            depth--;
+        } else if (c == ',' && depth == 0) arg++;
+    }
+    // find the arg-th parameter between the signature's outermost parentheses
+    const std::string &g = callTipFirst;
+    size_t open = g.find('(');
+    if (open == std::string::npos) return;
+    int d = 0, k = 0;
+    size_t start = open + 1;
+    for (size_t i = open + 1; i < g.size(); i++) {
+        char c = g[i];
+        if (c == '(' || c == '<' || c == '[') d++;
+        else if ((c == ')' || c == '>' || c == ']') && d > 0) d--;
+        else if ((c == ',' && d == 0) || (c == ')' && d == 0)) {
+            if (k == arg) {
+                while (start < i && g[start] == ' ') start++;
+                S(editor, SCI_CALLTIPSETHLT, start, i);
+                return;
+            }
+            k++;
+            start = i + 1;
+            if (c == ')') break;
+        }
+    }
+    S(editor, SCI_CALLTIPSETHLT, 0, 0);
 }
 
 // The C prototype in an entry's SYNOPSIS: the line with "name(" that ends in ";" (prefer the
@@ -241,9 +330,9 @@ void App::completionCharAdded(int ch)
         showCallTip();
         return;
     }
-    if (ch == ')') {
-        S(editor, SCI_CALLTIPCANCEL);
-        return;
+    if (S(editor, SCI_CALLTIPACTIVE) && callTipParen >= 0) {
+        updateCallTipHighlight();          // "," moves to the next argument, the closing ")" ends it
+        if (ch == ',' || ch == ')') return;
     }
     // right after "->", "::" or "." (not a number's point): what's in that scope
     bool arrow = ch == '>' && pos >= 2 && (char)S(editor, SCI_GETCHARAT, pos - 2) == '-';

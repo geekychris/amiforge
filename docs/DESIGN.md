@@ -32,7 +32,7 @@ tools/       build.sh (Docker), m1*.sh/m1mcp.py (drive the OS4 guest on the test
 
 ## Testing on OS4
 
-The test machine is `chriscollins@m1.local` (override with `M1=`). QEMU sam460ex runs AmigaOS
+The test machine is `m1.local` (override with `M1=`). QEMU sam460ex runs AmigaOS
 4.1 there with amiga_mcp's devbench on :3000. The bridge runs on the guest and gives file
 transfer, shell commands and launching.
 - `tools/m1push.sh build/AmiForge DH1:AmiForge/AmiForge` copies a file in (~160 KB/s).
@@ -47,7 +47,7 @@ transfer, shell commands and launching.
   exist as a volume name (e.g. `SDK:` before the SDK is installed): AmigaDOS pops up an
   "insert volume" requester, which blocks the bridge until someone clicks Cancel.
 - OS4 has no memory protection to speak of. A bad debugger write can hang the guest. If the
-  bridge stops answering, `ssh chriscollins@m1.local 'zsh -lc "retro restart os4"'`
+  bridge stops answering, `ssh m1.local 'zsh -lc "retro restart os4"'`
   reboots it (about 60–90 s).
 
 ## Editor (src/sci)

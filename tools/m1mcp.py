@@ -3,14 +3,16 @@
 import os, json, subprocess, sys, urllib.request, socket, time
 tool = sys.argv[1]; args = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
 port = int(sys.argv[3]) if len(sys.argv) > 3 else 3000
-lport = 10000 + port
+# M1=local talks to this machine's devbench directly
+local = os.environ.get("M1") == "local"
+lport = port if local else 10000 + port
 def up():
     s = socket.socket(); s.settimeout(0.5)
     try: s.connect(("127.0.0.1", lport)); return True
     except OSError: return False
     finally: s.close()
-if not up():
-    subprocess.Popen(["ssh", "-fN", "-o", "ExitOnForwardFailure=yes", "-L", f"{lport}:127.0.0.1:{port}", os.environ.get("M1", "chriscollins@m1.local")]).wait()
+if not local and not up():
+    subprocess.Popen(["ssh", "-fN", "-o", "ExitOnForwardFailure=yes", "-L", f"{lport}:127.0.0.1:{port}", os.environ.get("M1", "m1.local")]).wait()
     for _ in range(20):
         if up(): break
         time.sleep(0.25)

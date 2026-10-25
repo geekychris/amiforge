@@ -107,6 +107,31 @@ const std::string &App::codeText(const std::string &path)
     return c.second;
 }
 
+// The headers a file includes, resolved to paths.
+const std::vector<std::string> &App::includesOf(const std::string &path)
+{
+    int64_t t = fileTime(path);
+    auto &c = includeCache[path];
+    if (c.first == t && t >= 0) return c.second;
+    c.first = t;
+    c.second.clear();
+    std::string raw;
+    if (!readFile(path, raw)) return c.second;
+    size_t pos = 0;
+    while ((pos = raw.find("#include", pos)) != std::string::npos) {
+        size_t e = raw.find('\n', pos);
+        std::string line = raw.substr(pos, e == std::string::npos ? std::string::npos : e - pos);
+        pos += 8;
+        size_t a = line.find_first_of("<\"");
+        if (a == std::string::npos) continue;
+        size_t b = line.find(line[a] == '<' ? '>' : '"', a + 1);
+        if (b == std::string::npos) continue;
+        std::string p = resolveInclude(line.substr(a + 1, b - a - 1), line[a] == '"', path);
+        if (!p.empty()) c.second.push_back(p);
+    }
+    return c.second;
+}
+
 // The current document, the project's files, and (transitively) the headers they include.
 std::vector<std::string> App::scopeSources()
 {
@@ -119,23 +144,9 @@ std::vector<std::string> App::scopeSources()
     };
     if (cur && !cur->path.empty()) add(cur->path);
     for (auto &f : project.files) add(project.abs(f));
-    // follow #includes (raw text: the include lines themselves are blanked in codeText)
-    for (size_t i = 0; i < files.size() && files.size() < 250; i++) {
-        std::string raw;
-        if (!readFile(files[i], raw)) continue;
-        size_t pos = 0;
-        while ((pos = raw.find("#include", pos)) != std::string::npos) {
-            size_t e = raw.find('\n', pos);
-            std::string line = raw.substr(pos, e == std::string::npos ? std::string::npos : e - pos);
-            pos += 8;
-            size_t a = line.find_first_of("<\"");
-            if (a == std::string::npos) continue;
-            size_t b = line.find(line[a] == '<' ? '>' : '"', a + 1);
-            if (b == std::string::npos) continue;
-            std::string p = resolveInclude(line.substr(a + 1, b - a - 1), line[a] == '"', files[i]);
-            if (!p.empty()) add(p);
-        }
-    }
+    // follow #includes (each file's list is cached until the file changes)
+    for (size_t i = 0; i < files.size() && files.size() < 250; i++)
+        for (auto &p : includesOf(files[i])) add(p);
     return files;
 }
 
@@ -382,6 +393,95 @@ int App::scopeAt(intptr_t start, std::string &name)
     while (!name.empty() && name[0] == ':') name.erase(0, 1);
     if (name.empty() || isdigit((unsigned char)name[0])) return 0;   // "1.5"
     return kind;
+}
+
+// --- signatures for calltips ---
+
+static std::string squeeze(const std::string &s)
+{
+    std::string o;
+    bool sp = false;
+    for (char c : s) {
+        if (isspace((unsigned char)c)) { sp = true; continue; }
+        if (sp && !o.empty()) o += ' ';
+        sp = false;
+        o += c;
+    }
+    return o;
+}
+
+// Declarations of `name(...)` in t[a,b): "type name(params)", "Class::name(params)", and for
+// constructors "name(params)" with nothing (or "explicit") before it on the line.
+static void collectSignatures(const std::string &t, size_t a, size_t b, const std::string &name,
+                              bool constructor, std::vector<std::string> &out)
+{
+    size_t p = a;
+    while ((p = t.find(name, p)) != std::string::npos && p < b) {
+        size_t e = p + name.size();
+        bool whole = (p == 0 || !identChar((unsigned char)t[p - 1])) && (e >= t.size() || !identChar((unsigned char)t[e]));
+        size_t q = e;
+        while (q < b && (t[q] == ' ' || t[q] == '\t')) q++;
+        if (!whole || q >= b || t[q] != '(') { p = e; continue; }
+        size_t ls = t.rfind('\n', p);
+        ls = ls == std::string::npos ? 0 : ls + 1;
+        std::string before = squeeze(t.substr(ls, p - ls));
+        bool qualified = before.size() >= 2 && before.compare(before.size() - 2, 2, "::") == 0;
+        bool ok;
+        if (constructor) ok = before.empty() || before == "explicit" || before == "inline" || qualified;
+        else {
+            ok = !before.empty() && (identChar((unsigned char)before.back()) || before.back() == '*' ||
+                                     before.back() == '&' || before.back() == '>' || qualified);
+            for (const char *bad : { "return", "else", "case", "new", "delete", "throw", "sizeof", "goto" })
+                if (before == bad || (before.size() > strlen(bad) && before.compare(before.size() - strlen(bad) - 1, strlen(bad) + 1, std::string(" ") + bad) == 0))
+                    ok = false;
+            if (before.find('=') != std::string::npos || before.find('(') != std::string::npos ||
+                before.find('.') != std::string::npos || before.find("->") != std::string::npos ||
+                before.find(',') != std::string::npos)
+                ok = false;
+        }
+        if (!ok) { p = e; continue; }
+        // up to the matching ')'
+        int depth = 0;
+        size_t r = q;
+        for (; r < t.size() && r < q + 400; r++) {
+            if (t[r] == '(') depth++;
+            else if (t[r] == ')' && --depth == 0) break;
+        }
+        if (r >= t.size() || t[r] != ')') { p = e; continue; }
+        std::string sig = squeeze(before.empty() || qualified ? t.substr(p, r + 1 - p) : before + " " + t.substr(p, r + 1 - p));
+        if (qualified) sig = squeeze(t.substr(p, r + 1 - p));
+        bool dup = false;
+        for (auto &o : out) if (o == sig) dup = true;
+        if (!dup && out.size() < 8) out.push_back(sig);
+        p = r;
+    }
+}
+
+void App::signatures(const std::string &name, const std::string &className, bool constructor, std::vector<std::string> &out)
+{
+    if (!className.empty()) {
+        std::string cls = className;
+        size_t cc = cls.rfind("::");
+        if (cc != std::string::npos) cls = cls.substr(cc + 2);
+        size_t lt = cls.find('<');
+        if (lt != std::string::npos) cls = cls.substr(0, lt);
+        std::string member = constructor ? cls : name;
+        for (auto &f : scopeSources()) {
+            const std::string &t = codeText(f);
+            if (t.find(cls) == std::string::npos) continue;
+            size_t from = 0, a, b;
+            while (findBlock(t, cls, from, a, b)) collectSignatures(t, a, b, member, constructor, out);
+        }
+        return;
+    }
+    // a free function: the project first, then everything included
+    std::vector<std::string> files;
+    if (cur && !cur->path.empty()) files.push_back(cur->path);
+    for (auto &f : project.files) files.push_back(project.abs(f));
+    for (auto &f : files) {
+        const std::string &t = codeText(f);
+        collectSignatures(t, 0, t.size(), name, false, out);
+    }
 }
 
 } // namespace af

@@ -48,6 +48,7 @@ bool sameFile(const std::string &a, const std::string &b);
 bool isSourceFile(const std::string &path);                   // compiles to an object: c cpp cc cxx s S asm
 bool isCppFile(const std::string &path);
 bool isAsmFile(const std::string &path);
+bool sdkInstalled();                                          // SDK: exists (checked without a requester)
 
 // --- project (Project.cpp) ---
 struct Project {
@@ -282,7 +283,13 @@ public:
     std::string typeOfVariable(const std::string &var, intptr_t line);
     void typeMembers(const std::string &type, std::set<std::string> &out);
     int scopeAt(intptr_t start, std::string &name);
+    void signatures(const std::string &name, const std::string &className, bool constructor, std::vector<std::string> &out);
+    void updateCallTipHighlight();
+    intptr_t callTipParen = -1;       // position of the "(" the calltip is for
+    std::string callTipFirst;         // its first signature (for highlighting the argument)
     std::map<std::string, std::pair<int64_t, std::string>> codeCache;
+    const std::vector<std::string> &includesOf(const std::string &path);
+    std::map<std::string, std::pair<int64_t, std::vector<std::string>>> includeCache;
     void setGadgetIn(struct Window *w, Object *g, uint32_t tag, uint32_t value);
     std::vector<DocEntry> docIndex;
     Object *docWinObj = nullptr;

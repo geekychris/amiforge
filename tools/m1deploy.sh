@@ -2,7 +2,7 @@
 # m1deploy.sh FILE[=DEST]... — write files into the dev HDF (DH1:) on m1 with QEMU stopped,
 # then start it again. Reliable for big files (the bridge push isn't). DEST is relative to
 # DH1: (default AmiForge/<name>). Takes about 90 s because of the reboot.
-M1=${M1:-chriscollins@m1.local}
+M1=${M1:-m1.local}
 specs=()
 for a in "$@"; do
   src=${a%%=*}; dest=${a#*=}; [ "$dest" = "$a" ] && dest=AmiForge/${src:t}

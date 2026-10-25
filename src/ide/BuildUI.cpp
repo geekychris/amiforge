@@ -45,6 +45,16 @@ void App::build(const std::string &what)
         return;
     }
     if (!ensureProject()) return;
+    if (what != "clean" && !sdkInstalled()) {
+        info("Building needs the AmigaOS 4.1 SDK with GCC 11, and it isn't installed here\n"
+             "(there is no SDK: assign).\n\n"
+             "Install the SDK (from Hyperion's AmigaOS 4.1 SDK archive, including GCC 11), then\n"
+             "make sure S:User-Startup has:\n"
+             "    assign SDK: <where it is installed>\n"
+             "    execute SDK:S/sdk-startup");
+        pendingAfterBuild = 0;
+        return;
+    }
     if (!saveAll()) return;
     saveProject();
     diagnostics.clear();
@@ -124,6 +134,14 @@ void App::pollBuild()
         diagnostics.push_back(l);
         struct Node *n = buildLog.add({text}, (void *)(intptr_t)diagnostics.size());
         if (n && pen >= 0) buildLog.setPens(n, pen);
+        if (l.kind == MsgKind::Output && l.text.find("Unknown command") != std::string::npos) {
+            BuildLine hint;
+            hint.kind = MsgKind::Error;
+            hint.text = "The compiler couldn't be started: check that the SDK is installed (SDK:gcc/bin/gcc).";
+            diagnostics.push_back(hint);
+            struct Node *h = buildLog.add({hint.text}, (void *)(intptr_t)diagnostics.size());
+            if (h) buildLog.setPens(h, penError);
+        }
     }
     buildLog.attach(any ? buildLog.count() - 1 : -1);
 }
