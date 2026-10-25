@@ -189,7 +189,7 @@ The OS-independent logic of each feature lives in a model file that also compile
 | Split view, minimap, multiple cursors | | `EditorFeatures.cpp` | `mainView`/`splitView`/`miniView` share one Scintilla document; `editor` is the active view |
 | Snippets | `Snippets.*` | `EditorFeatures.cpp` | `${1:x}` fields are an indicator whose value is the field number |
 | Outline, references, rename | `Symbols.*` | `EditorFeatures.cpp` | Text-based (comments and strings skipped), not scope-aware |
-| GUI designer | `GuiModel.*` (the `.afg` format, code generator) | `Designer.cpp` | Regenerating keeps the code between `/* user code */` markers; unknown blocks are parked, not lost |
+| GUI designer | `GuiModel.*` (the `.afg` format, code generator) | `Designer.cpp` | Regenerating keeps the code between `/* USER-BEGIN key */` and `/* USER-END key */`; blocks whose gadget is gone are parked at the end, not lost |
 | Templates | `TemplateEngine.*` | `TemplatesUI.cpp` | `template.def` lists files, substitutions and post-create commands (e.g. `idltool`) |
 | Package Release | `ReleaseGen.*` (readme, install script, flags) | `ReleaseUI.cpp` | Release build into `obj-release`, staged drawer with icons, `tar` then `xad2lha` (OS4 has no LhA that creates archives) |
 | Edit and Continue | `src/dbg/hotpatch.c` | `os4_session.c` (`dbg_hotpatch`), `HotPatch.cpp` | Links the recompiled object itself against the running program's symbols (no `ld`); globals map onto the program's copies; old entries get a branch (long branch or stub when out of range); debug info is merged and the newest version wins in lookups |
