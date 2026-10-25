@@ -103,6 +103,12 @@ enum {
 };
 enum { AF_MARGIN_NUMBERS = 0, AF_MARGIN_SYMBOLS = 1, AF_MARGIN_FOLD = 2 };
 
+// Indicators the IDE uses (styled by sciSetupSourceEditor from the theme).
+enum {
+    AF_INDIC_SNIPPET = 20,           // snippet placeholders (the value is the field number)
+    AF_INDIC_OCCURRENCE = 21,        // Find All References hits in the current document
+};
+
 // Messages SciView handles itself (send them like SCI_* messages). sciSetupSourceEditor
 // turns both on.
 enum {

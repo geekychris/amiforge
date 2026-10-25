@@ -49,6 +49,7 @@
 #include <devices/inputevent.h>
 
 #include "Scintilla.h"
+#include "sci/Theme.h"
 
 namespace af {
 
@@ -152,8 +153,16 @@ static struct NewMenu menus[] = {
     ITEM("Go to Line...", "L", CMD_GOTO_LINE),
     ITEM("Open Include File  (Ctrl-Click)", "D", CMD_OPEN_INCLUDE),
     ITEM("Go to Definition  (F12, Ctrl-Click)", "J", CMD_GOTO_DEF),
+    // --- editor features ---
+    ITEM("Find All References  (Shift F12)", 0, CMD_FIND_REFS),
+    ITEM("Rename Symbol...  (F2)", 0, CMD_RENAME),
+    BAR,
+    ITEM("Add Next Occurrence", "T", CMD_ADD_NEXT_OCC),
+    ITEM("Select All Occurrences", 0, CMD_SELECT_ALL_OCC),
     BAR,
     ITEM("Complete Word  (Ctrl Space)", 0, CMD_COMPLETE),
+    ITEM("Insert Snippet...  (name + Tab)", 0, CMD_INSERT_SNIPPET),
+    ITEM("Edit My Snippets", 0, CMD_EDIT_SNIPPETS),
     ITEM("Comment/Uncomment Lines", "/", CMD_COMMENT),
     ITEM("Indent", "]", CMD_INDENT),
     ITEM("Unindent", "[", CMD_UNINDENT),
@@ -167,6 +176,12 @@ static struct NewMenu menus[] = {
     ITEM("Show Whitespace", 0, CMD_WHITESPACE),
     ITEM("Fold All", 0, CMD_FOLD_ALL),
     ITEM("Unfold All", 0, CMD_UNFOLD_ALL),
+    // --- editor features ---
+    BAR,
+    ITEM("Split Editor", 0, CMD_SPLIT_VIEW),
+    ITEM("Minimap", 0, CMD_MINIMAP),
+    ITEM("Symbols", 0, CMD_SHOW_SYMBOLS),
+    ITEM("Theme", 0, 0),                     // its submenu is filled in by rebuildMenus
 
     TITLE("Build"),
     ITEM("Compile File", "K", CMD_COMPILE),
@@ -227,6 +242,19 @@ void App::rebuildMenus()
     for (struct NewMenu *m = menus; ; m++) {
         menuData.push_back(*m);
         if (m->nm_Type == NM_END) break;
+        // --- editor features: check marks, the Theme submenu ---
+        uint32 ud = (uint32)m->nm_UserData;
+        if (m->nm_Type == NM_ITEM && (ud == CMD_SPLIT_VIEW || ud == CMD_MINIMAP)) {
+            bool on = ud == CMD_SPLIT_VIEW ? splitOn : minimapOn;
+            menuData.back().nm_Flags |= CHECKIT | MENUTOGGLE | (on ? CHECKED : 0);
+        }
+        if (m->nm_Type == NM_ITEM && m->nm_Label != NM_BARLABEL && strcmp((const char *)m->nm_Label, "Theme") == 0) {
+            const auto &list = themes();
+            for (size_t i = 0; i < list.size() && i < 10; i++)
+                menuData.push_back({ NM_SUB, (STRPTR)list[i].name, 0,
+                                     (UWORD)(CHECKIT | (themeName == list[i].name ? CHECKED : 0)),
+                                     (LONG)(((1 << list.size()) - 1) & ~(1 << i)), (APTR)(uint32)(CMD_THEME_FIRST + i) });
+        }
         if (m->nm_Type == NM_ITEM && m->nm_Label != NM_BARLABEL && strcmp((const char *)m->nm_Label, "Open Recent") == 0) {
             for (size_t i = 0; i < recentProjects.size() && i < 10; i++)
                 menuData.push_back({ NM_SUB, (STRPTR)menuLabels[i].c_str(), 0, 0, 0, (APTR)(uint32)(CMD_RECENT_FIRST + i) });
@@ -296,6 +324,10 @@ bool App::openMainWindow()
     static const char *sideNames[] = { "Locals", "Watches", "Registers", nullptr };
     static const char *bottomNames[] = { "Build", "Find", "Call Stack", "Breakpoints", "Memory", "Disassembly", "Debug Log", nullptr };
     sideLabels = tabList(sideNames);
+    static const char *leftNames[] = { "Project", "Symbols", nullptr };   // --- editor features ---
+    leftLabels = tabList(leftNames);
+    static const char *symbolTitles[] = { "Symbol", "Kind" };
+    static const int symbolWeights[] = { 72, 28 };
     bottomLabels = tabList(bottomNames);
     tabLabels = new struct List;
     IExec->NewList(tabLabels);
@@ -426,11 +458,14 @@ bool App::openMainWindow()
                 LAYOUT_Orientation, LAYOUT_ORIENT_VERT,
                 LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr,
                     LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
-                    // project files
-                    LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr,
-                        LAYOUT_Orientation, LAYOUT_ORIENT_VERT,
-                        LAYOUT_BevelStyle, BVS_GROUP, LAYOUT_Label, (uint32)"Project",
-                        LAYOUT_AddChild, projectList.create(GID_PROJECT),
+                    // project files and (--- editor features ---) the symbol outline
+                    LAYOUT_AddChild, gad[GID_LEFT_TABS] = IIntuition->NewObject(clicktab, nullptr,
+                        GA_ID, GID_LEFT_TABS, GA_RelVerify, TRUE,
+                        CLICKTAB_Labels, (uint32)leftLabels,
+                        CLICKTAB_PageGroup, (uint32)(gad[GID_LEFT_PAGES] = IIntuition->NewObject(page, nullptr,
+                            PAGE_Add, projectList.create(GID_PROJECT),
+                            PAGE_Add, symbolList.create(GID_SYMBOLS, symbolTitles, symbolWeights),
+                            TAG_DONE)),
                         TAG_DONE),
                     CHILD_WeightedWidth, 16,
                     LAYOUT_WeightBar, TRUE,
@@ -506,19 +541,22 @@ bool App::openMainWindow()
     win = (struct Window *)IIntuition->IDoMethod(winObj, WM_OPEN);
     if (!win) return false;
     for (ListView *lv : { &projectList, &buildLog, &findLog, &locals, &watches, &regs, &stack,
-                          &bpList, &memView, &disasm, &debugLogView })
+                          &bpList, &memView, &disasm, &debugLogView, &symbolList })
         lv->win = win;
 
     editor = SciView::create(win, this);
     if (!editor) return false;
+    mainView = editor;
     layoutEditor();
     editor->setFocus(true);
+    initEditorFeatures();   // --- editor features ---
     updateToolbar();
     return true;
 }
 
 void App::closeMainWindow()
 {
+    closeEditorFeatures();   // --- editor features ---
     if (editor) {
         editor->detach();
         delete editor;
@@ -531,13 +569,13 @@ void App::closeMainWindow()
     tabCloseImage = nullptr;
     if (drawInfo) IIntuition->FreeScreenDrawInfo(drawInfoScreen, drawInfo);
     drawInfo = nullptr;
-    for (struct List *l : { tabLabels, sideLabels, bottomLabels }) {
+    for (struct List *l : { tabLabels, sideLabels, bottomLabels, leftLabels }) {
         if (!l) continue;
         struct Node *n;
         while ((n = IExec->RemHead(l))) IClickTab->FreeClickTabNode(n);
         delete l;
     }
-    tabLabels = sideLabels = bottomLabels = nullptr;
+    tabLabels = sideLabels = bottomLabels = leftLabels = nullptr;
     if (monoFont) IGraphics->CloseFont(monoFont);
     monoFont = nullptr;
     if (appPort) IExec->FreeSysObject(ASOT_PORT, appPort);
@@ -548,22 +586,26 @@ void App::closeMainWindow()
 
 void App::layoutEditor(bool reblit)
 {
-    if (!editor || !win) return;
+    if (!mainView || !win) return;
     struct Gadget *g = (struct Gadget *)gad[GID_EDITOR];
     // The clicktab above draws its bottom bar 2 pixels into our box.
     const int inset = 2;
     const int left = g->LeftEdge, top = g->TopEdge + inset, width = g->Width, height = g->Height - inset;
+    // --- editor features: the main view, the split view and the minimap share the box ---
     int l, t, w, h;
-    editor->getBounds(&l, &t, &w, &h);
-    if (l == left && t == top && w == width && h == height) {
-        if (reblit) editor->refresh();
-        return;
+    mainView->getBounds(&l, &t, &w, &h);
+    int right = l + w;
+    for (SciView *v : { splitView, miniView }) {
+        if (!v) continue;
+        int vl, vt, vw, vh;
+        v->getBounds(&vl, &vt, &vw, &vh);
+        right = std::max(right, vl + vw);
     }
-    editor->setBounds(left, top, width, height);
+    if (!layoutViews(left, top, width, height, reblit)) return;
     // While the window is resized the editor can be blitted at an intermediate, larger size
     // after the gadgets around it were drawn: when it shrinks or moves, draw them again.
     // (Our placeholder's GM_RENDER comes back here with unchanged bounds and just re-blits.)
-    if (width < w || height < h || left != l || top != t)
+    if (width < right - l || height < h || left != l || top != t)
         IIntuition->RefreshGList((struct Gadget *)gad[GID_ROOT], win, nullptr, 1);
 }
 
@@ -636,14 +678,18 @@ void App::busyPointer(bool busy)
 
 uint32_t App::idcmpHook(struct IntuiMessage *im)
 {
+    // --- editor features: several views, the minimap, snippets' Tab, Alt-click ---
+    uint32_t handled;
+    if (editorIdcmp(im, handled)) return handled;
     switch (im->Class) {
     case IDCMP_IDCMPUPDATE: {
         // live scroller drags
         struct TagItem *tags = (struct TagItem *)im->IAddress;
         uint32 id = IUtility->GetTagData(GA_ID, 0, tags);
-        if (editor && (id == GID_VSCROLL || id == GID_HSCROLL)) {
+        if (mainView && (id == GID_VSCROLL || id == GID_HSCROLL)) {
             uint32 top = IUtility->GetTagData(SCROLLER_Top, ~0UL, tags);
-            if (top != ~0UL) editor->scrollTo(id == GID_VSCROLL, (int)top);
+            if (top != ~0UL) mainView->scrollTo(id == GID_VSCROLL, (int)top);
+            if (id == GID_VSCROLL) updateMinimap();
         }
         return 0;
     }
@@ -714,7 +760,8 @@ bool App::handleKey(uint16_t code, uint16_t qual)
     uint32_t cmd = 0;
     switch (code) {
     case 0x50: cmd = CMD_DOC_LOOKUP; break;                                    // F1
-    case 0x6F: cmd = CMD_GOTO_DEF; break;                                      // F12
+    case 0x6F: cmd = shift ? CMD_FIND_REFS : CMD_GOTO_DEF; break;              // F12
+    case 0x51: cmd = CMD_RENAME; break;                                        // F2 (--- editor features ---)
     case 0x5F: cmd = CMD_DOC_LOOKUP; break;                                    // Help
     case 0x52: cmd = shift ? CMD_FIND_PREV : CMD_FIND_NEXT; break;           // F3
     case 0x53: cmd = shift ? CMD_PREV_ERROR : CMD_NEXT_ERROR; break;         // F4
@@ -743,8 +790,11 @@ void App::sciWantFocus(SciView *v)
     v->setFocus(true);
 }
 
-void App::sciScrollInfo(SciView *, bool vertical, int pos, int visible, int total)
+void App::sciScrollInfo(SciView *v, bool vertical, int pos, int visible, int total)
 {
+    // --- editor features: the scrollers belong to the main view; the minimap follows it ---
+    if (v != mainView) return;
+    if (vertical && miniView) queueCommand(CMD_MINIMAP_UPDATE);
     uint32_t gid = vertical ? GID_VSCROLL : GID_HSCROLL;
     if (gad[gid] && win)
         IIntuition->SetGadgetAttrs((struct Gadget *)gad[gid], win, nullptr,
@@ -812,7 +862,7 @@ void App::eventLoop()
         // GM_RENDER can't touch the editor: follow its box from here.
         layoutEditor(false);
         // SciView batches its repaints: let it paint now the loop is idle
-        if (editor) editor->tick();
+        tickViews();
     }
 }
 
@@ -835,7 +885,8 @@ void App::handleGadget(uint32_t gid, uint16_t code)
     case GID_HSCROLL: {
         uint32 top = 0;
         IIntuition->GetAttr(SCROLLER_Top, gad[gid], &top);
-        if (editor) editor->scrollTo(gid == GID_VSCROLL, (int)top);
+        if (mainView) mainView->scrollTo(gid == GID_VSCROLL, (int)top);
+        if (gid == GID_VSCROLL) updateMinimap();
         break;
     }
     case GID_TABS: {
@@ -934,6 +985,7 @@ void App::handleGadget(uint32_t gid, uint16_t code)
     }
     case GID_WATCH_DEL: removeWatch(); break;
     case GID_MEM_ADDR: refreshMemory(); break;
+    case GID_SYMBOLS: outlineClicked(); break;   // --- editor features ---
     default:
         break;
     }

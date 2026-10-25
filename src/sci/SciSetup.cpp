@@ -1,4 +1,4 @@
-// sciSetupSourceEditor: font, light colour theme, margins, markers, folding and the lexer
+// sciSetupSourceEditor: font, the current colour theme (Theme.h), margins, markers, folding and the lexer
 // for a file name. Auto-indent and brace highlighting are done by SciView itself
 // (AF_SCI_SETAUTOINDENT, AF_SCI_SETBRACEMATCH), both turned on here.
 #include <cstdint>
@@ -15,6 +15,7 @@
 
 #include "sci/SciView.h"
 #include "sci/LexPPCAsm.h"
+#include "sci/Theme.h"
 
 extern const Lexilla::LexerModule lmCPP;
 extern const Lexilla::LexerModule lmMake;
@@ -107,17 +108,9 @@ const char gasDirectives[] =
     ".cfi_offset .cfi_restore .cfi_register .cfi_adjust_cfa_offset .cfi_sections "
     ".stabs .stabn .stabd .tc .toc .list .nolist .title .struct";
 
-// --- colours (0xRRGGBB; Scintilla wants 0xBBGGRR) ---
+// --- colours (0xRRGGBB; Scintilla wants 0xBBGGRR), from the current theme ---
 
-constexpr intptr_t RGB(uint32_t rgb) {
-    return static_cast<intptr_t>(((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF));
-}
-
-constexpr uint32_t textFore = 0x1A1A1A, textBack = 0xFFFFFF;
-constexpr uint32_t marginBack = 0xF0F0F0, marginFore = 0x909090;
-constexpr uint32_t comment = 0x3F8F3F, docComment = 0x4F7F9F, keyword = 0x0033B3, type = 0x007A7A;
-constexpr uint32_t string = 0xB8261A, number = 0xA85E00, preprocessor = 0x8A2E9E, oper = 0x806000;
-constexpr uint32_t label = 0xB00060, asmOper = 0x505050;
+constexpr intptr_t RGB(uint32_t rgb) { return sciColour(rgb); }
 
 class Setup {
 public:
@@ -181,6 +174,7 @@ Lang LangForFile(const char *fileName) {
 }
 
 void SetupCpp(Setup &s) {
+    const Theme &t = currentTheme();
     s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmCPP.Create()));
     s.Keywords(0, cKeywords);
     s.Keywords(1, cTypes);
@@ -189,79 +183,83 @@ void SetupCpp(Setup &s) {
     s.Property("fold.comment", "1");
     s.Property("fold.preprocessor", "1");
     s.Property("lexer.cpp.track.preprocessor", "0");
-    s.Style(SCE_C_COMMENT, comment);
-    s.Style(SCE_C_COMMENTLINE, comment);
-    s.Style(SCE_C_COMMENTDOC, docComment);
-    s.Style(SCE_C_COMMENTLINEDOC, docComment);
-    s.Style(SCE_C_COMMENTDOCKEYWORD, docComment);
-    s.Style(SCE_C_COMMENTDOCKEYWORDERROR, docComment);
-    s.Style(SCE_C_PREPROCESSORCOMMENT, comment);
-    s.Style(SCE_C_PREPROCESSORCOMMENTDOC, docComment);
-    s.Style(SCE_C_NUMBER, number);
-    s.Style(SCE_C_WORD, keyword);
-    s.Style(SCE_C_WORD2, type);
-    s.Style(SCE_C_GLOBALCLASS, type);
-    s.Style(SCE_C_STRING, string);
-    s.Style(SCE_C_CHARACTER, string);
-    s.Style(SCE_C_STRINGRAW, string);
-    s.Style(SCE_C_VERBATIM, string);
-    s.Style(SCE_C_HASHQUOTEDSTRING, string);
-    s.Style(SCE_C_ESCAPESEQUENCE, number);
-    s.Style(SCE_C_STRINGEOL, string, 0xFFE0E0);
-    s.Style(SCE_C_USERLITERAL, number);
-    s.Style(SCE_C_PREPROCESSOR, preprocessor);
-    s.Style(SCE_C_OPERATOR, oper);
-    s.Style(SCE_C_TASKMARKER, 0xC00000);
+    s.Style(SCE_C_COMMENT, t.comment);
+    s.Style(SCE_C_COMMENTLINE, t.comment);
+    s.Style(SCE_C_COMMENTDOC, t.docComment);
+    s.Style(SCE_C_COMMENTLINEDOC, t.docComment);
+    s.Style(SCE_C_COMMENTDOCKEYWORD, t.docComment);
+    s.Style(SCE_C_COMMENTDOCKEYWORDERROR, t.docComment);
+    s.Style(SCE_C_PREPROCESSORCOMMENT, t.comment);
+    s.Style(SCE_C_PREPROCESSORCOMMENTDOC, t.docComment);
+    s.Style(SCE_C_NUMBER, t.number);
+    s.Style(SCE_C_WORD, t.keyword);
+    s.Style(SCE_C_WORD2, t.type);
+    s.Style(SCE_C_GLOBALCLASS, t.type);
+    s.Style(SCE_C_STRING, t.string);
+    s.Style(SCE_C_CHARACTER, t.string);
+    s.Style(SCE_C_STRINGRAW, t.string);
+    s.Style(SCE_C_VERBATIM, t.string);
+    s.Style(SCE_C_HASHQUOTEDSTRING, t.string);
+    s.Style(SCE_C_ESCAPESEQUENCE, t.number);
+    s.Style(SCE_C_STRINGEOL, t.string, t.stringEolBack);
+    s.Style(SCE_C_USERLITERAL, t.number);
+    s.Style(SCE_C_PREPROCESSOR, t.preprocessor);
+    s.Style(SCE_C_OPERATOR, t.oper);
+    s.Style(SCE_C_TASKMARKER, t.taskMarker);
 }
 
 void SetupAsm(Setup &s) {
+    const Theme &t = currentTheme();
     s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmPPCAsm.Create()));
     s.Keywords(0, ppcInstructions);
     s.Keywords(1, ppcRegisters);
     s.Keywords(2, gasDirectives);
-    s.Style(AF_ASM_COMMENT, comment);
-    s.Style(AF_ASM_COMMENTBLOCK, comment);
-    s.Style(AF_ASM_NUMBER, number);
-    s.Style(AF_ASM_STRING, string);
-    s.Style(AF_ASM_CHARACTER, string);
-    s.Style(AF_ASM_STRINGEOL, string, 0xFFE0E0);
-    s.Style(AF_ASM_OPERATOR, asmOper);
-    s.Style(AF_ASM_INSTRUCTION, keyword);
-    s.Style(AF_ASM_REGISTER, type);
-    s.Style(AF_ASM_DIRECTIVE, preprocessor);
-    s.Style(AF_ASM_LABEL, label);
-    s.Style(AF_ASM_PREPROCESSOR, preprocessor);
+    s.Style(AF_ASM_COMMENT, t.comment);
+    s.Style(AF_ASM_COMMENTBLOCK, t.comment);
+    s.Style(AF_ASM_NUMBER, t.number);
+    s.Style(AF_ASM_STRING, t.string);
+    s.Style(AF_ASM_CHARACTER, t.string);
+    s.Style(AF_ASM_STRINGEOL, t.string, t.stringEolBack);
+    s.Style(AF_ASM_OPERATOR, t.asmOper);
+    s.Style(AF_ASM_INSTRUCTION, t.keyword);
+    s.Style(AF_ASM_REGISTER, t.type);
+    s.Style(AF_ASM_DIRECTIVE, t.preprocessor);
+    s.Style(AF_ASM_LABEL, t.label);
+    s.Style(AF_ASM_PREPROCESSOR, t.preprocessor);
 }
 
 void SetupMake(Setup &s) {
+    const Theme &t = currentTheme();
     s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmMake.Create()));
     s(SCI_SETUSETABS, 1);
-    s.Style(SCE_MAKE_COMMENT, comment);
-    s.Style(SCE_MAKE_PREPROCESSOR, preprocessor);
-    s.Style(SCE_MAKE_IDENTIFIER, type);
-    s.Style(SCE_MAKE_OPERATOR, oper);
-    s.Style(SCE_MAKE_TARGET, keyword);
-    s.Style(SCE_MAKE_IDEOL, string, 0xFFE0E0);
+    s.Style(SCE_MAKE_COMMENT, t.comment);
+    s.Style(SCE_MAKE_PREPROCESSOR, t.preprocessor);
+    s.Style(SCE_MAKE_IDENTIFIER, t.type);
+    s.Style(SCE_MAKE_OPERATOR, t.oper);
+    s.Style(SCE_MAKE_TARGET, t.keyword);
+    s.Style(SCE_MAKE_IDEOL, t.string, t.stringEolBack);
 }
 
 void SetupProps(Setup &s) {
+    const Theme &t = currentTheme();
     s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmProps.Create()));
-    s.Style(SCE_PROPS_COMMENT, comment);
-    s.Style(SCE_PROPS_SECTION, keyword, 0xEEF2FF);
-    s.Style(SCE_PROPS_ASSIGNMENT, oper);
-    s.Style(SCE_PROPS_DEFVAL, number);
-    s.Style(SCE_PROPS_KEY, type);
+    s.Style(SCE_PROPS_COMMENT, t.comment);
+    s.Style(SCE_PROPS_SECTION, t.keyword, t.propsSectionBack);
+    s.Style(SCE_PROPS_ASSIGNMENT, t.oper);
+    s.Style(SCE_PROPS_DEFVAL, t.number);
+    s.Style(SCE_PROPS_KEY, t.type);
 }
 
 void SetupDiff(Setup &s) {
+    const Theme &t = currentTheme();
     s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmDiff.Create()));
-    s.Style(SCE_DIFF_COMMENT, comment);
-    s.Style(SCE_DIFF_COMMAND, keyword);
-    s.Style(SCE_DIFF_HEADER, preprocessor, 0xF4ECF8);
-    s.Style(SCE_DIFF_POSITION, number);
-    s.Style(SCE_DIFF_DELETED, 0xA00000, 0xFFECEC);
-    s.Style(SCE_DIFF_ADDED, 0x006000, 0xEAFBEA);
-    s.Style(SCE_DIFF_CHANGED, 0x805000, 0xFFF6DC);
+    s.Style(SCE_DIFF_COMMENT, t.comment);
+    s.Style(SCE_DIFF_COMMAND, t.keyword);
+    s.Style(SCE_DIFF_HEADER, t.preprocessor, t.diffHeaderBack);
+    s.Style(SCE_DIFF_POSITION, t.number);
+    s.Style(SCE_DIFF_DELETED, t.diffDeletedFore, t.diffDeletedBack);
+    s.Style(SCE_DIFF_ADDED, t.diffAddedFore, t.diffAddedBack);
+    s.Style(SCE_DIFF_CHANGED, t.diffChangedFore, t.diffChangedBack);
 }
 
 } // namespace
@@ -285,26 +283,43 @@ void sciSetupSourceEditor(SciView *v, const char *fileName, int fontSize) {
     s(SCI_SETCARETWIDTH, 2);
 
     // Base style, copied to every style by STYLECLEARALL.
+    const Theme &t = currentTheme();
     s(SCI_STYLESETFONT, STYLE_DEFAULT, reinterpret_cast<intptr_t>("DejaVu Sans Mono"));
     s(SCI_STYLESETSIZE, STYLE_DEFAULT, fontSize);
-    s.Style(STYLE_DEFAULT, textFore, textBack);
+    s.Style(STYLE_DEFAULT, t.textFore, t.textBack);
     s(SCI_STYLECLEARALL);
-    s.Style(STYLE_LINENUMBER, marginFore, marginBack);
-    s.Style(STYLE_BRACELIGHT, keyword, 0xC8E0FF);
-    s.Style(STYLE_BRACEBAD, 0xC00000, 0xFFD0D0);
-    s.Style(STYLE_CONTROLCHAR, textFore);
-    s.Style(STYLE_INDENTGUIDE, 0xD0D0D0);
-    s(SCI_CALLTIPSETBACK, RGB(0xFFFFE8));
-    s(SCI_CALLTIPSETFORE, RGB(0x303030));
-    s(SCI_CALLTIPSETFOREHLT, RGB(keyword));
+    s.Style(STYLE_LINENUMBER, t.marginFore, t.marginBack);
+    s.Style(STYLE_BRACELIGHT, t.braceFore, t.braceBack);
+    s.Style(STYLE_BRACEBAD, t.braceBadFore, t.braceBadBack);
+    s.Style(STYLE_CONTROLCHAR, t.controlChar);
+    s.Style(STYLE_INDENTGUIDE, t.indentGuide);
+    s.Style(STYLE_CALLTIP, t.calltipFore, t.calltipBack);
+    s(SCI_CALLTIPSETBACK, RGB(t.calltipBack));
+    s(SCI_CALLTIPSETFORE, RGB(t.calltipFore));
+    s(SCI_CALLTIPSETFOREHLT, RGB(t.calltipHighlight));
+    s(SCI_SETWHITESPACEFORE, 1, RGB(t.indentGuide));
 
     // Selection, caret and the caret line (translucent, so marker backgrounds show through).
-    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_BACK, RGB(0xB4D5FE) | 0xFF000000);
-    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_INACTIVE_BACK, RGB(0xDCDCDC) | 0xFF000000);
-    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_CARET, RGB(0x000000) | 0xFF000000);
-    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_CARET_LINE_BACK, RGB(0x2060FF) | 0x14000000);
+    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_BACK, RGB(t.selection) | 0xFF000000);
+    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_INACTIVE_BACK, RGB(t.selectionInactive) | 0xFF000000);
+    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_ADDITIONAL_BACK, RGB(t.additionalSelection) | 0xFF000000);
+    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_CARET, RGB(t.caret) | 0xFF000000);
+    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_CARET_ADDITIONAL, RGB(t.additionalCaret) | 0xFF000000);
+    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_CARET_LINE_BACK, RGB(t.caretLine & 0xFFFFFF) | (intptr_t)(t.caretLine & 0xFF000000));
     s(SCI_SETCARETLINELAYER, SC_LAYER_UNDER_TEXT);
     s(SCI_SETCARETLINEVISIBLE, 1);
+    // the autocompletion list
+    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_LIST, RGB(t.listFore) | 0xFF000000);
+    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_LIST_BACK, RGB(t.listBack) | 0xFF000000);
+    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_LIST_SELECTED, RGB(t.listSelFore) | 0xFF000000);
+    s(SCI_SETELEMENTCOLOUR, SC_ELEMENT_LIST_SELECTED_BACK, RGB(t.listSelBack) | 0xFF000000);
+
+    // Multiple cursors: Ctrl-click (the IDE turns Alt-click into it) adds a caret, typing and
+    // pasting go to every caret.
+    s(SCI_SETMULTIPLESELECTION, 1);
+    s(SCI_SETADDITIONALSELECTIONTYPING, 1);
+    s(SCI_SETMULTIPASTE, SC_MULTIPASTE_EACH);
+    s(SCI_SETADDITIONALCARETSBLINK, 1);
 
     // Margins: line numbers, symbols (breakpoints, execution arrow), folding.
     s(SCI_SETMARGINS, 3);
@@ -313,7 +328,7 @@ void sciSetupSourceEditor(SciView *v, const char *fileName, int fontSize) {
       s(SCI_TEXTWIDTH, STYLE_LINENUMBER, reinterpret_cast<intptr_t>("_99999")));
     s(SCI_SETMARGINMASKN, AF_MARGIN_NUMBERS, 0);
     s(SCI_SETMARGINTYPEN, AF_MARGIN_SYMBOLS, SC_MARGIN_COLOUR);
-    s(SCI_SETMARGINBACKN, AF_MARGIN_SYMBOLS, RGB(marginBack));
+    s(SCI_SETMARGINBACKN, AF_MARGIN_SYMBOLS, RGB(t.marginBack));
     s(SCI_SETMARGINWIDTHN, AF_MARGIN_SYMBOLS, fontSize + 4);
     s(SCI_SETMARGINMASKN, AF_MARGIN_SYMBOLS,
       (1 << AF_MARKER_BREAKPOINT) | (1 << AF_MARKER_BREAKPOINT_OFF) |
@@ -324,18 +339,29 @@ void sciSetupSourceEditor(SciView *v, const char *fileName, int fontSize) {
     s(SCI_SETMARGINWIDTHN, AF_MARGIN_FOLD, lang == Lang::cpp ? fontSize : 0);
     s(SCI_SETMARGINSENSITIVEN, AF_MARGIN_FOLD, 1);
     s(SCI_SETMARGINLEFT, 0, 4);
-    s(SCI_SETFOLDMARGINCOLOUR, 1, RGB(0xF7F7F7));
-    s(SCI_SETFOLDMARGINHICOLOUR, 1, RGB(0xF7F7F7));
+    s(SCI_SETFOLDMARGINCOLOUR, 1, RGB(t.foldBack));
+    s(SCI_SETFOLDMARGINHICOLOUR, 1, RGB(t.foldBack));
     s(SCI_SETAUTOMATICFOLD, SC_AUTOMATICFOLD_SHOW | SC_AUTOMATICFOLD_CLICK | SC_AUTOMATICFOLD_CHANGE);
     s(SCI_SETFOLDFLAGS, SC_FOLDFLAG_LINEAFTER_CONTRACTED);
 
-    s.Marker(AF_MARKER_BREAKPOINT, SC_MARK_CIRCLE, 0x9A1010, 0xE02828);
-    s.Marker(AF_MARKER_BREAKPOINT_OFF, SC_MARK_CIRCLE, 0xC03030, marginBack);
-    s.Marker(AF_MARKER_CURRENT_LINE, SC_MARK_SHORTARROW, 0x8A6A00, 0xFFD400);
-    s.Marker(AF_MARKER_CURRENT_BG, SC_MARK_BACKGROUND, textFore, 0xFFF3A8);
-    s.Marker(AF_MARKER_ERROR, SC_MARK_BACKGROUND, textFore, 0xFFD8D8);
-    s.Marker(AF_MARKER_WARNING, SC_MARK_BACKGROUND, textFore, 0xFFEACC);
-    s.Marker(AF_MARKER_FRAME, SC_MARK_SHORTARROW, 0x1E6E1E, 0x48C048);
+    s.Marker(AF_MARKER_BREAKPOINT, SC_MARK_CIRCLE, t.bpFore, t.bpBack);
+    s.Marker(AF_MARKER_BREAKPOINT_OFF, SC_MARK_CIRCLE, t.bpOffFore, t.marginBack);
+    s.Marker(AF_MARKER_CURRENT_LINE, SC_MARK_SHORTARROW, t.execFore, t.execBack);
+    s.Marker(AF_MARKER_CURRENT_BG, SC_MARK_BACKGROUND, t.textFore, t.execLineBack);
+    s.Marker(AF_MARKER_ERROR, SC_MARK_BACKGROUND, t.textFore, t.errorBack);
+    s.Marker(AF_MARKER_WARNING, SC_MARK_BACKGROUND, t.textFore, t.warningBack);
+    s.Marker(AF_MARKER_FRAME, SC_MARK_SHORTARROW, t.frameFore, t.frameBack);
+
+    // indicators the IDE uses
+    s(SCI_INDICSETSTYLE, AF_INDIC_SNIPPET, INDIC_FULLBOX);
+    s(SCI_INDICSETFORE, AF_INDIC_SNIPPET, RGB(t.snippetField));
+    s(SCI_INDICSETALPHA, AF_INDIC_SNIPPET, 50);
+    s(SCI_INDICSETOUTLINEALPHA, AF_INDIC_SNIPPET, 160);
+    s(SCI_INDICSETSTYLE, AF_INDIC_OCCURRENCE, INDIC_ROUNDBOX);
+    s(SCI_INDICSETFORE, AF_INDIC_OCCURRENCE, RGB(t.occurrence));
+    s(SCI_INDICSETALPHA, AF_INDIC_OCCURRENCE, 70);
+    s(SCI_INDICSETOUTLINEALPHA, AF_INDIC_OCCURRENCE, 200);
+    s(SCI_INDICSETUNDER, AF_INDIC_OCCURRENCE, 1);
 
     const struct { int marker, symbol; } folders[] = {
         { SC_MARKNUM_FOLDEROPEN, SC_MARK_BOXMINUS }, { SC_MARKNUM_FOLDER, SC_MARK_BOXPLUS },
@@ -345,7 +371,7 @@ void sciSetupSourceEditor(SciView *v, const char *fileName, int fontSize) {
         { SC_MARKNUM_FOLDERMIDTAIL, SC_MARK_TCORNER },
     };
     for (const auto &f : folders)
-        s.Marker(f.marker, f.symbol, 0xFFFFFF, 0x909090);
+        s.Marker(f.marker, f.symbol, t.foldMarkFore, t.foldMarkBack);
 
     switch (lang) {
     case Lang::cpp: SetupCpp(s); break;

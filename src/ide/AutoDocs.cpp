@@ -6,6 +6,7 @@
 // usually after a form feed). References to other entries in the text ("exec.library/AllocVec",
 // "AllocVec()") are shown as links.
 #include "App.h"
+#include "sci/Theme.h"
 
 #include <string.h>
 #include <strings.h>
@@ -227,25 +228,33 @@ void App::openDocWindow()
     docList.win = docWin;
     docView = SciView::create(docWin, this);
     if (docView) {
-        sciSetupSourceEditor(docView, "autodoc.txt", fontSize);
-        docView->send(SCI_SETILEXER, 0, 0);
-        docView->send(SCI_SETMARGINWIDTHN, AF_MARGIN_NUMBERS, 0);
-        docView->send(SCI_SETMARGINWIDTHN, AF_MARGIN_SYMBOLS, 0);
-        docView->send(SCI_SETMARGINWIDTHN, AF_MARGIN_FOLD, 0);
-        docView->send(SCI_SETCARETLINEVISIBLE, 0);
-        docView->send(SCI_SETWRAPMODE, SC_WRAP_NONE);
-        docView->send(SCI_STYLESETBOLD, DS_HEADING, 1);
-        docView->send(SCI_STYLESETFORE, DS_HEADING, 0x804020);       // BGR: dark blue
-        docView->send(SCI_STYLESETFORE, DS_LINK, 0xC05000);          // BGR: link blue
-        docView->send(SCI_STYLESETUNDERLINE, DS_LINK, 1);
-        docView->send(SCI_STYLESETHOTSPOT, DS_LINK, 1);
-        docView->send(SCI_STYLESETBOLD, DS_TITLE, 1);
-        docView->send(SCI_STYLESETFORE, DS_TITLE, 0x202020);
+        styleDocView();
         docView->send(SCI_SETHOTSPOTACTIVEUNDERLINE, 1);
         layoutDocView();
     }
     // fill the list with everything
     showDocMatches("");
+}
+
+// --- editor features: the AutoDocs viewer in the current theme's colours ---
+void App::styleDocView()
+{
+    if (!docView) return;
+    const Theme &t = currentTheme();
+    sciSetupSourceEditor(docView, "autodoc.txt", fontSize);
+    docView->send(SCI_SETILEXER, 0, 0);
+    docView->send(SCI_SETMARGINWIDTHN, AF_MARGIN_NUMBERS, 0);
+    docView->send(SCI_SETMARGINWIDTHN, AF_MARGIN_SYMBOLS, 0);
+    docView->send(SCI_SETMARGINWIDTHN, AF_MARGIN_FOLD, 0);
+    docView->send(SCI_SETCARETLINEVISIBLE, 0);
+    docView->send(SCI_SETWRAPMODE, SC_WRAP_NONE);
+    docView->send(SCI_STYLESETBOLD, DS_HEADING, 1);
+    docView->send(SCI_STYLESETFORE, DS_HEADING, sciColour(t.docHeading));
+    docView->send(SCI_STYLESETFORE, DS_LINK, sciColour(t.docLink));
+    docView->send(SCI_STYLESETUNDERLINE, DS_LINK, 1);
+    docView->send(SCI_STYLESETHOTSPOT, DS_LINK, 1);
+    docView->send(SCI_STYLESETBOLD, DS_TITLE, 1);
+    docView->send(SCI_STYLESETFORE, DS_TITLE, sciColour(t.docTitle));
 }
 
 void App::closeDocWindow()

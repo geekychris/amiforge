@@ -260,7 +260,7 @@ void App::ctrlClick(intptr_t pos)
 // --- the editor's context menu ---
 
 enum { PM_NONE, PM_INCLUDE, PM_DEFINITION, PM_AUTODOC, PM_COMPLETE, PM_BREAKPOINT, PM_RUNTO,
-       PM_WATCH, PM_CUT, PM_COPY, PM_PASTE, PM_SHORTCUTS };
+       PM_WATCH, PM_CUT, PM_COPY, PM_PASTE, PM_SHORTCUTS , PM_REFS, PM_RENAME, PM_NEXT_OCC, PM_SNIPPET};
 
 void App::sciContextMenu(SciView *v, int, int)
 {
@@ -281,6 +281,9 @@ void App::showContextMenu()
     tDef = "Go to Definition" + (word.empty() ? std::string() : " of " + word) + "  (Ctrl-Click)";
     tDoc = "AutoDoc" + (hasDoc ? " for " + word : std::string()) + "  (F1)";
     tWatch = "Add Watch" + (word.empty() ? std::string() : " for " + word);
+    static std::string tRefs, tRename;   // --- editor features ---
+    tRefs = "Find All References" + (word.empty() ? std::string() : " to " + word) + "  (Shift-F12)";
+    tRename = "Rename" + (word.empty() ? std::string() : " " + word) + "...  (F2)";
 
     Class *item = IPopupMenu->POPUPMENU_GetItemClass();
     auto mk = [&](const char *title, uint32 id, bool disabled = false) {
@@ -293,6 +296,11 @@ void App::showContextMenu()
         PMA_AddItem, mk(tDef.c_str(), PM_DEFINITION, word.empty()),
         PMA_AddItem, mk(tDoc.c_str(), PM_AUTODOC),
         PMA_AddItem, mk("Complete Word  (Ctrl-Space)", PM_COMPLETE),
+        // --- editor features ---
+        PMA_AddItem, mk(tRefs.c_str(), PM_REFS, word.empty()),
+        PMA_AddItem, mk(tRename.c_str(), PM_RENAME, word.empty()),
+        PMA_AddItem, mk("Add Next Occurrence  (Amiga-T)", PM_NEXT_OCC),
+        PMA_AddItem, mk("Insert Snippet...", PM_SNIPPET),
         PMA_AddItem, bar(),
         PMA_AddItem, mk("Toggle Breakpoint  (F9)", PM_BREAKPOINT),
         PMA_AddItem, mk("Run to Cursor  (Ctrl-F10)", PM_RUNTO, !stopped()),
@@ -322,6 +330,11 @@ void App::showContextMenu()
     case PM_COPY: S(editor, SCI_COPY); break;
     case PM_PASTE: S(editor, SCI_PASTE); break;
     case PM_SHORTCUTS: showShortcuts(); break;
+    // --- editor features ---
+    case PM_REFS: findReferences(); break;
+    case PM_RENAME: renameSymbol(); break;
+    case PM_NEXT_OCC: addNextOccurrence(false); break;
+    case PM_SNIPPET: insertSnippetMenu(); break;
     }
 }
 
@@ -337,6 +350,9 @@ void App::showShortcuts()
         "  Right button    menu with all of these\n"
         "  Amiga-F/R/H/L   find / replace / find in files / go to line\n"
         "  Amiga-/         comment or uncomment lines\n"
+        "  Shift-F12       find all references   F2   rename everywhere\n"
+        "  Amiga-T         add the next occurrence (multiple cursors); Alt-click adds a cursor\n"
+        "  name + Tab      insert a snippet (main, openlib, window, timer, rexx, tags, for...)\n"
         "\n"
         "Building\n"
         "  F7              build            Ctrl-F5 / F6   build and run\n"

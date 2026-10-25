@@ -146,6 +146,7 @@ void App::showCompletion(bool explicitRequest)
         if (loadDocIndex())
             for (auto &e : docIndex)
                 if (isalpha((unsigned char)e.func[0]) && e.func.find('-') == std::string::npos) words.insert(e.func);
+        addSnippetWords(prefix, words);   // --- editor features: "for»" inserts the snippet ---
     }
     // keep those that start with the prefix
     std::string list;

@@ -15,6 +15,9 @@
 
 #include "sci/SciView.h"
 #include "dbg/dbg.h"
+#include "Snippets.h"
+#include "Symbols.h"
+#include <functional>
 
 struct Window;
 struct Screen;
@@ -171,6 +174,8 @@ enum Gid {
     GID_SIDE_TABS, GID_SIDE_PAGES, GID_LOCALS, GID_WATCHES, GID_REGS, GID_WATCH_STR, GID_WATCH_ADD, GID_WATCH_DEL,
     GID_BOTTOM_TABS, GID_BOTTOM_PAGES, GID_BUILDLOG, GID_FINDLOG, GID_STACK, GID_BPS, GID_BP_DEL, GID_BP_DELALL,
     GID_MEM_ADDR, GID_MEM_VIEW, GID_DISASM, GID_DEBUGLOG, GID_STATUS, GID_STATUS2,
+    // --- editor features ---
+    GID_LEFT_TABS, GID_LEFT_PAGES, GID_SYMBOLS,
     GID_LAST
 };
 
@@ -391,7 +396,7 @@ public:
     dbg_session *dbg = nullptr;
     ListView projectList{1}, buildLog{1}, findLog{2}, locals{3}, watches{3}, regs{2}, stack{3},
              bpList{3}, memView{1}, disasm{1}, debugLogView{1};
-    struct List *tabLabels = nullptr, *sideLabels = nullptr, *bottomLabels = nullptr;
+    struct List *tabLabels = nullptr, *sideLabels = nullptr, *bottomLabels = nullptr, *leftLabels = nullptr;
     Object *tabCloseImage = nullptr;    // close gadget on the active file tab
     struct DrawInfo *drawInfo = nullptr;
     struct Screen *drawInfoScreen = nullptr;
@@ -420,6 +425,69 @@ public:
     std::vector<int> dbgBpIds;      // dbg ids, parallel to project.breakpoints (-1 = not set)
     bool autoIndentEnabled = false;   // SciView auto-indents (AF_SCI_SETAUTOINDENT)
     bool wrapLines = false, showWhitespace = false;
+
+    // --- editor features (EditorFeatures.cpp): themes, split view, minimap, multiple cursors,
+    // snippets, symbol outline, Find All References, Rename Symbol ---
+    void initEditorFeatures();                 // after the main window opened
+    void closeEditorFeatures();                // before it closes
+    // views: `editor` is the active one (mainView or splitView); mainView owns the scrollers
+    SciView *mainView = nullptr, *splitView = nullptr, *miniView = nullptr;
+    bool splitOn = false, minimapOn = false;
+    void toggleSplit();
+    void toggleMinimap();
+    void syncViews();                          // the other views follow the current document
+    void styleView(SciView *v);                // theme + view settings for the current document
+    bool layoutViews(int left, int top, int width, int height, bool reblit);   // true if a view moved
+    SciView *viewAt(int x, int y);             // an edit view (or the minimap) under a window point
+    void setActiveView(SciView *v);
+    void tickViews();
+    void updateMinimap();
+    void minimapMouse(const struct IntuiMessage *im);
+    void minimapWheel(int lines);
+    bool miniDragging = false;
+    bool editorIdcmp(struct IntuiMessage *im, uint32_t &result);   // view routing in the IDCMP hook
+    // themes (ENVARC:AmiForge/Theme)
+    void setTheme(const std::string &name);
+    void styleDocView();                       // AutoDocs.cpp
+    std::string themeName = "Light";
+    // multiple cursors
+    void addNextOccurrence(bool all);
+    bool altClick = false;
+    // snippets (built in + ENVARC:AmiForge/Snippets)
+    std::vector<Snippet> snippets;
+    void loadSnippets();
+    void editSnippets();
+    void insertSnippetMenu();
+    bool snippetTab(bool backwards);           // Tab in the editor: true when a snippet used it
+    void insertSnippet(const Snippet &s, intptr_t from, intptr_t to);
+    void snippetGoto(int step);
+    void endSnippet();
+    void paintSnippetFields();
+    void addSnippetWords(const std::string &prefix, std::set<std::string> &words);
+    bool snippetCompletion(const char *text, intptr_t wordStart);   // SCN_AUTOCSELECTION
+    struct SnippetSession {
+        bool active = false;
+        Document *doc = nullptr;
+        std::vector<SnippetField> fields;      // document positions
+        std::vector<size_t> order;             // tab order (indices into fields)
+        int at = 0;
+    } snip;
+    void editorModified(const Scintilla::NotificationData &n);   // SCN_MODIFIED of the current document
+    // the symbol outline (left panel, Symbols tab)
+    ListView symbolList{2};
+    std::vector<Symbol> outline;
+    int outlineDelay = 0;                      // INTUITICKS until the outline is re-read after an edit
+    void refreshOutline();
+    void outlineClicked();
+    // references and renaming
+    void findReferences();
+    void renameSymbol();
+    void clearOccurrences();
+    bool occurrencesShown = false;
+    std::string documentText(Document *d);
+    void withDocument(Document *d, const std::function<void()> &fn);   // edit/read another open document
+    bool batchEditing = false;
+    std::vector<std::string> sourceFilesForSearch();   // project files + other open files
 };
 
 extern App *gApp;

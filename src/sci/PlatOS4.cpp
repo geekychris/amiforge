@@ -24,6 +24,7 @@
 #include "Platform.h"
 #include "UniConversion.h"
 #include "sci/PlatOS4.h"
+#include "sci/Theme.h"
 
 #include <proto/exec.h>
 #include <proto/graphics.h>
@@ -338,7 +339,7 @@ class SurfaceOS4 : public Surface {
     }
 
     // Translucent fill. Pixels are read back on off-screen true-colour surfaces; elsewhere
-    // the colour is approximated by mixing with white (the editor's backgrounds are light).
+    // the colour is approximated by mixing with the theme's text background.
     void Blend(int x0, int y0, int x1, int y1, ColourRGBA c) {
         const unsigned alpha = c.GetAlpha();
         if (alpha == 0)
@@ -348,7 +349,8 @@ class SurfaceOS4 : public Surface {
             return;
         }
         if (!readable || !trueColour) {
-            Fill(x0, y0, x1, y1, ColourRGBA(0xFF, 0xFF, 0xFF).MixedWith(c.Opaque(), alpha / 255.0));
+            const uint32_t bg = af::currentTheme().textBack;
+            Fill(x0, y0, x1, y1, ColourRGBA((bg >> 16) & 0xFF, (bg >> 8) & 0xFF, bg & 0xFF).MixedWith(c.Opaque(), alpha / 255.0));
             return;
         }
         const Clip clip = CurrentClip();

@@ -3,6 +3,10 @@
 #include "Commands.h"
 
 #include "Scintilla.h"
+#include "sci/Theme.h"
+
+#include <proto/intuition.h>
+#include <gadgets/clicktab.h>
 
 namespace af {
 
@@ -166,7 +170,30 @@ void App::handleMenu(uint32_t cmd)
         pendingClickPos = -1;
         break;
 
+    // --- editor features ---
+    case CMD_ADD_NEXT_OCC: addNextOccurrence(false); break;
+    case CMD_SELECT_ALL_OCC: addNextOccurrence(true); break;
+    case CMD_FIND_REFS: findReferences(); break;
+    case CMD_RENAME: renameSymbol(); break;
+    case CMD_INSERT_SNIPPET: insertSnippetMenu(); break;
+    case CMD_EDIT_SNIPPETS: editSnippets(); break;
+    case CMD_SPLIT_VIEW: toggleSplit(); break;
+    case CMD_MINIMAP: toggleMinimap(); break;
+    case CMD_SHOW_SYMBOLS:
+        if (gad[GID_LEFT_TABS] && win)
+            IIntuition->RefreshSetGadgetAttrs((struct Gadget *)gad[GID_LEFT_TABS], win, nullptr, CLICKTAB_Current, 1, TAG_DONE);
+        refreshOutline();
+        break;
+    case CMD_REFRESH_OUTLINE: refreshOutline(); break;
+    case CMD_SNIPPET_PAINT: paintSnippetFields(); break;
+    case CMD_MINIMAP_UPDATE: updateMinimap(); break;
+
     default:
+        if (cmd >= CMD_THEME_FIRST && cmd <= CMD_THEME_LAST) {   // --- editor features ---
+            size_t i = cmd - CMD_THEME_FIRST;
+            if (i < themes().size()) setTheme(themes()[i].name);
+            break;
+        }
         if (cmd >= CMD_RECENT_FIRST && cmd <= CMD_RECENT_LAST) {
             size_t i = cmd - CMD_RECENT_FIRST;
             if (i < recentProjects.size()) {

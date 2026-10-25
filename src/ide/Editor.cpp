@@ -117,6 +117,7 @@ void App::activate(Document *d)
         cur = nullptr;
         S(editor, SCI_SETDOCPOINTER, 0, 0);
         S(editor, SCI_SETREADONLY, 1);
+        syncViews();   // --- editor features ---
         rebuildTabs();
         updateTitle();
         updateCaretStatus();
@@ -134,6 +135,7 @@ void App::activate(Document *d)
         S(editor, SCI_SETFIRSTVISIBLELINE, d->firstLine);
         S(editor, SCI_SETXOFFSET, d->xOffset);
         refreshMarkers();
+        syncViews();   // --- editor features ---
     }
     rebuildTabs();
     updateTitle();
@@ -176,6 +178,16 @@ bool App::saveDocument(Document *d, bool saveAs)
     rebuildTabs();
     updateTitle();
     setStatus("Saved " + path);
+    // --- editor features: other views get the new file's colours; saved snippets take effect ---
+    if (renamed)
+        for (SciView *v : { mainView, splitView, miniView })
+            if (v && v != editor) styleView(v);
+    if (sameFile(path, "ENVARC:AmiForge/Snippets")) {
+        writeFile("ENV:AmiForge/Snippets", text);
+        loadSnippets();
+        setStatus(strprintf("Snippets saved: %d available", (int)snippets.size()));
+    }
+    refreshOutline();
     return true;
 }
 
@@ -519,6 +531,13 @@ void App::sciNotify(SciView *v, const Scintilla::NotificationData &n)
         }
         return;
     }
+    // --- editor features ---
+    if (v == miniView || batchEditing) return;
+    if ((int)n.nmhdr.code == SCN_MODIFIED) {
+        if (v == mainView) editorModified(n);
+        return;
+    }
+    if ((int)n.nmhdr.code == SCN_AUTOCSELECTION && v == editor && snippetCompletion(n.text, (intptr_t)n.position)) return;
     if (v != editor) return;
     switch ((int)n.nmhdr.code) {
     case SCN_SAVEPOINTLEFT:
