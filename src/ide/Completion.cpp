@@ -99,6 +99,8 @@ void App::showCompletion(bool explicitRequest)
     }
     std::set<std::string> words;
     std::string lib = libraryForInterface(iface);
+    std::string scopeName;
+    int scopeKind = lib.empty() ? scopeAt(start, scopeName) : 0;
     if (!lib.empty() && loadDocIndex()) {
         for (auto &e : docIndex) {
             std::string l = e.lib;
@@ -110,6 +112,21 @@ void App::showCompletion(bool explicitRequest)
                     words.insert(e.func.substr(0, e.func.size() - 7) + "Tags");
             }
         }
+    } else if (scopeKind == 1) {
+        // "os::", "AppWindow::", "std::"
+        busyPointer(true);
+        scopeMembers(scopeName, words);
+        busyPointer(false);
+        if (words.empty()) setStatus("Nothing found inside " + scopeName);
+    } else if (scopeKind == 2) {
+        // "win." / "win->": the members of its type
+        busyPointer(true);
+        std::string type = typeOfVariable(scopeName, S(editor, SCI_LINEFROMPOSITION, start));
+        if (!type.empty()) typeMembers(type, words);
+        busyPointer(false);
+        if (type.empty()) setStatus("Can't tell the type of " + scopeName);
+        else if (words.empty()) setStatus("No members found for " + type);
+        else setStatus(scopeName + " is a " + type);
     } else {
         if (!explicitRequest && len < 3) return;
         // this document
@@ -228,15 +245,18 @@ void App::completionCharAdded(int ch)
         S(editor, SCI_CALLTIPCANCEL);
         return;
     }
-    if (ch == '>' && pos >= 2 && (char)S(editor, SCI_GETCHARAT, pos - 2) == '-') {
-        showCompletion(false);   // "IExec->"
+    // right after "->", "::" or "." (not a number's point): what's in that scope
+    bool arrow = ch == '>' && pos >= 2 && (char)S(editor, SCI_GETCHARAT, pos - 2) == '-';
+    bool colons = ch == ':' && pos >= 2 && (char)S(editor, SCI_GETCHARAT, pos - 2) == ':';
+    bool dot = ch == '.' && pos >= 2 && identChar((unsigned char)S(editor, SCI_GETCHARAT, pos - 2));
+    if (arrow || colons || dot) {
+        showCompletion(false);
         return;
     }
     if (identChar(ch) && !S(editor, SCI_AUTOCACTIVE)) {
         intptr_t start = S(editor, SCI_WORDSTARTPOSITION, pos, 1);
-        if (pos - start == 3) showCompletion(false);
-        else if (start >= 2 && (char)S(editor, SCI_GETCHARAT, start - 1) == '>' && (char)S(editor, SCI_GETCHARAT, start - 2) == '-')
-            showCompletion(false);
+        std::string scope;
+        if (pos - start == 3 || scopeAt(start, scope)) showCompletion(false);
     }
 }
 

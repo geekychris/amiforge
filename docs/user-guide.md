@@ -66,6 +66,8 @@ pointer:
 | Read an OS function's documentation | F1, the Help key or the **Docs** button. Help > AutoDocs Browser shows them all |
 | Complete a name | Type 3 letters and pick from the list, or press Ctrl-Space at any time |
 | See an OS library's functions | Type `IExec->`, `IIntuition->`, `IDOS->`... |
+| See what's in a namespace or class | Type `os::`, `MyClass::`, `std::` |
+| See a variable's members | Type `win.` or `win->`. The type comes from the variable's declaration, and works for your own classes, OS structs (`struct Window`), and `std::vector`/`string`/`map` |
 | See a function's arguments | Type `(` after an OS function's name |
 | See all the keys | Help > Keyboard Shortcuts, or right-click > Keyboard Shortcuts |
 
@@ -76,6 +78,9 @@ How lookups work:
 - **Go to Definition** looks for the nearest declaration above the cursor (local variables and
   parameters), then for a struct, class, union, enum, `#define` or typedef in the project, then
   for a function. For an OS function it opens the AutoDoc.
+- **Scope completion** reads the current file, the project's files and the headers they include
+  (the SDK's too) without compiling them. It works for declarations written in the usual way;
+  it doesn't follow `auto`, typedef chains or expressions such as `a.b().c`.
 - **In the completion list,** use Up/Down and Return or Tab to insert, and Esc to close it.
 
 ## Projects

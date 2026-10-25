@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <map>
+#include <set>
 #include <stdint.h>
 
 #include <exec/types.h>
@@ -274,6 +275,14 @@ public:
     std::string docPrototype(const DocEntry &e, const std::string &name);
     void completionCharAdded(int ch);
     std::map<std::string, std::pair<int64_t, std::vector<std::string>>> wordCache;
+    // scopes (Scope.cpp)
+    const std::string &codeText(const std::string &path);
+    std::vector<std::string> scopeSources();
+    void scopeMembers(const std::string &scope, std::set<std::string> &out);
+    std::string typeOfVariable(const std::string &var, intptr_t line);
+    void typeMembers(const std::string &type, std::set<std::string> &out);
+    int scopeAt(intptr_t start, std::string &name);
+    std::map<std::string, std::pair<int64_t, std::string>> codeCache;
     void setGadgetIn(struct Window *w, Object *g, uint32_t tag, uint32_t value);
     std::vector<DocEntry> docIndex;
     Object *docWinObj = nullptr;
