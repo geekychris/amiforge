@@ -34,6 +34,7 @@
 #include <strings.h>
 #include <stdarg.h>
 #include "dbg_int.h"
+#include "os4_tools.h"   /* --- debugtools --- */
 
 #define POLL_MS        10       /* hit polling while the program runs */
 #define QUICK_WAIT_MS  40       /* how long an internal resume waits for its next hit */
@@ -142,7 +143,17 @@ struct dbg_session {
     int nresolved;
     void (*trace_fn)(void *ud, const char *line);
     void *trace_ud;
+    /* --- debugtools --- */
+    void *dt;                   /* os4_tools.c state (resource tracking, profiler) */
 };
+
+/* --- debugtools: accessors for os4_tools.c --- */
+struct Task *dbg__proc(dbg_session *s) { return (struct Task *)s->proc; }
+struct DebugIFace *dbg__idebug(dbg_session *s) { return s->idebug; }
+dbg_info *dbg__info(dbg_session *s) { return s->di; }
+void **dbg__dt(dbg_session *s) { return &s->dt; }
+volatile uint32_t *dbg__exc_count(dbg_session *s) { return &s->exc_count; }
+/* --- end debugtools --- */
 
 
 /* ======================================================================== utilities */
@@ -625,6 +636,8 @@ void dbg_destroy(dbg_session *s)
 {
     if (!s) return;
     if (s->di || s->proc) dbg_unload(s);
+    dt_stop(s);                                      /* --- debugtools --- */
+    dt_free(s);
     for (size_t i = 0; i < s->bps.n; i++) {
         bpoint *b = &VEC_AT(&s->bps, bpoint, i);
         free(b->file); free(b->function); free(b->condition);
@@ -716,6 +729,7 @@ static void kill_now(dbg_session *s);
 void dbg_unload(dbg_session *s)
 {
     if (s->proc) kill_now(s);
+    dt_stop(s);                                      /* --- debugtools --- */
     unload_seg(s);
     if (s->di) { info_free(s->di); s->di = NULL; }
     for (size_t i = 0; i < s->bps.n; i++) {
@@ -917,6 +931,7 @@ static void report_exit(dbg_session *s)
     s->nframes = 0;
     s->generation++;
     s->just_exited = 1;
+    dt_after_exit(s);                                /* --- debugtools --- */
     push_event(s, &ev);
 }
 
@@ -1168,7 +1183,7 @@ static int handle_trap(dbg_session *s, trap *t)
         s->have_entry = 1;
         t->kinds &= ~TK_PENTRY;
     }
-    if (kinds & TK_MAIN) t->kinds &= ~TK_MAIN;      /* main is reached once */
+    if (kinds & TK_MAIN) { t->kinds &= ~TK_MAIN; dt_at_main(s); }   /* main is reached once; debugtools */
     int cond_err, id = (kinds & TK_USER) ? user_bp_at(s, pc, &cond_err) : 0;
     if (id) { report_stop(s, DBG_STOP_BREAKPOINT, id); return 1; }
     if ((kinds & TK_MAIN) && s->stop_at_main) { report_stop(s, DBG_STOP_ENTRY, 0); return 1; }
@@ -1337,7 +1352,9 @@ static int32 launcher(STRPTR args, int32 len, struct ExecBase *sysbase)
     IExec->SetSignal(0, SIGBREAKF_CTRL_F);
     s->launcher_ready = 1;
     IExec->Wait(SIGBREAKF_CTRL_F);
+    dt_program_starting(s);                          /* --- debugtools --- */
     int32 rc = IDOS->RunCommand(s->seg, DEFAULT_STACK, s->run_args, s->run_arglen);
+    dt_program_returned(s);                          /* --- debugtools --- */
     /* and leave without the hook: DOS's process cleanup then runs as for any program */
     s->idebug->AddDebugHook(me, NULL);
     IDOS->SelectErrorOutput(olderr);
@@ -1430,12 +1447,13 @@ int dbg_run(dbg_session *s, int stop_at_main)
     s->ran = 1;
 
     add_kind(s, s->entry_addr, TK_PENTRY);
-    if (stop_at_main && s->main_addr) add_kind(s, s->main_addr, TK_MAIN);
+    if ((stop_at_main || dt_wants_main(s)) && s->main_addr) add_kind(s, s->main_addr, TK_MAIN);   /* debugtools */
     refresh_user_traps(s);
     sync_traps(s);
     s->op = OP_CONT;
     s->state = DBG_RUNNING;
     s->generation++;
+    dt_before_go(s);                                 /* --- debugtools --- */
     IExec->Signal((struct Task *)s->proc, SIGBREAKF_CTRL_F);   /* go */
     arm_timer(s);
     return 1;
