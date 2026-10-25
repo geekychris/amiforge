@@ -37,10 +37,19 @@ static void ok(int cond, const char *fmt, ...)
 
 static void trace_line(void *ud, const char *line) { printf("    | %s\n", line); }
 
+/* Milliseconds from the DOS clock (20 ms ticks): waits are measured in real time, since
+ * the session's signal can wake Wait() early many times. */
+static uint32_t now_ms(void)
+{
+    struct DateStamp d;
+    IDOS->DateStamp(&d);
+    return (uint32_t)((d.ds_Days * 1440 + d.ds_Minute) * 60000 + d.ds_Tick * 20);
+}
+
 static int wait_event(dbg_event *ev, uint32_t timeout_ms)
 {
-    uint32_t waited = 0;
-    for (;;) {
+    uint32_t start = now_ms();
+    for (uint32_t waited = 0;; waited = now_ms() - start) {
         while (dbg_poll(S, ev)) {
             if (ev->type == DBG_EV_MESSAGE) { printf("  message: %s\n", ev->text); continue; }
             printf("  event: %s\n", ev->text);
@@ -50,11 +59,11 @@ static int wait_event(dbg_event *ev, uint32_t timeout_ms)
         if (waited >= timeout_ms) return 0;
         treq->Request.io_Command = TR_ADDREQUEST;
         treq->Time.Seconds = 0; treq->Time.Microseconds = 20000;
+        IExec->SetSignal(0, 1UL << tport->mp_SigBit);   /* WaitIO leaves the reply's signal set */
         IExec->SendIO((struct IORequest *)treq);
         IExec->Wait(dbg_signal_mask(S) | (1UL << tport->mp_SigBit));
         if (!IExec->CheckIO((struct IORequest *)treq)) IExec->AbortIO((struct IORequest *)treq);
         IExec->WaitIO((struct IORequest *)treq);
-        waited += 20;
     }
 }
 

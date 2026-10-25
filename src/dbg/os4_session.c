@@ -755,6 +755,9 @@ void dbg_unload(dbg_session *s)
     }
     arena_free(&s->stop_mem);
     s->nframes = 0;
+    /* events not yet polled belong to the program just unloaded (killing it queues an exit);
+     * the next dbg_load must not see them */
+    s->events.n = s->ev_head = 0;
     s->state = DBG_NONE;
 }
 
