@@ -194,7 +194,7 @@ void App::runProgram()
         info("Couldn't start " + exe);
         return;
     }
-    setStatus("Started " + project.output);
+    setStatus("Started " + (project.runcmd.empty() ? project.output : project.runcmd));   // runcmd: designer
 }
 
 } // namespace af

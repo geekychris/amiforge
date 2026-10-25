@@ -207,12 +207,21 @@ void App::packageRelease()
     rp.output = "obj-release/" + fileName(project.output);
     releaseJob->programPath = project.abs(rp.output);
 
+    // a clean release build: remove the last one's objects here (the builder's "rebuild"
+    // runs Delete, which fails when there's nothing to delete yet)
+    {
+        BPTR nil = IDOS->Open("NIL:", MODE_NEWFILE), nilIn = IDOS->Open("NIL:", MODE_OLDFILE);
+        IDOS->SystemTags(("Delete \"" + project.abs(rp.objdir) + "\" ALL QUIET FORCE").c_str(),
+                         SYS_Input, nilIn, SYS_Output, nil, TAG_END);
+        if (nil) IDOS->Close(nil);
+        if (nilIn) IDOS->Close(nilIn);
+    }
     diagnostics.clear();
     buildLog.clear();
     refreshMarkers();
     showBottomPage(0);
     pendingAfterBuild = 3;
-    if (!builder.start(rp, "rebuild")) {
+    if (!builder.start(rp, "build")) {
         pendingAfterBuild = 0;
         info("There is nothing to build: the project has no C, C++ or assembler files.");
         return;

@@ -293,6 +293,7 @@ void Designer::refreshProps()
     }
     if (selectedProp >= (int)propRows.size()) selectedProp = -1;
     props.attach(selectedProp);
+    props.select(selectedProp);   // -1 clears the old row's highlight
     std::string v = selectedProp >= 0 ? n->get(propRows[selectedProp]->key) : "";
     IIntuition->SetGadgetAttrs((struct Gadget *)g[DG_VALUE], win, nullptr, STRINGA_TextVal, (uint32)v.c_str(),
                                GA_Disabled, selectedProp < 0, TAG_DONE);
@@ -339,6 +340,7 @@ void Designer::addObject()
     }
     n->set("id", model.uniqueId(k));
     selected = n;
+    selectedProp = -1;
     changed(true);
     setStatus(std::string("Added a ") + kindInfo(k).title + " - set its properties on the right.");
 }
@@ -349,6 +351,7 @@ void Designer::removeObject()
     Node *parent = selected->parent;
     int i = selected->indexInParent();
     selected->detach();   // the unique_ptr frees it
+    selectedProp = -1;
     selected = parent->children.empty() ? parent : parent->children[std::min<int>(i, (int)parent->children.size() - 1)].get();
     changed(true);
 }

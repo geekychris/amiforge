@@ -54,11 +54,11 @@ std::vector<std::string> validate(const Info &i)
 {
     std::vector<std::string> p;
     if (i.name.empty()) p.push_back("The program has no name.");
-    if (i.shortDesc.empty()) p.push_back("Fill in a short description (Project > Settings, Release).");
+    if (i.shortDesc.empty()) p.push_back("Fill in a short description.");
     else if (i.shortDesc.size() > 40)
         p.push_back("The short description is " + std::to_string(i.shortDesc.size()) +
                     " characters long; Aminet allows 40.");
-    if (i.author.empty()) p.push_back("Fill in the author (Project > Settings, Release).");
+    if (i.author.empty()) p.push_back("Fill in the author.");
     else if (!hasEmail(i.uploader.empty() ? i.author : i.uploader))
         p.push_back("Aminet needs an email address for the uploader: \"Name <you@example.org>\".");
     size_t slash = i.type.find('/');
