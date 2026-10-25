@@ -107,6 +107,7 @@ void App::debugStart()
         return;
     }
     harvestBreakpoints(cur);
+    hotReset();   // --- hotpatch
     dbg_set_source_path(dbg, project.dir.c_str());
     if (!dbg_load(dbg, exe.c_str(), project.args.c_str(), project.dir.c_str(),
                   project.console.empty() ? nullptr : project.console.c_str())) {

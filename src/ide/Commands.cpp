@@ -127,6 +127,7 @@ void App::handleMenu(uint32_t cmd)
     case CMD_STEP_OUT: debugStep(2); break;
     case CMD_STEP_INSN: debugStep(3); break;
     case CMD_RUN_TO_CURSOR: debugRunToCursor(); break;
+    case CMD_APPLY_CHANGES: applyChanges(); break;   // --- hotpatch
     case CMD_TOGGLE_BP: toggleBreakpointAtCaret(); break;
     case CMD_CLEAR_BPS:
         if (!project.breakpoints.empty() && ask("Breakpoints", "Delete all breakpoints?", "_Delete|_Cancel") == 1) {

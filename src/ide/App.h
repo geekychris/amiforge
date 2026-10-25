@@ -107,6 +107,9 @@ public:
     bool startCommands(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds);
     bool busy() const { return running; }
     void stop();
+    // --- hotpatch
+    static std::string compileCommand(const Project &p, const std::string &src, const std::string &obj);
+    static std::string objectPath(const Project &p, const std::string &src);
     uint32_t signalMask() const;
     bool poll(BuildLine &out);
     int errors = 0, warnings = 0;
@@ -462,6 +465,13 @@ public:
     std::string frameFile;          // the selected stack frame, if not the top one
     int frameLine = 0;
     std::vector<int> dbgBpIds;      // dbg ids, parallel to project.breakpoints (-1 = not set)
+    // --- hotpatch: Edit and Continue (HotPatch.cpp)
+    void applyChanges();
+    void hotAfterCompile(bool ok);
+    bool hotBusy = false;
+    std::vector<std::string> hotFiles;            // sources being recompiled (project-relative)
+    std::map<std::string, int64_t> hotApplied;    // source (absolute) -> its time when last applied
+    void hotReset() { hotApplied.clear(); }
     bool autoIndentEnabled = false;   // SciView auto-indents (AF_SCI_SETAUTOINDENT)
     bool wrapLines = false, showWhitespace = false;
 

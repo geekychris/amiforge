@@ -96,6 +96,24 @@ $(B)/targets/%: tests/targets/%.cpp
 	@mkdir -p $(@D); $(CXX) $(TFLAGS) -athread=native -o $@ $< -lauto
 $(B)/targets/asmtest: tests/targets/asmtest.c $(patsubst tests/%.S,$(O)/tests/%.S.o,$(wildcard tests/targets/asmtest_*.S))
 	@mkdir -p $(@D); $(CC) $(TFLAGS) -o $@ $^ -lauto
+# --- hotpatch: hptarget is hptarget.c + hotpatch/compute.c; the patches are compute.c
+# again (each version compiled as "compute.c", like the IDE does)
+HP_VERSIONS = v1 v2 v3 bad
+$(B)/targets/hptarget: tests/targets/hptarget.c $(B)/targets/hotpatch/v1/compute.o
+	@mkdir -p $(@D); $(CC) $(TFLAGS) -o $@ $^ -lauto
+$(B)/targets/hotpatch/v1/compute.o: tests/targets/hotpatch/compute.c
+	@mkdir -p $(@D); cp $< $(@D)/compute.c; cd $(@D) && $(CC) $(TFLAGS) -c compute.c -o compute.o
+$(B)/targets/hotpatch/%/compute.o: tests/targets/hotpatch/compute_%.c
+	@mkdir -p $(@D); cp $< $(@D)/compute.c; cd $(@D) && $(CC) $(TFLAGS) -c compute.c -o compute.o
+tests: $(foreach v,$(HP_VERSIONS),$(B)/targets/hotpatch/$(v)/compute.o)
+$(B)/targets/hpcpp: tests/targets/hpcpp.cpp $(B)/targets/hotpatch/cpp1/shape.o
+	@mkdir -p $(@D); $(CXX) $(TFLAGS) -Itests/targets/hotpatch -athread=native -o $@ $^ -lauto
+$(B)/targets/hotpatch/cpp1/shape.o: tests/targets/hotpatch/shape.cpp tests/targets/hotpatch/shape.h
+	@mkdir -p $(@D); cp $< $(@D)/shape.cpp; cp tests/targets/hotpatch/shape.h $(@D)/; cd $(@D) && $(CXX) $(TFLAGS) -c shape.cpp -o shape.o
+$(B)/targets/hotpatch/cpp2/shape.o: tests/targets/hotpatch/shape_v2.cpp tests/targets/hotpatch/shape.h
+	@mkdir -p $(@D); cp $< $(@D)/shape.cpp; cp tests/targets/hotpatch/shape.h $(@D)/; cd $(@D) && $(CXX) $(TFLAGS) -c shape.cpp -o shape.o
+tests: $(B)/targets/hotpatch/cpp2/shape.o
+# --- end hotpatch
 $(O)/tests/targets/%.S.o: tests/targets/%.S
 	@mkdir -p $(@D); $(CC) $(TFLAGS) -c $< -o $@
 

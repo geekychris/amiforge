@@ -362,7 +362,8 @@ void App::showShortcuts()
         "  F5              start / continue  Shift-F5      stop\n"
         "  F9              breakpoint        F10 / F11     step over / into\n"
         "  Shift-F11       step out          Ctrl-F10      run to cursor\n"
-        "  F8              step one instruction",
+        "  F8              step one instruction\n"
+        "  Ctrl-F9         apply code changes to the running program (Edit and Continue)",
         "_OK");
 }
 
