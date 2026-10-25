@@ -102,7 +102,7 @@ void App::newProject()
 void App::openProject(const std::string &pathIn)
 {
     std::string path = pathIn;
-    if (path.empty()) path = requestFile("Open Project", false, lastDir, "#?.afp");
+    if (path.empty()) path = requestFile("Open Project", false, openProjectStart(), "#?.afp");   // --- projects ---
     if (path.empty()) return;
     if (!project.path.empty()) saveProject();
     Project p;

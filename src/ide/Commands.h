@@ -43,6 +43,9 @@ enum Command {
     CMD_EXPLAIN, CMD_MACROS_RESCAN, CMD_MACROS_FOLDER, CMD_REXX_HELP,
     CMD_MACRO_FIRST = 1100, CMD_MACRO_LAST = 1139,
     // --- end integrations ---
+    // --- projects ---
+    CMD_BROWSE_PROJECTS = 1400, CMD_SET_PROJECTS_FOLDER,
+    // --- end projects ---
 };
 
 } // namespace af

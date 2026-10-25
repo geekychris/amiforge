@@ -56,8 +56,12 @@ int App::run(int argc, char **argv)
         else openFile(a);
     }
     // started on its own: carry on with the last project
-    if (args.empty() && !recentProjects.empty() && fileExists(recentProjects.front()))
+    bool haveLast = !recentProjects.empty() && fileExists(recentProjects.front());
+    if (args.empty() && haveLast)
         openProject(recentProjects.front());
+    // --- projects --- nothing to carry on with: offer the projects folder
+    else if (args.empty() && showBrowserAtStartup())
+        browseProjects();
     if (docs.empty()) newDocument();
     // the AutoDoc index (for F1 and completion): read it now rather than on the first keystroke
     setStatus("Reading the AutoDocs index...");

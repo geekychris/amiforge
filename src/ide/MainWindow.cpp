@@ -119,6 +119,8 @@ static struct NewMenu menus[] = {
     ITEM("New Project from Template...", 0, CMD_NEW_FROM_TEMPLATE),   // designer
     ITEM("Open Project...", "P", CMD_OPEN_PROJECT),
     ITEM("Open Recent", 0, 0),               // its submenu is filled in by rebuildMenus
+    ITEM("Browse Projects...", "U", CMD_BROWSE_PROJECTS),          // --- projects ---
+    ITEM("Set Projects Folder...", 0, CMD_SET_PROJECTS_FOLDER),    // --- projects ---
     ITEM("Save Project", 0, CMD_SAVE_PROJECT),
     ITEM("Close Project", 0, CMD_CLOSE_PROJECT),
     BAR,

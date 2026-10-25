@@ -226,7 +226,7 @@ void App::newProjectFromTemplate()
         std::string n = envVar("AmiForge/GitName"), e = envVar("AmiForge/GitEmail");
         author = n.empty() ? "" : e.empty() ? n : n + " <" + e + ">";
     }
-    std::string startDrawer = project.path.empty() ? lastDir : dirName(project.dir);
+    std::string startDrawer = projectsFolder();   // --- projects ---
     Object *wo = IIntuition->NewObject(IWindow->WINDOW_GetClass(), nullptr,
         WA_Title, (uint32)"New Project from Template", WA_DragBar, TRUE, WA_CloseGadget, TRUE, WA_DepthGadget, TRUE,
         WA_SizeGadget, TRUE, WA_Activate, TRUE, WA_PubScreen, (uint32)win->WScreen,

@@ -654,6 +654,14 @@ public:
     void explainRow(int index);
     std::string lastCrashExplanation;
     // --- end integrations ---
+    // --- projects --- the projects folder and the project browser (ProjectBrowser.cpp)
+    std::string projectsFolder();                       // ENV:AmiForge/ProjectsFolder, else PROGDIR:Examples (absolute)
+    void setProjectsFolder(const std::string &dir);     // ENV: and ENVARC:
+    void chooseProjectsFolder();                        // Project > Set Projects Folder...
+    void browseProjects();                              // Project > Browse Projects...
+    bool showBrowserAtStartup();                        // ENVARC:AmiForge/ShowBrowser, default on
+    std::string openProjectStart();                     // where Open Project's requester starts
+    // --- end projects ---
 };
 
 extern App *gApp;

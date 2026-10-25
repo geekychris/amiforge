@@ -24,6 +24,10 @@ void App::handleMenu(uint32_t cmd)
     case CMD_PACKAGE_RELEASE: packageRelease(); break;
     // --- end designer ---
     case CMD_OPEN_PROJECT: openProject(); break;
+    // --- projects ---
+    case CMD_BROWSE_PROJECTS: browseProjects(); break;
+    case CMD_SET_PROJECTS_FOLDER: chooseProjectsFolder(); break;
+    // --- end projects ---
     case CMD_SAVE_PROJECT: saveProject(); break;
     case CMD_CLOSE_PROJECT: closeProject(); break;
     case CMD_ADD_FILES: addFilesToProject(); break;
