@@ -283,10 +283,17 @@ void App::refreshLeaks()
                                        kids ? (LBFLG_HASCHILDREN | LBFLG_SHOWCHILDREN) : 0);
         if (n && pen >= 0) leaksView.setPens(n, pen);
     };
-    size_t held = leakModel.outstanding();
-    std::string summary = held ? strprintf("%lu not released (%s of memory)", (unsigned long)held,
-                                           LeakModel::formatBytes(leakModel.outstandingBytes()).c_str())
-                               : std::string("Everything was released");
+    // what the program's own calls left behind, and what the OS did on its task (C library
+    // and DOS housekeeping: listed last, dimmed)
+    size_t held = 0, osHeld = 0;
+    uint64_t bytes = 0;
+    for (auto &g : groups) {
+        if (g.site) { held += g.items.size(); bytes += g.bytes; }
+        else osHeld += g.items.size();
+    }
+    std::string summary = held ? strprintf("%lu not released by the program (%s of memory)", (unsigned long)held,
+                                           LeakModel::formatBytes(bytes).c_str())
+                               : std::string("Everything the program acquired was released");
     add({summary, strprintf("%lu calls tracked", (unsigned long)leakModel.events()), ""}, 0, false, {},
         held ? penError : penNote);
     if (uint32_t lost = dbg_resources_lost(dbg))
@@ -303,7 +310,13 @@ void App::refreshLeaks()
         std::string where = g.loc.file.empty() ? (g.site ? g.loc.function : "(not from the program's code: " + g.loc.function + ")")
                                                : strprintf("%s:%d  %s", fileName(g.loc.file).c_str(), g.loc.line,
                                                            g.loc.function.c_str());
-        add({LeakModel::describe(g), dbg_res_kind_name(g.kind), where}, 0, true, { g.loc.file, g.loc.line });
+        if (!g.site && osHeld) {
+            add({strprintf("Not from the program's own calls: %lu (usually the C library's or DOS's housekeeping)",
+                           (unsigned long)osHeld), "", ""}, 0, false, {}, penDim);
+            osHeld = 0;
+        }
+        add({LeakModel::describe(g), dbg_res_kind_name(g.kind), where}, 0, true, { g.loc.file, g.loc.line },
+            g.site ? -1 : penDim);
         size_t shown = 0;
         for (auto &l : g.items) {
             if (shown++ >= 50) {
