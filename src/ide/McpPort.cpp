@@ -204,7 +204,8 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         mcpQuiet = wasQuiet;
         if (inner != 0) {
             result = rexxError.empty() ? strprintf("the command failed (RC %d)", inner) : rexxError;
-            if (!mcpMessages.empty()) result += "\n" + trim(mcpMessages);
+            std::string said = trim(mcpMessages);
+            if (!said.empty() && result.find(said) == std::string::npos) result += "\n" + said;
         }
         rexxError.clear();
         rc = 0;
@@ -241,7 +242,8 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         for (auto &d : diagnostics) if (d.kind == MsgKind::Error || d.kind == MsgKind::Info) { built = true; break; }
         l.push_back(mcp::kv("build", builder.busy() ? "running" : "idle"));
         l.push_back(mcp::kv("buildresult", builder.busy() || !built ? "none" : builder.lastOk ? "ok" : "failed"));
-        l.push_back(mcp::kv("errors", std::to_string(builder.errors + builder.stepFailures)));
+        l.push_back(mcp::kv("errors", std::to_string(builder.errors)));
+        l.push_back(mcp::kv("failures", std::to_string(builder.stepFailures)));   // failed commands
         l.push_back(mcp::kv("warnings", std::to_string(builder.warnings)));
         int st = dbg ? (int)dbg_get_state(dbg) : (int)DBG_NONE;
         l.push_back(mcp::kv("debug", mcp::debugStateName(st)));
@@ -310,7 +312,7 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         if (!fileExists(p)) return fail(10, "there is no project " + p);
         if (extension(p) != "afp") return fail(10, p + " isn't a project (.afp)");
         openProject(p);
-        if (!sameFile(project.path, p)) {
+        if (!sameFile(project.path, p) || !mcpMessages.empty()) {   // a skipped requester: it was cancelled
             std::string why = trim(mcpMessages);
             bool unsaved = false;
             for (auto &d : docs) if (d->modified) unsaved = true;
@@ -454,6 +456,8 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
                              : d.kind == MsgKind::Command ? "command" : "output";
             if (!all && d.kind != MsgKind::Error && d.kind != MsgKind::Warning) continue;
             if (d.kind == MsgKind::Note && d.text.find("Explain:") != std::string::npos) continue;
+            if (d.file.empty() && (d.text.compare(0, 13, "Build failed:") == 0 || d.text.compare(0, 16, "Build succeeded ") == 0))
+                continue;   // the summary: GETSTATE has the counts
             std::string ex = i < explanations.size() ? explanations[i] : "";
             s += mcp::record({ kind, d.file, std::to_string(d.line), std::to_string(d.col), d.text, ex }) + "\n";
         }

@@ -226,9 +226,9 @@ TEST(mcp_command_templates)
     CHECK_EQ(a.str("EXPR"), std::string("*p"));
     a = A("STARTBUILD", "REBUILD");
     CHECK(a.has("REBUILD"));
-    a = A("NEWPROJECT", "TEMPLATE=shell NAME=demo DRAWER=RAM:");
+    a = A("NEWPROJECT", "TEMPLATE=console-c NAME=demo DRAWER=RAM:");
     CHECK_EQ(a.str("DRAWER"), std::string("RAM:"));
-    A("NEWPROJECT", "TEMPLATE=shell", false);
+    A("NEWPROJECT", "TEMPLATE=console-c", false);
     a = A("RUNTO", "FILE=main.c LINE=9");
     CHECK_EQ(a.num("LINE"), 9L);
     a = A("FRAME", "1");

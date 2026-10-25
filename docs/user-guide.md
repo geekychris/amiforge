@@ -1279,7 +1279,7 @@ relative ones are in the project's drawer.
 | `amiforge_launch` | `path`, `project`, `port`, `wait_seconds` | Starts AmiForge (if its port isn't there) and waits for the port |
 | `amiforge_projects` | `depth` | The projects in the projects folder (name, .afp, description) and the project templates |
 | `amiforge_open_project` | `path` | Opens a project; fails if open files with unsaved changes would have to close. Returns its settings and files |
-| `amiforge_new_project` | `template`, `name`, `drawer` | Creates `<drawer>/<name>` from a template (ids from `amiforge_projects`) and opens it |
+| `amiforge_new_project` | `template`, `name`, `drawer` | Creates `<drawer>/<name>` from a template (ids from `amiforge_projects`: `console-c`, `console-cpp`, `reaction-app`, `intuition-window`, `commodity`, `blanker`, `ahi-player`, `shared-library`, `device`) and opens it |
 | `amiforge_project_info` | | The project's settings (flags, libraries, output, arguments, stop at main...) and files |
 | `amiforge_open_file` | `path`, `line` | Opens a file in the editor (or switches to it) at a line, so you see what the assistant is looking at |
 | `amiforge_read_file` | `path`, `from_line`, `to_line`, `numbered` | A file's text as AmiForge has it: the editor's buffer when it's open (with unsaved changes), else the file on disk. Lines numbered `   12| ` |
@@ -1345,7 +1345,7 @@ running: `amiforge_screenshot` shows it, `amiforge_run_output` reads what it pri
 and `amiforge_stop_program` sends it Ctrl-C.
 
 **"Start a new ReAction program called notes in DH1:Work."** `amiforge_projects` lists the
-templates; `amiforge_new_project template=reaction name=notes drawer=DH1:Work` creates and
+templates; `amiforge_new_project template=reaction-app name=notes drawer=DH1:Work` creates and
 opens it, ready to edit and build.
 
 ### Limits and safety
@@ -1372,7 +1372,7 @@ opens it, ready to edit and build.
 - **The running program is real.** It runs on the Amiga with no memory protection, as from
   the Run menu; a crash under the debugger is caught, one in a plain run may need a reboot of
   the emulator.
-- **Speed.** Each command is a round trip through the bridge (tens of milliseconds); long
+- **Speed.** Each command is a round trip through the bridge (about a third of a second on the QEMU guest); long
   results come in pieces of about 3.5 KB. Builds take as long as they do under emulation.
 
 ### Troubleshooting
