@@ -252,6 +252,7 @@ typedef struct {
 int dbg_profile(dbg_session *s, int on, uint32_t interval_us);          /* before dbg_run */
 int dbg_profile_samples(dbg_session *s, dbg_sample *out, int max);      /* drains */
 uint32_t dbg_profile_lost(dbg_session *s);
+const char *dbg_profile_note(dbg_session *s);                           /* sampler statistics, for diagnostics */
 
 int dbg_addr_in_program(dbg_session *s, uint32_t addr);                 /* inside the program's code */
 /* An address outside the program: "newlib.library: malloc" (via ObtainDebugSymbol). 0 if unknown. */

@@ -71,6 +71,8 @@ typedef struct {
     volatile uint32_t *exc_count;     /* the session's hook counter: skip trapped states */
     APTR mutex;                       /* held while a sample is taken */
     volatile uint32_t head, tail, lost;
+    uint32_t ticks, states[10], skipped;
+    volatile uint32_t tick_start, tick_returned;   /* ticks when the program started / returned */   /* diagnostics: wakeups, tc_State seen, samples skipped */
     dbg_sample ring[SAMPLE_RING];
 } sampler;
 
@@ -637,8 +639,10 @@ static int32 sampler_main(STRPTR args, int32 len, struct ExecBase *sysbase)
         IExec->MutexObtain(g_sp.mutex);
         struct Task *t = g_sp.task;
         uint32_t exc = *g_sp.exc_count;
+        g_sp.ticks++;
         if (t) {
             uint8 st = t->tc_State;
+            g_sp.states[st < 10 ? st : 9]++;
             if ((st == TS_READY || st == TS_WAIT) && exc == *g_sp.exc_count) {
                 struct ExceptionContext c;
                 g_sp.idebug->ReadTaskContext(t, &c, RTCF_STATE | RTCF_GENERAL | RTCF_SPECIAL);
@@ -682,6 +686,9 @@ static void start_sampler(dbg_session *s, dt_state *d)
     if (!g_sp.mutex) return;
     g_sp.quit = 0;
     g_sp.head = g_sp.tail = g_sp.lost = 0;
+    g_sp.ticks = g_sp.skipped = 0;
+    g_sp.tick_start = g_sp.tick_returned = 0;
+    memset(g_sp.states, 0, sizeof g_sp.states);
     g_sp.task = NULL;                 /* set by dt_program_starting */
     g_sp.interval = d->interval ? d->interval : 1000;
     g_sp.idebug = dbg__idebug(s);
@@ -727,6 +734,12 @@ int dt_wants_main(dbg_session *s)
     return d && d->track;
 }
 
+int dt_sampling(dbg_session *s)
+{
+    dt_state *d = dt_get(s, 0);
+    return d && d->sampler_started;
+}
+
 void dt_before_go(dbg_session *s)
 {
     dt_state *d = dt_get(s, 0);
@@ -754,7 +767,7 @@ void dt_program_starting(dbg_session *s)
     if (!d) return;
     struct Task *me = IExec->FindTask(NULL);
     if (d->patched) { g_tr.task = me; g_tr.depth = 0; g_tr.active = 1; }
-    if (d->sampler_started) g_sp.task = me;
+    if (d->sampler_started) { g_sp.tick_start = g_sp.ticks; g_sp.task = me; }
 }
 
 void dt_program_returned(dbg_session *s)
@@ -765,6 +778,7 @@ void dt_program_returned(dbg_session *s)
     if (d->sampler_started && g_sp.mutex) {
         IExec->MutexObtain(g_sp.mutex);   /* the sampler isn't looking at us after this */
         g_sp.task = NULL;
+        g_sp.tick_returned = g_sp.ticks;
         IExec->MutexRelease(g_sp.mutex);
     }
 }
@@ -849,6 +863,18 @@ int dbg_profile_samples(dbg_session *s, dbg_sample *out, int max)
 }
 
 uint32_t dbg_profile_lost(dbg_session *s) { (void)s; return g_sp.lost; }
+
+const char *dbg_profile_note(dbg_session *s)
+{
+    static char buf[200];
+    (void)s;
+    snprintf(buf, sizeof buf, "%lu ticks (program from %lu to %lu); task states run %lu ready %lu wait %lu suspended %lu other %lu",
+             (unsigned long)g_sp.ticks, (unsigned long)g_sp.tick_start, (unsigned long)g_sp.tick_returned,
+             (unsigned long)g_sp.states[TS_RUN], (unsigned long)g_sp.states[TS_READY],
+             (unsigned long)g_sp.states[TS_WAIT], (unsigned long)g_sp.states[8 < 10 ? 8 : 9],
+             (unsigned long)(g_sp.states[0] + g_sp.states[1] + g_sp.states[5] + g_sp.states[6] + g_sp.states[7] + g_sp.states[9]));
+    return buf;
+}
 
 int dbg_addr_in_program(dbg_session *s, uint32_t addr)
 {

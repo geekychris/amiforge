@@ -2,13 +2,15 @@
  * toolstest — exercises the debugger tools on AmigaOS 4 against tests/targets: the leak
  * tracker (leaky), the profiler (hot) and the Intuition inspector (windows). It drives the
  * dbg API the way the IDE does and checks the models' results. Prints PASS/FAIL lines.
- *   toolstest [DIR [leaks|profile|inspect|all [LOGFILE]]]
+ *   toolstest [DIR [leaks|profile|inspect|all [LOGFILE [trace]]]]
  * DIR holds the targets and src/ with their sources (default DH1:AmiForge).
  */
 #undef __USE_INLINE__
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <devices/timer.h>
+#include <exec/debug.h>
+#include <exec/tasks.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -89,9 +91,17 @@ static void tick(uint32_t ms)
 }
 
 /* Next STOPPED/EXITED event, calling drain() on every poll (as the IDE does). */
+static uint32_t now_ms()
+{
+    struct DateStamp d;
+    IDOS->DateStamp(&d);
+    return (uint32_t)((d.ds_Days * 1440 + d.ds_Minute) * 60000 + d.ds_Tick * 20);
+}
+
 template <class F> static int wait_event(dbg_event *ev, uint32_t timeout_ms, F drain)
 {
-    for (uint32_t waited = 0;; waited += 20) {
+    uint32_t start = now_ms();
+    for (uint32_t waited = 0;; waited = now_ms() - start) {
         drain();
         while (dbg_poll(S, ev)) {
             if (ev->type == DBG_EV_MESSAGE) { out("  message: %s\n", ev->text); continue; }
@@ -122,8 +132,37 @@ static CodeLoc resolve(uint32_t a)
     return c;
 }
 
+/* Where a stuck debuggee is: state, priority and a few IP samples. */
+static void probe_task()
+{
+    struct Task *t = (struct Task *)dbg_task(S);
+    if (!t) { out("  (no task)\n"); return; }
+    struct DebugIFace *idebug = (struct DebugIFace *)IExec->GetInterface((struct Library *)SysBase, "debug", 1, NULL);
+    for (int i = 0; i < 5 && idebug; i++) {
+        struct ExceptionContext c;
+        uint8 st = t->tc_State;
+        if (st == TS_READY || st == TS_WAIT || st == TS_SUSPENDED) idebug->ReadTaskContext(t, &c, RTCF_STATE | RTCF_SPECIAL);
+        else c.ip = c.lr = 0;
+        char m[160] = "?";
+        dbg_addr_module(S, c.ip, m, sizeof m);
+        out("  (task state %d pri %d ip %08lx lr %08lx %s; sigwait %08lx)\n", st, t->tc_Node.ln_Pri, (unsigned long)c.ip,
+            (unsigned long)c.lr, m, (unsigned long)t->tc_SigWait);
+        tick(100);
+    }
+    if (idebug) IExec->DropInterface((struct Interface *)idebug);
+    /* experiment: does it finish if it gets to run at a normal priority? */
+    IExec->SetTaskPri(t, 0);
+    dbg_event ev;
+    auto none = []() {};
+    int got = wait_event(&ev, 5000, none);
+    out("  (after raising it to priority 0: %s)\n", got ? ev.text : "still there");
+}
+
+static void trace_line(void *, const char *line) { out("    | %s\n", line); }
+
 static void cleanup()
 {
+    out("  (cleanup: state %d)\n", (int)dbg_get_state(S));
     if (dbg_get_state(S) == DBG_RUNNING || dbg_get_state(S) == DBG_STOPPED) {
         dbg_kill(S);
         dbg_event ev;
@@ -155,8 +194,19 @@ static void test_leaks()
     dbg_track_resources(S, 1);
     ok(dbg_run(S, 0), "run leaky with resource tracking");
     dbg_event ev;
-    int got = wait_event(&ev, 15000, drain);
+    int got = wait_event(&ev, 30000, drain);
     ok(got && ev.type == DBG_EV_EXITED && ev.exit_code == 0, "leaky ran to the end (exit code %d)", got ? ev.exit_code : -1);
+    if (!got) {
+        struct Task *t = (struct Task *)dbg_task(S);
+        out("  (state %d, task %p state %d)\n", (int)dbg_get_state(S), (void *)t, t ? t->tc_State : -1);
+        if (dbg_pause(S) && wait_event(&ev, 3000, drain)) {
+            dbg_frame fr[16];
+            int n = dbg_stack(S, fr, 16);
+            for (int i = 0; i < n; i++)
+                out("  #%d %08lx %s %s:%d [%s]\n", fr[i].level, (unsigned long)fr[i].pc, fr[i].function,
+                    fr[i].file ? fr[i].file : "-", fr[i].line, fr[i].module);
+        }
+    }
     drain();
     const char *note = dbg_resources_note(S);
     ok(!note[0], "malloc tracked (note: \"%s\")", note);
@@ -196,7 +246,7 @@ static void test_leaks()
     LeakModel m2;
     auto drain2 = [&]() { int n; while ((n = dbg_resource_events(S, evs, 256)) > 0) m2.addAll(evs, n); };
     ok(dbg_run(S, 0), "run leaky without tracking");
-    got = wait_event(&ev, 15000, drain2);
+    got = wait_event(&ev, 30000, drain2);
     drain2();
     ok(got && ev.type == DBG_EV_EXITED, "untracked run ended");
     ok(m2.events() == 0, "untracked run recorded nothing (%lu)", (unsigned long)m2.events());
@@ -208,6 +258,18 @@ static void test_leaks()
 static void test_profile()
 {
     out("-- profile\n");
+    {   /* baseline: hot under the debugger without the profiler */
+        if (!dbg_load(S, P("hot"), "", g_dir, "NIL:")) { ok(false, "load hot: %s", dbg_last_error(S)); return; }
+        uint32_t t0 = now_ms();
+        dbg_run(S, 0);
+        dbg_event ev;
+        auto none = []() {};
+        int got = wait_event(&ev, 20000, none);
+        ok(got && ev.type == DBG_EV_EXITED, "baseline: hot without the profiler ended (%lu ms)", (unsigned long)(now_ms() - t0));
+        if (!got) probe_task();
+        cleanup();
+    }
+    uint32_t t0 = now_ms();
     ProfileModel p;
     static dbg_sample smp[512];
     auto drain = [&]() { int n; while ((n = dbg_profile_samples(S, smp, 512)) > 0) p.addAll(smp, n); };
@@ -215,12 +277,13 @@ static void test_profile()
     dbg_profile(S, 1, 1000);
     ok(dbg_run(S, 0), "run hot with the profiler");
     dbg_event ev;
-    int got = wait_event(&ev, 60000, drain);
-    ok(got && ev.type == DBG_EV_EXITED && ev.exit_code == 0, "hot ran to the end");
+    int got = wait_event(&ev, 20000, drain);
+    ok(got && ev.type == DBG_EV_EXITED && ev.exit_code == 0, "hot ran to the end (%lu ms)", (unsigned long)(now_ms() - t0));
+    if (!got) probe_task();
     drain();
     p.finish(resolve);
-    out("  %lu samples, %lu waiting, %lu lost\n", (unsigned long)p.samples(), (unsigned long)p.waiting(),
-        (unsigned long)dbg_profile_lost(S));
+    out("  %lu samples, %lu waiting, %lu lost; %s\n", (unsigned long)p.samples(), (unsigned long)p.waiting(),
+        (unsigned long)dbg_profile_lost(S), dbg_profile_note(S));
     int shown = 0;
     for (auto &f : p.functions())
         if (shown++ < 8)
@@ -253,6 +316,23 @@ static void test_profile()
         }
     ok(lineHeat, "the @hot line has samples");
     cleanup();
+}
+
+/* hot under the debugger without any tool: how long it takes, and that it ends */
+static void test_baseline()
+{
+    out("-- baseline\n");
+    if (!dbg_load(S, P("hot"), "", g_dir, "NIL:")) { ok(false, "load hot: %s", dbg_last_error(S)); return; }
+    uint32_t t0 = now_ms();
+    dbg_run(S, 0);
+    dbg_event ev;
+    auto none = []() {};
+    int got = wait_event(&ev, 30000, none);
+    ok(got && ev.type == DBG_EV_EXITED, "hot without tools ended (%lu ms)", (unsigned long)(now_ms() - t0));
+    if (!got) {
+        struct Task *t = (struct Task *)dbg_task(S);
+        out("  (task %p state %d pri %d)\n", (void *)t, t ? t->tc_State : -1, t ? t->tc_Node.ln_Pri : 0);
+    }
 }
 
 /* ------------------------------------------------------------------ inspect */
@@ -329,8 +409,9 @@ int main(int argc, char **argv)
     S = dbg_create();
     if (!S) { out("FAIL dbg_create\ntoolstest: 0 passed, 1 failed\n"); return 20; }
     dbg_set_source_path(S, P("src"));
+    if (argc > 4 && !strcmp(argv[4], "trace")) dbg_set_trace(S, trace_line, nullptr);
     struct { const char *name; void (*fn)(); } tests[] = {
-        { "leaks", test_leaks }, { "profile", test_profile }, { "inspect", test_inspect },
+        { "leaks", test_leaks }, { "profile", test_profile }, { "inspect", test_inspect }, { "baseline", test_baseline },
     };
     const char *only = argc > 2 && strcmp(argv[2], "all") ? argv[2] : nullptr;
     for (auto &t : tests) {

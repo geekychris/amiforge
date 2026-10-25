@@ -145,6 +145,7 @@ struct dbg_session {
     void *trace_ud;
     /* --- debugtools --- */
     void *dt;                   /* os4_tools.c state (resource tracking, profiler) */
+    volatile int returned;      /* RunCommand has returned: DOS is cleaning the process up */
 };
 
 /* --- debugtools: accessors for os4_tools.c --- */
@@ -1286,8 +1287,10 @@ int dbg_poll(dbg_session *s, dbg_event *ev)
         }
         check_death(s);
         /* OS4 sometimes stops dispatching a ready debuggee (with a debug hook) until something
-         * reschedules it; it then sits ready at the same address. Kick it when we see that. */
-        if (s->state == DBG_RUNNING && s->proc) {
+         * reschedules it; it then sits ready at the same address. Kick it when we see that.
+         * (debugtools) Not once the program has returned: the hook is off, and suspending a
+         * process in DOS's cleanup left it hanging there. */
+        if (s->state == DBG_RUNNING && s->proc && !s->returned && !dt_sampling(s)) {
             struct Task *t = (struct Task *)s->proc;
             if (t->tc_State == TS_READY) {
                 struct ExceptionContext c;
@@ -1355,6 +1358,7 @@ static int32 launcher(STRPTR args, int32 len, struct ExecBase *sysbase)
     dt_program_starting(s);                          /* --- debugtools --- */
     int32 rc = IDOS->RunCommand(s->seg, DEFAULT_STACK, s->run_args, s->run_arglen);
     dt_program_returned(s);                          /* --- debugtools --- */
+    s->returned = 1;                                 /* debugtools: no more kicks (see dbg_poll) */
     /* and leave without the hook: DOS's process cleanup then runs as for any program */
     s->idebug->AddDebugHook(me, NULL);
     IDOS->SelectErrorOutput(olderr);
@@ -1418,6 +1422,7 @@ int dbg_run(dbg_session *s, int stop_at_main)
 
     s->exc_count = s->seen = 0;
     s->remtask = 0;
+    s->returned = 0;                                 /* debugtools */
     s->have_entry = 0;
     s->stop_at_main = stop_at_main;
 

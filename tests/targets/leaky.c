@@ -22,7 +22,7 @@ static void leak_memory(void)
 
 static void leak_dos(void)
 {
-    BPTR f = Open("RAM:leaky.tmp", MODE_NEWFILE);               /* @leak_file */
+    BPTR f = Open("S:Startup-Sequence", MODE_OLDFILE);          /* @leak_file */
     (void)f;
     BPTR l = Lock("RAM:", SHARED_LOCK);                         /* @leak_lock */
     (void)l;

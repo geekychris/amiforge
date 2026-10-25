@@ -18,7 +18,8 @@ void **dbg__dt(dbg_session *s);
 volatile uint32_t *dbg__exc_count(dbg_session *s);
 
 /* hooks the session calls (os4_tools.c) */
-int dt_wants_main(dbg_session *s);          /* plant the main() trap even without stop_at_main */
+int dt_wants_main(dbg_session *s);
+int dt_sampling(dbg_session *s);            /* the profiler's sampler is running (it keeps the task dispatched) */          /* plant the main() trap even without stop_at_main */
 void dt_before_go(dbg_session *s);          /* IDE task: the launcher waits for the go signal */
 void dt_program_starting(dbg_session *s);   /* debuggee task, just before RunCommand */
 void dt_program_returned(dbg_session *s);   /* debuggee task, just after RunCommand */
