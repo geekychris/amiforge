@@ -47,7 +47,11 @@ DBG_OBJS  = $(patsubst %,$(O)/%.o,$(DBG_SRC))
 IDE_SRC   = $(wildcard src/ide/*.cpp) $(wildcard src/ide/*.c)
 IDE_OBJS  = $(patsubst %,$(O)/%.o,$(IDE_SRC))
 
-all: $(B)/AmiForge tests
+all: $(B)/AmiForge $(B)/QEMUCopyFix tests
+
+# for the QEMU sam460ex guest (see docs/user-guide.md)
+$(B)/QEMUCopyFix: tools/os4/QEMUCopyFix.c
+	@mkdir -p $(@D); $(CC) -mcrt=newlib -O2 -Wall -o $@ $< && $(STRIP) $@
 
 $(B)/libscintilla.a: $(SCI_OBJS)
 	@mkdir -p $(@D); rm -f $@; $(AR) rcs $@ $^

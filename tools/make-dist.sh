@@ -33,6 +33,12 @@ d=$stage/AmiForge
 cp $icons/AmiForge-drawer.info $stage/AmiForge.info
 cp $bin $d/AmiForge
 cp $icons/AmiForge.info $d/AmiForge.info
+# for QEMU's sam460ex machine: see Docs/user-guide.txt
+if [ -f $root/build/QEMUCopyFix ]; then
+    mkdir -p $d/Tools
+    cp $root/build/QEMUCopyFix $d/Tools/QEMUCopyFix
+    cp $icons/drawer.info $d/Tools.info
+fi
 
 # examples: sources plus a project icon per .afp
 cp $icons/drawer.info $d/Examples.info
