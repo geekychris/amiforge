@@ -257,6 +257,7 @@ void App::onStopped(const dbg_event &ev)
     }
     if (!execFile.empty()) {
         gotoLocation(execFile, execLine, 0, true);
+        refreshMarkers();   // the document may already have been the current one
     } else {
         refreshMarkers();
         showBottomPage(5);   // no source: show the disassembly
