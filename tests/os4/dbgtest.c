@@ -500,6 +500,7 @@ static void exit_runs(const char *mode)
             out("%s\n", line);
         }
         if (dbg_get_state(S) == DBG_RUNNING && dbg_pause(S) && wait_event(&ev, 2000)) printf("  (it was at %08lx %s)\n", (unsigned long)ev.pc, ev.text);
+        ok(0, "runs to the end (%s session): run %d didn't exit", mode, i);
         return;   /* don't pile up stuck processes */
     }
     ok(good == 4, "runs to the end (%s session): %d of 4", mode, good);
