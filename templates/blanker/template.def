@@ -1,0 +1,10 @@
+[template]
+name=Screen blanker
+description=A commodity that blanks the display after a time without input, or at once on a hot key.
+order=60
+[project]
+output=${LOWER}
+args=TIMEOUT=30
+[files]
+file=main.c -> ${LOWER}.c
+open=${LOWER}.c

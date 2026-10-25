@@ -23,6 +23,7 @@
 // (${NAME:upper}). $${ stands for a literal ${.
 #pragma once
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -61,6 +62,20 @@ bool parseDef(const std::string &text, Def &out, std::string &err);
 
 // The definition with every destination, setting, command and file name substituted.
 Def instantiate(const Def &d, const Vars &vars);
+
+// What creating a project from a template does, worked out before anything is written.
+struct Plan {
+    struct Output { std::string path, content; };    // path relative to the project's drawer
+    std::vector<std::string> dirs;                    // drawers to make first, in order
+    std::vector<Output> files;
+    std::vector<std::string> projectFiles;            // for the .afp, in order
+    std::vector<std::pair<std::string, std::string>> project;
+    std::vector<std::string> commands, guis, open;
+    std::vector<std::string> errors;                  // e.g. a missing template file
+};
+// read(src, out) reads a file from the template's drawer.
+Plan plan(const Def &instantiated, const Vars &vars,
+          const std::function<bool(const std::string &src, std::string &out)> &read);
 
 // The drawers a destination path needs ("a/b/c.c" -> {"a", "a/b"}), in creation order.
 std::vector<std::string> parentDirs(const std::string &dest);

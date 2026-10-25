@@ -104,3 +104,43 @@ TEST(parent_dirs)
     CHECK_EQ(p[1], std::string("a/b"));
     CHECK(parentDirs("c.c").empty());
 }
+
+TEST(plan_from_template)
+{
+    Def d;
+    std::string err;
+    CHECK(parseDef(DEF, d, err));
+    Vars v = makeVars("Maths", "", 1, 1, 2026);
+    Def i = instantiate(d, v);
+    std::map<std::string, std::string> files = {
+        { "init.c", "/* ${NAME} init */" }, { "impl.c", "int ${LOWER}_x;" }, { "lib.xml", "<library name=\"${LOWER}\"/>" },
+        { "test.c", "${BOGUS}" },
+    };
+    Plan p = plan(i, v, [&](const std::string &src, std::string &out) {
+        auto it = files.find(src);
+        if (it == files.end()) return false;
+        out = it->second;
+        return true;
+    });
+    CHECK_EQ((int)p.files.size(), 4);
+    CHECK_EQ(p.files[0].path, std::string("init.c"));
+    CHECK_EQ(p.files[0].content, std::string("/* Maths init */"));
+    CHECK_EQ(p.files[1].path, std::string("maths_impl.c"));
+    CHECK_EQ(p.files[1].content, std::string("int maths_x;"));
+    CHECK_EQ(p.files[3].path, std::string("test/mathstest.c"));
+    // project files: file= and generated=, not extra=
+    CHECK_EQ((int)p.projectFiles.size(), 3);
+    CHECK_EQ(p.projectFiles[2], std::string("maths_vectors.c"));
+    CHECK_EQ((int)p.dirs.size(), 1);
+    CHECK_EQ(p.dirs[0], std::string("test"));
+    // the unknown ${BOGUS} is reported
+    CHECK_EQ((int)p.errors.size(), 1);
+    files.erase("init.c");
+    Plan q = plan(i, v, [&](const std::string &src, std::string &out) {
+        auto it = files.find(src);
+        if (it == files.end()) return false;
+        out = it->second;
+        return true;
+    });
+    CHECK_EQ((int)q.errors.size(), 2);
+}

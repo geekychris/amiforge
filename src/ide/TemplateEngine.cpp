@@ -158,6 +158,38 @@ Def instantiate(const Def &d, const Vars &v)
     return o;
 }
 
+Plan plan(const Def &d, const Vars &vars, const std::function<bool(const std::string &, std::string &)> &read)
+{
+    Plan p;
+    p.project = d.project;
+    p.commands = d.commands;
+    p.guis = d.guis;
+    p.open = d.open;
+    auto addDirs = [&](const std::string &dest) {
+        for (auto &dir : parentDirs(dest)) {
+            bool have = false;
+            for (auto &x : p.dirs) have |= x == dir;
+            if (!have) p.dirs.push_back(dir);
+        }
+    };
+    for (auto &f : d.files) {
+        addDirs(f.dest);
+        if (f.kind != FileSpec::Generated) {
+            std::string text;
+            if (!read(f.src, text)) {
+                p.errors.push_back("The template's file " + f.src + " is missing.");
+                continue;
+            }
+            std::vector<std::string> unknown;
+            Plan::Output o{ f.dest, substitute(text, vars, &unknown) };
+            for (auto &u : unknown) p.errors.push_back(f.src + ": unknown substitution ${" + u + "}");
+            p.files.push_back(o);
+        }
+        if (f.kind != FileSpec::Extra) p.projectFiles.push_back(f.dest);
+    }
+    return p;
+}
+
 std::vector<std::string> parentDirs(const std::string &dest)
 {
     std::vector<std::string> out;
