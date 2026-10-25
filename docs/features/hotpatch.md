@@ -81,3 +81,15 @@ When a change can't be applied, nothing is changed and the Build tab says why, f
 A patch is refused if a function's first instructions are being executed by a frame (only
 possible right after an instruction step at a function's entry); step once more and apply
 again.
+
+## Tests
+
+- `make -C tests/host ide` (area `hotpatch`): the linker against objects and programs built
+  by the cross-compiler: data kept at the program's addresses, long-branch stubs, refusals
+  (new static, resized variable, function not in the program, wrong file), debug-info merge,
+  successive patches, C++ vtables, plain `-gstabs` function ranges.
+- `hotpatchtest DIR` on AmigaOS 4 (with `hptarget`, `hpcpp` and `hotpatch/*/compute.o`,
+  `hotpatch/cpp2/shape.o` in DIR): runs the programs under the debugger and patches them
+  twice, checking output, kept data, moved breakpoints, stepping into a new function and a
+  refused change. `setenv AFHOTPATCH_FAR 1` makes it take the long-branch and stub paths
+  even when the patch is within branch range.
