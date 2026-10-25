@@ -20,6 +20,11 @@ void App::handleMenu(uint32_t cmd)
     case CMD_REMOVE_FILE: removeFileFromProject(); break;
     case CMD_PROJECT_SETTINGS: projectSettings(); break;
     case CMD_ABOUT: about(); break;
+    case CMD_CLEAR_RECENT:
+        recentProjects.clear();
+        saveRecent();
+        rebuildMenus();
+        break;
     case CMD_QUIT:
         if (debugging() && ask("Quit", "A program is being debugged. Stop it and quit?", "_Quit|_Cancel") != 1) break;
         if (debugging()) debugStop();
@@ -133,6 +138,19 @@ void App::handleMenu(uint32_t cmd)
         break;
     }
     default:
+        if (cmd >= CMD_RECENT_FIRST && cmd <= CMD_RECENT_LAST) {
+            size_t i = cmd - CMD_RECENT_FIRST;
+            if (i < recentProjects.size()) {
+                std::string p = recentProjects[i];
+                if (fileExists(p)) openProject(p);
+                else {
+                    info("The project " + p + " isn't there any more; it's been taken off the list.");
+                    recentProjects.erase(recentProjects.begin() + i);
+                    saveRecent();
+                    rebuildMenus();
+                }
+            }
+        }
         break;
     }
     updateToolbar();

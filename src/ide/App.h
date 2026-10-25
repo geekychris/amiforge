@@ -9,6 +9,7 @@
 #include <exec/types.h>
 #include <intuition/classusr.h>
 #include <graphics/text.h>
+#include <libraries/gadtools.h>
 
 #include "sci/SciView.h"
 #include "dbg/dbg.h"
@@ -23,6 +24,7 @@ struct MsgPort;
 struct IntuiMessage;
 struct Hook;
 struct ColumnInfo;
+struct NewMenu;
 
 namespace af {
 
@@ -229,6 +231,14 @@ public:
     void refreshProjectList();
     void projectSettings();
     void findInFiles();
+    // recent projects (ENVARC:AmiForge/RecentProjects, newest first)
+    void loadRecent();
+    void saveRecent();
+    void addRecent(const std::string &afp);
+    void rebuildMenus();
+    std::vector<std::string> recentProjects;
+    std::vector<struct NewMenu> menuData;     // window.class keeps a pointer to it
+    std::vector<std::string> menuLabels;      // and to these
 
     // --- build & run (BuildUI.cpp) ---
     void build(const std::string &what);

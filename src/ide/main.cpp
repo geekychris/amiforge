@@ -30,6 +30,7 @@ App::~App()
 
 int App::run(int argc, char **argv)
 {
+    loadRecent();   // before the window opens: the Open Recent menu is built from it
     if (!openMainWindow()) {
         closeMainWindow();
         IDOS->PutStr("AmiForge: can't open the main window\n");
@@ -53,6 +54,9 @@ int App::run(int argc, char **argv)
         if (extension(a) == "afp") openProject(a);
         else openFile(a);
     }
+    // started on its own: carry on with the last project
+    if (args.empty() && !recentProjects.empty() && fileExists(recentProjects.front()))
+        openProject(recentProjects.front());
     if (docs.empty()) newDocument();
     setStatus("Ready - F5 debug, F7 build, Ctrl-F5 run, F9 breakpoint");
 

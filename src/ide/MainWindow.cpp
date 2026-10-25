@@ -103,6 +103,7 @@ static struct NewMenu menus[] = {
     TITLE("Project"),
     ITEM("New Project...", 0, CMD_NEW_PROJECT),
     ITEM("Open Project...", "P", CMD_OPEN_PROJECT),
+    ITEM("Open Recent", 0, 0),               // its submenu is filled in by rebuildMenus
     ITEM("Save Project", 0, CMD_SAVE_PROJECT),
     ITEM("Close Project", 0, CMD_CLOSE_PROJECT),
     BAR,
@@ -180,6 +181,30 @@ static struct NewMenu menus[] = {
     ITEM("Add Watch...", 0, CMD_ADD_WATCH),
     { NM_END, 0, 0, 0, 0, 0 }
 };
+
+// The menus with the Open Recent submenu filled in from recentProjects.
+void App::rebuildMenus()
+{
+    menuData.clear();
+    menuLabels.clear();
+    menuLabels.reserve(recentProjects.size());
+    for (auto &p : recentProjects) menuLabels.push_back(fileName(p) + "  (" + dirName(p) + ")");
+    for (struct NewMenu *m = menus; ; m++) {
+        menuData.push_back(*m);
+        if (m->nm_Type == NM_END) break;
+        if (m->nm_Type == NM_ITEM && m->nm_Label != NM_BARLABEL && strcmp((const char *)m->nm_Label, "Open Recent") == 0) {
+            for (size_t i = 0; i < recentProjects.size() && i < 10; i++)
+                menuData.push_back({ NM_SUB, (STRPTR)menuLabels[i].c_str(), 0, 0, 0, (APTR)(uint32)(CMD_RECENT_FIRST + i) });
+            if (recentProjects.empty())
+                menuData.push_back({ NM_SUB, (STRPTR)"(none yet)", 0, NM_ITEMDISABLED, 0, 0 });
+            else {
+                menuData.push_back({ NM_SUB, NM_BARLABEL, 0, 0, 0, 0 });
+                menuData.push_back({ NM_SUB, (STRPTR)"Clear List", 0, 0, 0, (APTR)CMD_CLEAR_RECENT });
+            }
+        }
+    }
+    if (winObj) IIntuition->SetAttrs(winObj, WINDOW_NewMenu, (uint32)menuData.data(), TAG_DONE);
+}
 
 // ---------------------------------------------------------------------------------------
 
@@ -326,7 +351,7 @@ bool App::openMainWindow()
                   IDCMP_NEWSIZE | IDCMP_RAWKEY | IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE |
                   IDCMP_EXTENDEDMOUSE | IDCMP_INTUITICKS | IDCMP_IDCMPUPDATE | IDCMP_REFRESHWINDOW |
                   IDCMP_ACTIVEWINDOW | IDCMP_INACTIVEWINDOW,
-        WINDOW_NewMenu, (uint32)menus,
+        WINDOW_NewMenu, (uint32)(rebuildMenus(), menuData.data()),
         WINDOW_AppPort, (uint32)appPort,
         WINDOW_IDCMPHook, (uint32)&gIdcmpHook,
         WINDOW_IDCMPHookBits, IDCMP_RAWKEY | IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE |

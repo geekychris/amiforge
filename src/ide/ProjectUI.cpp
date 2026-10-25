@@ -95,6 +95,7 @@ void App::newProject()
         if (isSourceFile(f)) { openFile(project.abs(f)); break; }
     lastDir = project.dir;
     updateTitle();
+    addRecent(project.path);
     setStatus("Created project " + project.path);
 }
 
@@ -112,6 +113,7 @@ void App::openProject(const std::string &pathIn)
     }
     if (!closeProjectFiles(*this)) return;
     project = p;
+    addRecent(project.path);
     lastDir = project.dir;
     refreshProjectList();
     refreshBreakpointList();
@@ -331,6 +333,53 @@ void App::findInFiles()
     findLog.attach();
     showBottomPage(1);
     setStatus(strprintf("%d match%s for \"%s\"", (int)findResults.size(), findResults.size() == 1 ? "" : "es", text.c_str()));
+}
+
+} // namespace af
+
+namespace af {
+
+static const char *recentFile = "AmiForge/RecentProjects";
+
+void App::loadRecent()
+{
+    recentProjects.clear();
+    std::string text;
+    if (!readFile(std::string("ENV:") + recentFile, text) && !readFile(std::string("ENVARC:") + recentFile, text))
+        return;
+    size_t pos = 0;
+    while (pos < text.size()) {
+        size_t nl = text.find('\n', pos);
+        std::string line = trim(text.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos));
+        pos = nl == std::string::npos ? text.size() : nl + 1;
+        if (!line.empty() && recentProjects.size() < 10) recentProjects.push_back(line);
+    }
+}
+
+void App::saveRecent()
+{
+    std::string text;
+    for (auto &p : recentProjects) text += p + "\n";
+    for (const char *dir : { "ENV:AmiForge", "ENVARC:AmiForge" }) {
+        BPTR l = IDOS->Lock(dir, SHARED_LOCK);
+        if (!l) l = IDOS->CreateDir(dir);
+        if (l) IDOS->UnLock(l);
+        writeFile(joinPath(dir, "RecentProjects"), text);
+    }
+}
+
+void App::addRecent(const std::string &afp)
+{
+    std::string p = absolutePath(afp);
+    for (size_t i = 0; i < recentProjects.size(); i++)
+        if (strcasecmp(recentProjects[i].c_str(), p.c_str()) == 0) {
+            recentProjects.erase(recentProjects.begin() + i);
+            break;
+        }
+    recentProjects.insert(recentProjects.begin(), p);
+    if (recentProjects.size() > 10) recentProjects.resize(10);
+    saveRecent();
+    rebuildMenus();
 }
 
 } // namespace af
