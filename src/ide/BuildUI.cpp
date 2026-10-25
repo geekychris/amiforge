@@ -137,7 +137,7 @@ void App::pollBuild()
         if (l.kind == MsgKind::Output && l.text.find("Unknown command") != std::string::npos) {
             BuildLine hint;
             hint.kind = MsgKind::Error;
-            hint.text = "The compiler couldn't be started: check that the SDK is installed (SDK:gcc/bin/gcc).";
+            hint.text = "A build tool wasn't found: check that the SDK is installed and that SDK:gcc/bin contains it.";
             diagnostics.push_back(hint);
             struct Node *h = buildLog.add({hint.text}, (void *)(intptr_t)diagnostics.size());
             if (h) buildLog.setPens(h, penError);

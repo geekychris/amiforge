@@ -13,6 +13,8 @@
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <dos/dostags.h>
+#include <dos/dosextens.h>
+#include <dos/path.h>
 
 namespace af {
 
@@ -53,9 +55,34 @@ static void post(Builder::Job *j, MsgKind kind, const char *text, size_t len)
 
 static void postStr(Builder::Job *j, MsgKind kind, const char *text) { post(j, kind, text, strlen(text)); }
 
+// The SDK's tool drawers on this (CLI) process's command path. gcc runs as, ld and cc1 by
+// name, and sdk-startup only adds SDK:gcc/bin to shells started after it ran; AmiForge may have
+// been started from one that predates it.
+static void addSdkToPath()
+{
+    struct CommandLineInterface *cli = IDOS->Cli();
+    if (!cli) return;
+    for (const char *dir : { "SDK:gcc/bin", "SDK:C" }) {
+        BPTR lock = IDOS->Lock(dir, SHARED_LOCK);
+        if (!lock) continue;
+        bool have = false;
+        for (struct PathNode *pn = (struct PathNode *)BADDR(cli->cli_PathList); pn && !have;
+             pn = (struct PathNode *)BADDR(pn->pn_Next))
+            have = pn->pn_Lock && IDOS->SameLock(pn->pn_Lock, lock) == LOCK_SAME;
+        if (!have) {
+            struct PathNode *old = (struct PathNode *)BADDR(cli->cli_PathList);
+            struct PathNode *first = old ? IDOS->AddCmdPathNode(old, lock, ADDCMDPATHNODE_TAIL)
+                                         : IDOS->AllocateCmdPathList(IDOS->DupLock(lock));
+            if (first) cli->cli_PathList = MKBADDR(first);
+        }
+        IDOS->UnLock(lock);
+    }
+}
+
 static int32 builderMain(STRPTR, int32, struct ExecBase *)
 {
     Builder::Job *j = gJob;
+    addSdkToPath();
     BPTR dirLock = IDOS->Lock(j->dir.c_str(), SHARED_LOCK);
     BPTR oldDir = dirLock ? IDOS->SetCurrentDir(dirLock) : 0;
     bool ok = dirLock != 0;

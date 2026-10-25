@@ -370,6 +370,7 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | Problem | What to do |
 |---|---|
 | "Couldn't run the command (is the SDK installed?)" | Check that `SDK:` is assigned and `SDK:gcc/bin/gcc` exists |
+| "as: Unknown command" or "A build tool wasn't found" | The SDK install is incomplete: `SDK:gcc/bin` should hold `as` and `ld` (AmiForge adds `SDK:gcc/bin` and `SDK:C` to the build's path itself) |
 | C++ builds fail with strange errors in standard headers (QEMU) | Run `C:QEMUCopyFix` (see above) |
 | A breakpoint shows a hollow circle | It's disabled, or the line has no code; check the Breakpoints tab |
 | Locals are empty or say `<unreadable>` | Build with `-gstabs` / `-gstabs+` and without optimisation (`-O0`) |
