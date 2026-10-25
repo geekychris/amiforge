@@ -329,6 +329,14 @@ static Object *button(uint32_t gid, const char *text, const char *hint = nullptr
         hint ? GA_HintInfo : TAG_IGNORE, (uint32)hint, TAG_DONE);
 }
 
+// A button that stays pressed while its feature is on.
+static Object *toggleButton(uint32_t gid, const char *text, const char *hint)
+{
+    return IIntuition->NewObject(IButton->BUTTON_GetClass(), nullptr,
+        GA_ID, gid, GA_RelVerify, TRUE, GA_Text, (uint32)text, BUTTON_PushButton, TRUE,
+        GA_HintInfo, (uint32)hint, TAG_DONE);
+}
+
 static struct Node *tabNode(const char *text, int num)
 {
     return IClickTab->AllocClickTabNode(TNA_Text, (uint32)text, TNA_Number, num, TAG_DONE);
@@ -391,15 +399,17 @@ bool App::openMainWindow()
     // --- end debugtools ---
 
     // The file tab row: an empty clicktab has no height, so reserve a row of the screen font.
-    // The close gadget clicktab shows on the active tab: the system close image.
+    // The close gadget clicktab shows on the active tab.
     int tabHeight = 22;
     if (struct ::Screen *scr = IIntuition->LockPubScreen(nullptr)) {
         tabHeight = scr->Font->ta_YSize + 10;
         drawInfo = IIntuition->GetScreenDrawInfo(scr);
         drawInfoScreen = scr;
         if (drawInfo)
-            tabCloseImage = IIntuition->NewObject(nullptr, "sysiclass",
-                SYSIA_Which, CLOSEIMAGE, SYSIA_DrawInfo, (uint32)drawInfo, SYSIA_Size, SYSISIZE_LOWRES, TAG_DONE);
+            // a plain "x" (Latin-1 multiplication sign): the window close image (sysiclass CLOSEIMAGE)
+            // is drawn for a title bar and looks cut off on a tab
+            tabCloseImage = IIntuition->NewObject(ILabel->LABEL_GetClass(), nullptr,
+                LABEL_DrawInfo, (uint32)drawInfo, LABEL_Text, (uint32)" \xD7 ", TAG_DONE);
         IIntuition->UnlockPubScreen(nullptr, scr);
     }
     if (tabCloseImage) {
@@ -519,6 +529,13 @@ bool App::openMainWindow()
                 CHILD_WeightedWidth, 0,
                 LAYOUT_AddChild, gad[GID_TB_FIND] = button(GID_TB_FIND, "Find", "Find / replace (Amiga-F)"),
                 LAYOUT_AddChild, gad[GID_TB_DOCS] = button(GID_TB_DOCS, "Docs", "AutoDoc for the word at the cursor (F1)"),
+                // --- editor features: on/off buttons, so a split or minimap is never a mystery ---
+                LAYOUT_AddChild, gap(),
+                CHILD_WeightedWidth, 0,
+                LAYOUT_AddChild, gad[GID_TB_SPLIT] = toggleButton(GID_TB_SPLIT, "Split",
+                    "Split the editor into two views of the same file (View > Split Editor). Click again for one view"),
+                LAYOUT_AddChild, gad[GID_TB_MAP] = toggleButton(GID_TB_MAP, "Map",
+                    "Show a minimap of the whole file at the right (View > Minimap). Click again to hide it"),
                 TAG_DONE),
             CHILD_WeightedHeight, 0,
             // everything that can be resized with weight bars
@@ -958,6 +975,8 @@ void App::handleGadget(uint32_t gid, uint16_t code)
     case GID_TB_STOP: handleMenu(CMD_DEBUG_STOP); break;
     case GID_TB_FIND: handleMenu(CMD_FIND); break;
     case GID_TB_DOCS: handleMenu(CMD_DOC_LOOKUP); break;
+    case GID_TB_SPLIT: toggleSplit(); break;     // --- editor features ---
+    case GID_TB_MAP: toggleMinimap(); break;
     case GID_VSCROLL:
     case GID_HSCROLL: {
         uint32 top = 0;

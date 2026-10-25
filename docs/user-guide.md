@@ -212,16 +212,17 @@ AmiForge remembers the choice in `ENVARC:AmiForge/Theme`, which holds `Light` or
 
 ### Split view
 
-**View > Split Editor** shows a second view of the current file beside the first. Each view
+The **Split** button on the toolbar (or **View > Split Editor**) shows a second view of the current file beside the first. Each view
 scrolls on its own, but they show the same text, so an edit in one appears in the other at once.
 Click in a view to work in it: Find, Go to Definition, F1, completion and the other commands act
-on the view you clicked last. The scrollers belong to the left view. Choose the menu item again
-to close the second view. AmiForge remembers whether the split is on (`ENVARC:AmiForge/SplitView`).
+on the view you clicked last. The scrollers belong to the left view. The Split button stays
+pressed while the split is on: click it again (or choose the menu item) to go back to one view. AmiForge remembers whether the split is on (`ENVARC:AmiForge/SplitView`).
 
 ### Minimap
 
-**View > Minimap** shows the whole file in tiny print on the editor's right, with the part that's
-in the (left) view highlighted.
+The **Map** button on the toolbar (or **View > Minimap**) shows the whole file in tiny print on the editor's right, with the part that's
+in the (left) view highlighted. The Map button stays pressed while it's shown; click it again to
+hide it.
 - Click the minimap, or drag in it, to jump there.
 - The mouse wheel over the minimap scrolls the editor.
 

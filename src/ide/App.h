@@ -202,7 +202,7 @@ enum Gid {
     GID_BOTTOM_TABS, GID_BOTTOM_PAGES, GID_BUILDLOG, GID_FINDLOG, GID_STACK, GID_BPS, GID_BP_DEL, GID_BP_DELALL,
     GID_MEM_ADDR, GID_MEM_VIEW, GID_DISASM, GID_DEBUGLOG, GID_STATUS, GID_STATUS2,
     // --- editor features ---
-    GID_LEFT_TABS, GID_LEFT_PAGES, GID_SYMBOLS,
+    GID_LEFT_TABS, GID_LEFT_PAGES, GID_SYMBOLS, GID_TB_SPLIT, GID_TB_MAP,
     // --- debugtools ---
     GID_INSPECT, GID_INSPECT_REFRESH, GID_INSPECT_HIGHLIGHT, GID_LEAKS, GID_PROFILE, GID_PROFILE_CLEAR,
     // --- end debugtools ---
@@ -509,6 +509,7 @@ public:
     bool splitOn = false, minimapOn = false;
     void toggleSplit();
     void toggleMinimap();
+    void syncViewButtons();                    // the toolbar's Split / Map buttons show the state
     void syncViews();                          // the other views follow the current document
     void styleView(SciView *v);                // theme + view settings for the current document
     bool layoutViews(int left, int top, int width, int height, bool reblit);   // true if a view moved

@@ -7,6 +7,7 @@
 // last; the commands work on it. All views share the document, so text, markers, undo and
 // indicators are common; scrolling, the selection and the colours are per view.
 #include "App.h"
+#include <intuition/gadgetclass.h>
 #include "Commands.h"
 
 #include <string.h>
@@ -85,6 +86,7 @@ void App::initEditorFeatures()
     loadSnippets();
     if (splitOn) { splitOn = false; toggleSplit(); }
     if (minimapOn) { minimapOn = false; toggleMinimap(); }
+    syncViewButtons();
     rebuildMenus();
 }
 
@@ -182,6 +184,12 @@ void App::setTheme(const std::string &name)
 // split view and minimap
 // ---------------------------------------------------------------------------------------
 
+void App::syncViewButtons()
+{
+    setGadget(GID_TB_SPLIT, GA_Selected, splitOn);
+    setGadget(GID_TB_MAP, GA_Selected, minimapOn);
+}
+
 void App::toggleSplit()
 {
     if (!win) return;
@@ -204,13 +212,14 @@ void App::toggleSplit()
         splitView->setFocus(false);
     }
     savePref("SplitView", splitOn ? "1" : "0");
+    syncViewButtons();
     // the views take new places: clear the old ones first so no stale image is left
     if (struct Gadget *g = (struct Gadget *)gad[GID_EDITOR])
         IGraphics->EraseRect(win->RPort, g->LeftEdge, g->TopEdge, g->LeftEdge + g->Width - 1, g->TopEdge + g->Height - 1);
     for (SciView *v : { mainView, splitView, miniView }) if (v) v->setBounds(0, 0, 0, 0);
     layoutEditor();
     rebuildMenus();
-    setStatus(splitOn ? "Split view: click a view to edit in it; both show the same file" : "Split view off");
+    setStatus(splitOn ? "Split view: two views of the same file. Click Split (or View > Split Editor) for one view" : "Split view off");
 }
 
 void App::toggleMinimap()
@@ -233,6 +242,8 @@ void App::toggleMinimap()
         miniView->setFocus(false);
     }
     savePref("Minimap", minimapOn ? "1" : "0");
+    syncViewButtons();
+    setStatus(minimapOn ? "Minimap on: click it to jump. Click Map (or View > Minimap) to hide it" : "Minimap off");
     if (struct Gadget *g = (struct Gadget *)gad[GID_EDITOR])
         IGraphics->EraseRect(win->RPort, g->LeftEdge, g->TopEdge, g->LeftEdge + g->Width - 1, g->TopEdge + g->Height - 1);
     for (SciView *v : { mainView, splitView, miniView }) if (v) v->setBounds(0, 0, 0, 0);
