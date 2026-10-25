@@ -379,7 +379,7 @@ void App::handleFindWindow()
 bool App::editProjectSettings()
 {
     enum { PS_NAME = 1, PS_OUTPUT, PS_CC, PS_CXX, PS_CFLAGS, PS_CXXFLAGS, PS_ASFLAGS, PS_LDFLAGS, PS_LIBS,
-           PS_ARGS, PS_CONSOLE, PS_STOPMAIN, PS_OK, PS_CANCEL, PS_N };
+           PS_ARGS, PS_CONSOLE, PS_STOPMAIN, PS_OK, PS_CANCEL, PS_RUNCMD /* designer */, PS_N };
     Object *g[PS_N] = {};
     Class *string = IString->STRING_GetClass();
     Class *layout = ILayout->LAYOUT_GetClass();
@@ -407,6 +407,9 @@ bool App::editProjectSettings()
             LAYOUT_AddChild, field(PS_LIBS, project.libs), CHILD_Label, label("Libraries"),
             LAYOUT_AddChild, field(PS_ARGS, project.args), CHILD_Label, label("Program arguments"),
             LAYOUT_AddChild, field(PS_CONSOLE, project.console), CHILD_Label, label("Console (empty: a window)"),
+            // --- designer ---
+            LAYOUT_AddChild, field(PS_RUNCMD, project.runcmd), CHILD_Label, label("Run command (empty: the program)"),
+            // --- end designer ---
             LAYOUT_AddChild, g[PS_STOPMAIN] = IIntuition->NewObject(ICheckBox->CHECKBOX_GetClass(), nullptr,
                 GA_ID, PS_STOPMAIN, GA_Text, (uint32)"Stop at main() when debugging", GA_Selected, project.stopAtMain, TAG_DONE),
             LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr, LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
@@ -459,6 +462,7 @@ bool App::editProjectSettings()
         project.libs = get(PS_LIBS);
         project.args = get(PS_ARGS);
         project.console = get(PS_CONSOLE);
+        project.runcmd = get(PS_RUNCMD);   // designer
         uint32 v = 0;
         IIntuition->GetAttr(GA_Selected, g[PS_STOPMAIN], &v);
         project.stopAtMain = v;

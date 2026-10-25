@@ -6,6 +6,7 @@
 #   AmiForge/Examples/<name>/     hello, shapes, asmdemo, each .afp with a project icon
 #   AmiForge/Docs/                README.txt, user-guide.txt (Latin-1 text from the Markdown)
 #   AmiForge/Install-AmiForge     AmigaDOS script: copies the drawer to a destination
+#   AmiForge/Templates/<id>/      project templates (template.def + files)
 #
 # Build the IDE first (tools/build.sh), or set AMIFORGE_BIN. Icons come from tools/make-icons.py (needs Pillow).
 # The archive is made with LHa for UNIX from the build image (the host's lha may be Lhasa,
@@ -49,6 +50,13 @@ for ex in hello shapes asmdemo bouncer; do
     cp $icons/drawer.info $d/Examples/$ex.info
     for afp in $d/Examples/$ex/*.afp(N); do cp $icons/project.info $afp.info; done
 done
+
+# --- designer ---
+# project templates (Project > New Project from Template) in PROGDIR:Templates
+mkdir -p $d/Templates
+cp -R $root/templates/. $d/Templates/
+cp $icons/drawer.info $d/Templates.info
+# --- end designer ---
 
 # docs: Markdown to plain Latin-1 text
 cp $icons/drawer.info $d/Docs.info

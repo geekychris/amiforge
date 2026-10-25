@@ -114,6 +114,7 @@ static Class *makeAreaClass()
 static struct NewMenu menus[] = {
     TITLE("Project"),
     ITEM("New Project...", 0, CMD_NEW_PROJECT),
+    ITEM("New Project from Template...", 0, CMD_NEW_FROM_TEMPLATE),   // designer
     ITEM("Open Project...", "P", CMD_OPEN_PROJECT),
     ITEM("Open Recent", 0, 0),               // its submenu is filled in by rebuildMenus
     ITEM("Save Project", 0, CMD_SAVE_PROJECT),
@@ -177,6 +178,8 @@ static struct NewMenu menus[] = {
     BAR,
     ITEM("Run  (Ctrl F5)", "E", CMD_RUN),
     BAR,
+    ITEM("Package Release...", 0, CMD_PACKAGE_RELEASE),   // designer
+    BAR,
     ITEM("Next Error  (F4)", 0, CMD_NEXT_ERROR),
     ITEM("Previous Error  (Shift F4)", 0, CMD_PREV_ERROR),
 
@@ -206,6 +209,11 @@ static struct NewMenu menus[] = {
     BAR,
     ITEM("Clone Repository...", 0, CMD_GIT_CLONE),
     ITEM("GitHub Setup...", 0, CMD_GIT_SETUP),
+
+    // --- designer ---
+    TITLE("Tools"),
+    ITEM("GUI Designer...", 0, CMD_GUI_DESIGNER),
+    // --- end designer ---
 
     TITLE("Help"),
     ITEM("AutoDoc for Word at Cursor  (F1)", 0, CMD_DOC_LOOKUP),
@@ -760,7 +768,8 @@ void App::eventLoop()
         if (findWinObj) IIntuition->GetAttr(WINDOW_SigMask, findWinObj, &findSig);
         if (docWinObj) IIntuition->GetAttr(WINDOW_SigMask, docWinObj, &docSig);
         uint32 dbgSig = dbg ? dbg_signal_mask(dbg) : 0;
-        uint32 got = IExec->Wait(winSig | findSig | docSig | builder.signalMask() | dbgSig | SIGBREAKF_CTRL_C);
+        uint32 designerSig = designerSignals();   // designer
+        uint32 got = IExec->Wait(winSig | findSig | docSig | builder.signalMask() | dbgSig | designerSig | SIGBREAKF_CTRL_C);
         if (got & SIGBREAKF_CTRL_C) quit = true;
 
         if (got & winSig) {
@@ -800,6 +809,7 @@ void App::eventLoop()
         }
         if (findWinObj && (got & findSig)) handleFindWindow();
         if (docWinObj && (got & docSig)) handleDocWindow();
+        if (got & designerSig) handleDesigner(got);   // designer
         if (got & builder.signalMask()) pollBuild();
         if (dbg && (got & dbgSig)) pollDebugger();
 

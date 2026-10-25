@@ -27,6 +27,9 @@ enum Command {
     // help
     CMD_DOC_LOOKUP = 800, CMD_DOC_BROWSER, CMD_SDK_DOCS, CMD_SHORTCUTS,
     CMD_CONTEXT_MENU = 900, CMD_OPEN_INCLUDE, CMD_GOTO_DEF, CMD_CTRL_CLICK,
+    // --- designer ---
+    CMD_NEW_FROM_TEMPLATE = 1100, CMD_GUI_DESIGNER, CMD_PACKAGE_RELEASE,
+    // --- end designer ---
 };
 
 } // namespace af
