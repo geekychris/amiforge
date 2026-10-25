@@ -221,6 +221,7 @@ void App::pollDebugger()
     dbg_event ev;
     if (dbg) dtPoll();                 // --- debugtools ---
     while (dbg && dbg_poll(dbg, &ev)) {
+        mcpDebugEvent(ev);             // --- mcp ---
         switch (ev.type) {
         case DBG_EV_MESSAGE:
             debugLog(ev.text);

@@ -854,4 +854,14 @@ void gitCleanup(App *a)
     }
 }
 
+// --- mcp --- GITSTATUS (McpPort.cpp): the Git tab's status of the project's repository
+std::vector<git::FileStatus> mcpGitStatus(App *a, std::string &repoDir)
+{
+    repoDir = a->gitRepoDir();
+    if (repoDir.empty()) return {};
+    if (!a->gitState) a->gitState = new App::GitState;
+    return repoStatus(a->gitState, repoDir);
+}
+// --- end mcp ---
+
 } // namespace af

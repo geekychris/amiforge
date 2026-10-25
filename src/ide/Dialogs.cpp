@@ -41,6 +41,7 @@ static Object *gap()
 
 std::string App::requestFile(const char *title, bool save, const std::string &initial, const char *pattern)
 {
+    if (mcpQuiet) { mcpMessages += std::string(title) + "\n"; return ""; }   // --- mcp --- no requesters
     std::string drawer = initial, file;
     if (!initial.empty() && (extension(initial) != "" || save)) {
         drawer = dirName(initial);
@@ -65,6 +66,7 @@ std::string App::requestFile(const char *title, bool save, const std::string &in
 
 std::string App::requestDrawer(const char *title, const std::string &initial)
 {
+    if (mcpQuiet) { mcpMessages += std::string(title) + "\n"; return ""; }   // --- mcp --- no requesters
     struct FileRequester *fr = (struct FileRequester *)IAsl->AllocAslRequestTags(ASL_FileRequest,
         ASLFR_TitleText, (uint32)title,
         ASLFR_Window, (uint32)win, ASLFR_SleepWindow, TRUE,
@@ -80,6 +82,7 @@ std::string App::requestDrawer(const char *title, const std::string &initial)
 
 std::vector<std::string> App::requestFiles(const char *title, const std::string &drawer)
 {
+    if (mcpQuiet) { mcpMessages += std::string(title) + "\n"; return {}; }   // --- mcp --- no requesters
     std::vector<std::string> out;
     struct FileRequester *fr = (struct FileRequester *)IAsl->AllocAslRequestTags(ASL_FileRequest,
         ASLFR_TitleText, (uint32)title,
@@ -114,6 +117,7 @@ static uint32 openReq(struct Window *win, Object *req)
 
 int App::ask(const char *title, const std::string &body, const char *buttons)
 {
+    if (mcpQuiet) { mcpMessages += body + "\n"; return 0; }   // --- mcp --- no requesters: the last button
     // requester.class formats its body text: protect '%'
     std::string text;
     for (char c : body) { text += c; if (c == '%') text += '%'; }
@@ -205,6 +209,7 @@ static bool inputWindow(struct Window *parent, const char *title, const std::str
 
 bool App::askString(const char *title, const std::string &body, std::string &value)
 {
+    if (mcpQuiet) { mcpMessages += std::string(title) + "\n"; return false; }   // --- mcp --- no requesters
     std::string v = value;
     if (!inputWindow(win, title, body, v, false)) return false;
     value = v;
@@ -213,6 +218,7 @@ bool App::askString(const char *title, const std::string &body, std::string &val
 
 bool App::askInteger(const char *title, const std::string &body, int &value, int min, int max)
 {
+    if (mcpQuiet) { mcpMessages += std::string(title) + "\n"; return false; }   // --- mcp --- no requesters
     std::string v = strprintf("%ld", (long)value);
     for (;;) {
         if (!inputWindow(win, title, body, v, true)) return false;

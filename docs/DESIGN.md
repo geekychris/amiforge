@@ -200,6 +200,7 @@ The OS-independent logic of each feature lives in a model file that also compile
 | Git panel, markers, blame | `GitCore.*` (loose objects, packs, deltas, index), `LineDiff.*` | `GitPanel.cpp`, `Integrations.cpp` | Reads the repository directly; writes go through SimpleGit, which has no blame. New Branch writes the ref itself (`sgit checkout` resets work) |
 | Hex, icon and picture editors | `HexData.*` | `HexEditor.cpp`, `ResourceEditors.cpp` | Icons through icon.library, pictures through datatypes |
 | ARexx | `RexxCmd.*` (command parser) | `RexxPort.cpp` | arexx.class port `AMIFORGE`; the Macros menu lists `PROGDIR:Rexx` and the project's `Rexx/` |
+| MCP (assistants) | `McpCmd.*` (escaping, the paged `AF1` envelope, line edits) | `McpPort.cpp` | Machine-readable ARexx commands for the amiga-devbench `amiforge_*` MCP tools; `MCP <cmd>` sets `mcpQuiet` so `ask()` and the file requesters return their cancel value and their text becomes the error. Commands start work and return; the host polls `GETSTATE` |
 | distcc | `DistccCmd.*` | `Builder.cpp` | Sets `DISTCC_HOSTS`, `HOME`/`DISTCC_DIR` and `GCC_EXEC_PREFIX`; `tools/distcc-server.sh` runs distccd with the cross-compiler in Docker |
 | Explanations | `Explain.*` (rules for GCC/ld messages and crash states) | `BuildUI.cpp`, `DebugUI.cpp` | Rules are tested against real GCC 11.5 output |
 | Projects folder and browser | `ProjectIndex.*` (scan two drawers deep, descriptions from `.afp`/README, recent merge, Open Project's start drawer) | `ProjectBrowser.cpp` | Settings in `ENVARC:AmiForge/ProjectsFolder` and `ShowBrowser`; the browser is a normal window handled by the event loop (`browserSignal`/`handleBrowser`) |
@@ -225,7 +226,8 @@ program runs, the port is set to `PA_IGNORE` and left allocated with the DeathMe
 late reply is harmless.
 
 Each area keeps its code in shared files (`App.h`, `Commands.*`, `MainWindow.cpp`) inside
-`// --- <area> ---` blocks. Command IDs: robust 1500-, projects 1400-, editor 1300-1359, designer 1200-, integrations
+`// --- <area> ---` blocks (`// --- mcp ---` for the MCP commands: App.h, RexxPort.cpp, RexxCmd.cpp,
+Dialogs.cpp, DebugUI.cpp, GitPanel.cpp, main.cpp). Command IDs: robust 1500-, projects 1400-, editor 1300-1359, designer 1200-, integrations
 1000- (macros 1100-1139), debugtools 650-, Edit and Continue 660. The bottom tabs Windows,
 Leaks and Profile are at fixed indices 7-9 (`BOTTOM_*`); Git is found by name.
 

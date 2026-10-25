@@ -59,6 +59,9 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
 - **Hex, icon and picture editors**: binaries open in a hex editor; `.info` icons and IFF/PNG
   pictures open in their own viewers.
 - **ARexx**: an `AMIFORGE` port to script the IDE, and a Macros menu of your own `.rexx` macros.
+- **AI assistants (MCP)**: Claude Code or another MCP client on the host can open projects,
+  read and edit files, build and read the errors, run, set breakpoints and debug, through the
+  amiga-devbench's `amiforge_*` tools ([user guide](docs/user-guide.md#controlling-amiforge-from-an-ai-assistant-mcp)).
 - **Projects**: `.afp` files with Workbench icons, recent projects, and breakpoints and watches
   that are saved with the project. A projects folder (the examples by default) and a project
   browser that lists every project in it, with descriptions.
