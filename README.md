@@ -53,7 +53,7 @@ A native IDE for **AmigaOS 4.1** (PowerPC), running on the Amiga itself:
 ## Projects
 
 A project is an `.afp` file, ini-style, listing the sources and the compiler settings. It also
-keeps your breakpoints and watches. The `examples/` directory has three:
+keeps your breakpoints and watches. The `examples/` directory has four:
 
 - `hello`: C, with a linked list to explore in the debugger.
 - `shapes`: C++, with classes, virtual functions and `std::vector`.
