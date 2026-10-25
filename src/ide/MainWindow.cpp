@@ -197,7 +197,7 @@ static struct NewMenu menus[] = {
     // --- debugtools ---
     BAR,
     { NM_ITEM, (STRPTR)"Track Leaks", 0, CHECKIT | MENUTOGGLE, 0, (APTR)CMD_TRACK_LEAKS },
-    ITEM("Profile", 0, CMD_PROFILE),
+    ITEM("Profile  (Shift F7)", "I", CMD_PROFILE),
     ITEM("Clear Profile", 0, CMD_PROFILE_CLEAR),
     ITEM("Inspect Windows", 0, CMD_INSPECT),
     // --- end debugtools ---
@@ -764,7 +764,7 @@ bool App::handleKey(uint16_t code, uint16_t qual)
     case 0x54:                                                                // F5
         cmd = ctrl ? CMD_RUN : shift ? CMD_DEBUG_STOP : CMD_DEBUG_START; break;
     case 0x55: cmd = CMD_RUN; break;                                          // F6
-    case 0x56: cmd = CMD_BUILD; break;                                        // F7
+    case 0x56: cmd = shift ? CMD_PROFILE : CMD_BUILD; break;                  // F7 (Shift: profile, debugtools)
     case 0x57: cmd = CMD_STEP_INSN; break;                                    // F8
     case 0x58: cmd = CMD_TOGGLE_BP; break;                                    // F9
     case 0x59: cmd = ctrl ? CMD_RUN_TO_CURSOR : CMD_STEP_OVER; break;         // F10

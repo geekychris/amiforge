@@ -104,8 +104,8 @@ functions, and the editor marks its hot lines.
 - Rows starting **[OS]** are the OS functions themselves (`newlib.library: memcpy`,
   `kernel: ...`), named through the system's debug symbols.
 - Lines with samples get an end-of-line note in the editor:
-  - `« 23.4% (117)` is time spent on that line;
-  - `« 30.1% in OS (151)` is time spent in calls made from that line.
+  - `<< 23.4% (117)` is time spent on that line;
+  - `<< 30.1% in OS (151)` is time spent in calls made from that line.
 - **Clear** (or Debug > Clear Profile) removes the notes.
 - The header shows the number of samples and how much of the time the program was waiting.
 - Under QEMU, timer resolution and emulation speed make 1 ms sampling coarse. Run the program

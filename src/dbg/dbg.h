@@ -245,7 +245,7 @@ typedef struct {
     uint32_t ip;
     uint8_t state;        /* DBG_SAMPLE_* */
     uint8_t ncallers;
-    uint16_t pad;
+    uint16_t weight;      /* microseconds since the previous sample (the time it stands for), 0 = unknown */
     uint32_t callers[DBG_SAMPLE_CALLERS];   /* LR, then the back chain's return addresses */
 } dbg_sample;
 

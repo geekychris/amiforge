@@ -1,4 +1,4 @@
-/* windows — a debuggee for the Intuition inspector test (tests/os4/toolstest.cpp): opens a
+/* windows - a debuggee for the Intuition inspector test (tests/os4/toolstest.cpp): opens a
  * window with two boolean gadgets; the test sets a breakpoint in ready(). */
 #include <proto/exec.h>
 #include <proto/intuition.h>

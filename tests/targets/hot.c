@@ -1,6 +1,8 @@
-/* hot — a debuggee for the profiler test (tests/os4/toolstest.cpp): most of its time goes
- * to hot_loop(), a little to cold_loop(), and about 0.4 s to waiting in snooze(). */
+/* hot - a debuggee for the profiler test (tests/os4/toolstest.cpp): most of its time goes
+ * to hot_loop(), a tenth as much to cold_loop() (rounds of both for about 1.5 s, however
+ * fast the machine), and 0.4 s to waiting in snooze(). */
 #include <proto/exec.h>
+#include <proto/dos.h>
 #include <devices/timer.h>
 #include <stdio.h>
 
@@ -33,12 +35,20 @@ static void snooze(unsigned long us)
     FreeSysObject(ASOT_PORT, port);
 }
 
+static long ms_now(void)
+{
+    struct DateStamp d;
+    DateStamp(&d);
+    return (d.ds_Minute * 60L + d.ds_Tick / 50) * 1000 + (d.ds_Tick % 50) * 20;
+}
+
 int main(void)
 {
-    for (int round = 0; round < 6; round++) {
-        hot_loop(1500000);
-        cold_loop(150000);
-    }
+    long start = ms_now();
+    do {
+        hot_loop(200000);
+        cold_loop(20000);
+    } while (ms_now() - start < 1500);
     snooze(400000);
     printf("hot done %lu\n", sink);
     return 0;

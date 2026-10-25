@@ -39,6 +39,7 @@
 #include <exec/tasks.h>
 #include <exec/debug.h>
 #include <devices/timer.h>
+#include <proto/timer.h>
 #include <dos/dostags.h>
 #include <stddef.h>
 #include <stdarg.h>
@@ -631,6 +632,16 @@ static int32 sampler_main(STRPTR args, int32 len, struct ExecBase *sysbase)
     struct TimeRequest *tr = port ? IExec->AllocSysObjectTags(ASOT_IOREQUEST, ASOIOR_Size, sizeof(struct TimeRequest),
                                                               ASOIOR_ReplyPort, port, TAG_DONE) : NULL;
     int ok = tr && !IExec->OpenDevice("timer.device", UNIT_MICROHZ, (struct IORequest *)tr, 0);
+    /* the EClock times each sample: wakeups come late while the CPU is busy, so a sample
+     * stands for the time since the previous one rather than for one interval */
+    struct TimerIFace *itimer = ok ? (struct TimerIFace *)IExec->GetInterface((struct Library *)tr->Request.io_Device,
+                                                                              "main", 1, NULL) : NULL;
+    uint64_t last = 0, freq = 0, pending = 0;   /* pending: time not yet given to a sample */
+    if (itimer) {
+        struct EClockVal ev;
+        freq = itimer->ReadEClock(&ev);
+        last = ((uint64_t)ev.ev_hi << 32) | ev.ev_lo;
+    }
     while (ok && !g_sp.quit) {
         tr->Request.io_Command = TR_ADDREQUEST;
         tr->Time.Seconds = 0;
@@ -640,6 +651,15 @@ static int32 sampler_main(STRPTR args, int32 len, struct ExecBase *sysbase)
         struct Task *t = g_sp.task;
         uint32_t exc = *g_sp.exc_count;
         g_sp.ticks++;
+        uint32_t weight = 0;
+        if (!g_sp.task) pending = 0;
+        if (itimer && freq) {
+            struct EClockVal ev;
+            itimer->ReadEClock(&ev);
+            uint64_t now = ((uint64_t)ev.ev_hi << 32) | ev.ev_lo;
+            pending += (now - last) * 1000000ULL / freq;
+            last = now;
+        }
         if (t) {
             uint8 st = t->tc_State;
             g_sp.states[st < 10 ? st : 9]++;
@@ -651,6 +671,9 @@ static int32 sampler_main(STRPTR args, int32 len, struct ExecBase *sysbase)
                 else {
                     dbg_sample *smp = &g_sp.ring[h % SAMPLE_RING];
                     smp->ip = c.ip;
+                    weight = pending > 65535 ? 65535 : (uint32_t)pending;   /* ticks skipped since count too */
+                    smp->weight = (uint16_t)(weight ? weight : 1);
+                    pending = 0;
                     smp->state = st == TS_WAIT ? DBG_SAMPLE_WAITING : DBG_SAMPLE_RUNNING;
                     uint32_t lo = (uint32_t)t->tc_SPLower, hi = (uint32_t)t->tc_SPUpper;
                     int n = 0;
@@ -672,6 +695,7 @@ static int32 sampler_main(STRPTR args, int32 len, struct ExecBase *sysbase)
         }
         IExec->MutexRelease(g_sp.mutex);
     }
+    if (itimer) IExec->DropInterface((struct Interface *)itimer);
     if (ok) IExec->CloseDevice((struct IORequest *)tr);
     if (tr) IExec->FreeSysObject(ASOT_IOREQUEST, tr);
     if (port) IExec->FreeSysObject(ASOT_PORT, port);

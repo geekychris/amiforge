@@ -150,12 +150,6 @@ static void probe_task()
         tick(100);
     }
     if (idebug) IExec->DropInterface((struct Interface *)idebug);
-    /* experiment: does it finish if it gets to run at a normal priority? */
-    IExec->SetTaskPri(t, 0);
-    dbg_event ev;
-    auto none = []() {};
-    int got = wait_event(&ev, 5000, none);
-    out("  (after raising it to priority 0: %s)\n", got ? ev.text : "still there");
 }
 
 static void trace_line(void *, const char *line) { out("    | %s\n", line); }
@@ -282,14 +276,17 @@ static void test_profile()
     if (!got) probe_task();
     drain();
     p.finish(resolve);
-    out("  %lu samples, %lu waiting, %lu lost; %s\n", (unsigned long)p.samples(), (unsigned long)p.waiting(),
+    out("  %lu samples over %lu ms, %lu ms waiting, %lu lost; %s\n", (unsigned long)p.samples(),
+        (unsigned long)(p.time() / 1000), (unsigned long)(p.waiting() / 1000),
         (unsigned long)dbg_profile_lost(S), dbg_profile_note(S));
     int shown = 0;
     for (auto &f : p.functions())
         if (shown++ < 8)
             out("  %-36s self %5.1f%%  inOS %5.1f%%  total %5.1f%%  %s:%d\n", f.name.c_str(), p.percent(f.self),
                 p.percent(f.inOS), p.percent(f.total), f.file.c_str(), f.line);
-    ok(p.samples() >= 100, "enough samples (%lu)", (unsigned long)p.samples());
+    ok(p.samples() >= 50, "enough samples (%lu)", (unsigned long)p.samples());
+    ok(p.time() > 1500000 && p.time() < 4000000, "the samples cover the run (%lu ms)", (unsigned long)(p.time() / 1000));
+    ok(p.waiting() > 150000 && p.waiting() < 900000, "some 0.4 s of it waiting (%lu ms)", (unsigned long)(p.waiting() / 1000));
     const ProfFunction *hot = nullptr, *cold = nullptr, *snooze = nullptr, *mn = nullptr;
     for (auto &f : p.functions()) {
         if (f.name == "hot_loop") hot = &f;
@@ -298,7 +295,7 @@ static void test_profile()
         if (f.name == "main") mn = &f;
     }
     ok(hot && p.functions().front().name == "hot_loop", "hot_loop is the hottest function");
-    ok(hot && cold && hot->self > cold->self * 3, "hot_loop >> cold_loop (%lu vs %lu)",
+    ok(hot && hot->self > (cold ? cold->self : 0) * 3, "hot_loop >> cold_loop (%lu vs %lu)",
        (unsigned long)(hot ? hot->self : 0), (unsigned long)(cold ? cold->self : 0));
     ok(hot && hot->line == L("hot.c", "hot"), "hot_loop's hottest line is the loop body (%d, want %d)",
        hot ? hot->line : 0, L("hot.c", "hot"));

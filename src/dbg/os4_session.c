@@ -146,6 +146,7 @@ struct dbg_session {
     /* --- debugtools --- */
     void *dt;                   /* os4_tools.c state (resource tracking, profiler) */
     volatile int returned;      /* RunCommand has returned: DOS is cleaning the process up */
+    int returned_polls;         /* polls since then (debugtools: see dbg_poll) */
 };
 
 /* --- debugtools: accessors for os4_tools.c --- */
@@ -1286,6 +1287,14 @@ int dbg_poll(dbg_session *s, dbg_event *ev)
             break;
         }
         check_death(s);
+        /* (debugtools) DOS cleans an ended process up at priority -10, spinning in the kernel
+         * until it gets the CPU; with a busy machine (a profiler, another program) that can take
+         * forever. Once the program has returned and the process is still here after ~200 ms,
+         * give it a normal priority so it can finish. */
+        if (s->proc && s->returned && ++s->returned_polls == 20 && ((struct Task *)s->proc)->tc_Node.ln_Pri < 0) {
+            trace(s, "process still in DOS's cleanup: raising its priority");
+            IExec->SetTaskPri((struct Task *)s->proc, 0);
+        }
         /* OS4 sometimes stops dispatching a ready debuggee (with a debug hook) until something
          * reschedules it; it then sits ready at the same address. Kick it when we see that.
          * (debugtools) Not once the program has returned: the hook is off, and suspending a
@@ -1423,6 +1432,7 @@ int dbg_run(dbg_session *s, int stop_at_main)
     s->exc_count = s->seen = 0;
     s->remtask = 0;
     s->returned = 0;                                 /* debugtools */
+    s->returned_polls = 0;
     s->have_entry = 0;
     s->stop_at_main = stop_at_main;
 

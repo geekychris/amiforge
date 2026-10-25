@@ -1,4 +1,4 @@
-/* leaky — a debuggee for the leak tracker test (tests/os4/toolstest.cpp): it leaks one of
+/* leaky - a debuggee for the leak tracker test (tests/os4/toolstest.cpp): it leaks one of
  * each kind of resource on purpose, at the @markers, and releases the rest. */
 #include <proto/exec.h>
 #include <proto/dos.h>

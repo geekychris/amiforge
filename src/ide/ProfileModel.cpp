@@ -12,19 +12,21 @@ void ProfileModel::reset()
     raw.clear();
     funcs.clear();
     lineMap.clear();
-    nSamples = nWaiting = 0;
+    nSamples = nTime = nWaiting = 0;
 }
 
 void ProfileModel::add(const dbg_sample &s)
 {
     Raw r;
     r.ip = s.ip;
+    r.w = s.weight ? s.weight : 1000;
     r.state = s.state;
     r.n = s.ncallers > DBG_SAMPLE_CALLERS ? DBG_SAMPLE_CALLERS : s.ncallers;
     for (int i = 0; i < DBG_SAMPLE_CALLERS; i++) r.callers[i] = i < r.n ? s.callers[i] : 0;
     raw.push_back(r);
     nSamples++;
-    if (s.state == DBG_SAMPLE_WAITING) nWaiting++;
+    nTime += r.w;
+    if (s.state == DBG_SAMPLE_WAITING) nWaiting += r.w;
 }
 
 void ProfileModel::finish(const CodeResolver &resolve)
@@ -51,28 +53,28 @@ void ProfileModel::finish(const CodeResolver &resolve)
         std::set<std::string> seen;   // for totals: each function once per sample
         if (ip.inProgram) {
             ProfFunction &f = func(ip, true);
-            f.self++;
+            f.self += r.w;
             if (!ip.file.empty() && ip.line > 0) {
-                lineMap[ip.file][ip.line].self++;
-                hottest[f.name][{ ip.file, ip.line }]++;
+                lineMap[ip.file][ip.line].self += r.w;
+                hottest[f.name][{ ip.file, ip.line }] += r.w;
             }
-            f.total++;
+            f.total += r.w;
             seen.insert(f.name);
         } else {
             // the OS row (by module/function), and the nearest program frame that led there
             ProfFunction &os = func(ip, false);
-            os.self++;
-            if (r.state == DBG_SAMPLE_WAITING) os.waiting++;
+            os.self += r.w;
+            if (r.state == DBG_SAMPLE_WAITING) os.waiting += r.w;
             for (int i = 0; i < r.n; i++) {
                 if (!r.callers[i]) break;
                 const CodeLoc c = loc(r.callers[i] - 4);   // the call instruction
                 if (!c.inProgram) continue;
                 ProfFunction &f = func(c, true);
-                f.inOS++;
-                if (r.state == DBG_SAMPLE_WAITING) f.waiting++;
+                f.inOS += r.w;
+                if (r.state == DBG_SAMPLE_WAITING) f.waiting += r.w;
                 if (!c.file.empty() && c.line > 0) {
-                    lineMap[c.file][c.line].inOS++;
-                    hottest[f.name][{ c.file, c.line }]++;
+                    lineMap[c.file][c.line].inOS += r.w;
+                    hottest[f.name][{ c.file, c.line }] += r.w;
                 }
                 break;
             }
@@ -83,7 +85,7 @@ void ProfileModel::finish(const CodeResolver &resolve)
             const CodeLoc c = loc(r.callers[i] - 4);
             if (!c.inProgram) continue;
             std::string name = c.function.empty() ? "??" : c.function;
-            if (seen.insert(name).second) func(c, true).total++;
+            if (seen.insert(name).second) func(c, true).total += r.w;
         }
     }
     for (auto &p : byName) {
@@ -108,13 +110,14 @@ void ProfileModel::finish(const CodeResolver &resolve)
 
 std::string ProfileModel::annotation(const ProfLine &l) const
 {
-    char b[96];
+    char b[120];
+    double ms = l.self / 1000.0, osms = l.inOS / 1000.0;
     if (l.self && l.inOS)
-        snprintf(b, sizeof b, "\xAB %.1f%% (%lu) + %.1f%% in OS", percent(l.self), (unsigned long)l.self, percent(l.inOS));
+        snprintf(b, sizeof b, "<< %.1f%% (%.0f ms) + %.1f%% in OS", percent(l.self), ms, percent(l.inOS));
     else if (l.self)
-        snprintf(b, sizeof b, "\xAB %.1f%% (%lu)", percent(l.self), (unsigned long)l.self);
+        snprintf(b, sizeof b, "<< %.1f%% (%.0f ms)", percent(l.self), ms);
     else
-        snprintf(b, sizeof b, "\xAB %.1f%% in OS (%lu)", percent(l.inOS), (unsigned long)l.inOS);
+        snprintf(b, sizeof b, "<< %.1f%% in OS (%.0f ms)", percent(l.inOS), osms);
     return b;
 }
 

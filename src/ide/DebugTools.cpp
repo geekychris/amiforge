@@ -99,6 +99,9 @@ CodeLoc App::resolveCode(uint32_t a)
             c.line = l;
             if (fn) c.function = fn;
         }
+        // without a stabs range the debugger names code "symbol+0x1c": group it under the symbol
+        size_t plus = c.function.rfind("+0x");
+        if (plus != std::string::npos && plus > 0) c.function.erase(plus);
         if (c.function.empty()) c.function = strprintf("0x%08lx", (unsigned long)a);
     } else {
         char buf[160];
@@ -126,7 +129,8 @@ void App::dtSessionEnded()
         refreshProfile();
         applyProfileAnnotations();
         showBottomPage(BOTTOM_PROFILE);
-        debugLog(strprintf("Profile: %lu samples, %.0f%% waiting", (unsigned long)profileModel.samples(),
+        debugLog(strprintf("Profile: %lu samples over %.1f s, %.0f%% waiting", (unsigned long)profileModel.samples(),
+                           profileModel.time() / 1000000.0,
                            profileModel.percent(profileModel.waiting())), penNote);
     }
     busyPointer(false);
@@ -257,9 +261,10 @@ static std::string resourceName(const Leak &l)
         return lib + " \"" + copyText(i->Data.Link.ln_Name, 30) + "\"";
     }
     case DBG_RES_SYSOBJ: {
-        static const char *const types[] = { "IORequest", "Hook", "Interface", "List", "DMAEntries", "Node",
-                                             "MsgPort", "Message", "SignalSemaphore", "TagList", "MemPool",
-                                             "ItemPool", "RMap", "Mutex", "ExtMemory" };
+        static_assert(ASOT_PORT == 6 && ASOT_MUTEX == 13, "ASOT_ values");
+        static const char *const types[] = { "IOREQUEST", "HOOK", "INTERRUPT", "LIST", "DMAENTRY", "NODE", "PORT",
+                                             "MESSAGE", "SEMAPHORE", "TAGLIST", "MEMPOOL", "ITEMPOOL", "RMAP",
+                                             "MUTEX", "EXTMEM", "LOG" };
         return l.size < sizeof types / sizeof *types ? std::string("ASOT_") + types[l.size]
                                                      : strprintf("type %lu", (unsigned long)l.size);
     }
@@ -354,14 +359,15 @@ void App::refreshProfile()
     profileView.clear();
     profileView.detach();
     auto pct = [&](uint64_t n) {
-        return n ? strprintf("%.1f%% (%lu)", profileModel.percent(n), (unsigned long)n) : std::string("");
+        return n ? strprintf("%.1f%% (%.0f ms)", profileModel.percent(n), n / 1000.0) : std::string("");
     };
     auto add = [&](const std::vector<std::string> &cols, const NavTarget &t, int pen = -1) {
         profileTargets.push_back(t);
         struct Node *n = profileView.add(cols, (void *)(intptr_t)profileTargets.size());
         if (n && pen >= 0) profileView.setPens(n, pen);
     };
-    std::string head = strprintf("%lu samples", (unsigned long)profileModel.samples());
+    std::string head = strprintf("%lu samples over %.1f s", (unsigned long)profileModel.samples(),
+                                 profileModel.time() / 1000000.0);
     if (profileModel.samples())
         head += strprintf(", %.0f%% waiting", profileModel.percent(profileModel.waiting()));
     if (uint32_t lost = dbg ? dbg_profile_lost(dbg) : 0) head += strprintf(", %lu lost", (unsigned long)lost);
