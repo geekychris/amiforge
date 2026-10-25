@@ -1211,7 +1211,6 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | F1 says the SDK isn't installed | The AutoDocs come from `SDK:Documentation/AutoDocs` |
 | Clone fails with "target OID ... doesn't exist" | The drawer is on a disk with 30-character names; use one with long names |
 | Clone fails with "failed to connect" | No route to the internet: check `ShowNetStatus` for a default gateway |
-| AmiForge ignores clicks and shows a busy pointer | A dialog (such as the project browser or Project Settings) is open behind the main window. Click the main window's depth gadget (top right) to send it back, then finish with the dialog |
 | The editor shows two or three columns of code | The split view and/or the minimap is on: click the pressed **Split** or **Map** button on the toolbar |
 | The program's drawer can't be deleted after stopping a crashed program | A known limitation: Stop ends the program without running its C library cleanup, so a lock it held (such as its current directory) stays until a reboot |
 | The IDE seems frozen: the busy pointer, clicks do nothing, "A build is already running" | A dialog (Project Settings, New Project, a requester) is waiting for an answer, probably hidden behind the main window. Clicking or typing in the main window now brings the dialog back to the front; answer or cancel it and the IDE carries on, including any build that finished meanwhile. The project browser is not a dialog and never blocks the IDE |
