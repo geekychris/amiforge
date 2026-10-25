@@ -11,7 +11,7 @@
 // User snippets (ENVARC:AmiForge/Snippets) use the snipMate file format:
 //   # a comment
 //   snippet name  Optional description
-//   <tab>body line
+//   <tab>body line            (a tab, or up to four spaces, starts each body line)
 //   <tab>body line
 // A user snippet with a built-in snippet's name replaces it.
 #pragma once

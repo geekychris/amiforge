@@ -132,3 +132,12 @@ TEST(snippet_adjust_fields_insert_delete)
     CHECK_EQ(f[0].start, (size_t)2); CHECK_EQ(f[1].end, (size_t)2);
     CHECK_EQ(f[2].start, (size_t)10);
 }
+
+TEST(snippet_parse_space_indented_bodies)
+{
+    // the editor indents with spaces: four spaces work like a tab
+    auto list = parseSnippets("snippet sp  spaces\n    a();\n        b();\n\n    c();\nsnippet next\n\tx\n");
+    CHECK_EQ(list.size(), (size_t)2);
+    CHECK_EQ(list[0].body, std::string("a();\n    b();\n\nc();"));
+    CHECK_EQ(list[1].body, std::string("x"));
+}

@@ -450,8 +450,8 @@ private:
                 return;
             }
         }
-        // struct / class / union / enum [NAME] [: bases] {
-        for (size_t k = b; k < st.size(); k++) {
+        // struct / class / union / enum [NAME] [: bases] {   (not "struct X var[] = {": that's data)
+        for (size_t k = b; k < st.size() && !sawEquals; k++) {
             const std::string &w = st[k].s;
             SymKind kind;
             if (w == "struct") kind = SymKind::Struct;

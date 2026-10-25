@@ -261,3 +261,18 @@ TEST(outline_real_example_hello)
     CHECK(find(s, "list_push") && find(s, "list_push")->line == 4);
     CHECK(find(s, "list_sum") && find(s, "list_sum")->line == 10);
 }
+
+TEST(outline_struct_typed_initialised_globals)
+{
+    std::string t =
+        "static struct NewMenu menuDef[] = {\n"
+        "    { NM_TITLE, (STRPTR)\"Project\", 0, 0, 0, 0 },\n"
+        "    { NM_END, 0, 0, 0, 0, 0 },\n"
+        "};\n"
+        "struct Point origin = { 0, 0 };\n";
+    auto s = outlineSymbols(t, false);
+    CHECK(find(s, "NewMenu") == nullptr);
+    CHECK(find(s, "Point") == nullptr);
+    CHECK(find(s, "menuDef") && find(s, "menuDef")->kind == SymKind::Global && find(s, "menuDef")->line == 1);
+    CHECK(find(s, "origin") && find(s, "origin")->kind == SymKind::Global && find(s, "origin")->line == 5);
+}

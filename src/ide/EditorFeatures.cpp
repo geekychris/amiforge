@@ -486,7 +486,7 @@ static const char *const snippetFileHelp =
     "# AmiForge snippets. Type a snippet's name and press Tab to insert it.\n"
     "#\n"
     "# snippet <name>  <description>\n"
-    "# <tab>body line (every body line starts with one tab)\n"
+    "# <tab>body line (each body line starts with a tab or four spaces)\n"
     "#\n"
     "# In the body: ${1:text} is the first field (Tab moves to the next one), ${2} an empty\n"
     "# field, ${0} where the cursor ends, and a field number used again copies the field.\n"
@@ -556,19 +556,22 @@ bool App::snippetCompletion(const char *text, intptr_t wordStart)
 bool App::snippetTab(bool backwards)
 {
     if (!editor || !cur) return false;
-    if (S(editor, SCI_AUTOCACTIVE)) return false;
     intptr_t caret = S(editor, SCI_GETCURRENTPOS);
     if (snip.active) {
         if (snip.doc == cur && !snip.fields.empty()) {
             size_t lo = SIZE_MAX, hi = 0;
             for (auto &f : snip.fields) { lo = std::min(lo, f.start); hi = std::max(hi, f.end); }
             if ((size_t)caret >= lo && (size_t)caret <= hi) {
+                // in a snippet Tab moves on; a completion list that popped up meanwhile goes away
+                // (Return still accepts a completion)
+                if (S(editor, SCI_AUTOCACTIVE)) S(editor, SCI_AUTOCCANCEL);
                 snippetGoto(backwards ? -1 : 1);
                 return true;
             }
         }
         endSnippet();
     }
+    if (S(editor, SCI_AUTOCACTIVE)) return false;   // Tab accepts the completion (a "name»" expands)
     if (backwards) return false;
     if (!S(editor, SCI_GETSELECTIONEMPTY) || S(editor, SCI_GETSELECTIONS) > 1) return false;
     intptr_t start = S(editor, SCI_WORDSTARTPOSITION, caret, 1);

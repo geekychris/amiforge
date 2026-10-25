@@ -155,9 +155,15 @@ std::vector<Snippet> parseSnippets(const std::string &text)
             out.push_back(s);
             cur = &out.back();
             firstBodyLine = true;
-        } else if (cur && !line.empty() && line[0] == '\t') {
+        } else if (cur && !line.empty() && (line[0] == '\t' || line[0] == ' ')) {
+            // one tab, or (as the editor indents with spaces) up to four spaces
+            size_t cut = 1;
+            if (line[0] == ' ') {
+                cut = 0;
+                while (cut < 4 && cut < line.size() && line[cut] == ' ') cut++;
+            }
             if (!firstBodyLine) cur->body += '\n';
-            cur->body += line.substr(1);
+            cur->body += line.substr(cut);
             firstBodyLine = false;
         } else if (cur && line.empty()) {
             // a blank line inside a body only counts if more body follows
@@ -166,7 +172,7 @@ std::vector<Snippet> parseSnippets(const std::string &text)
             while (save < text.size()) {
                 size_t n2 = text.find('\n', save);
                 std::string l2 = text.substr(save, n2 == std::string::npos ? std::string::npos : n2 - save);
-                if (!l2.empty() && l2 != "\r") { more = l2[0] == '\t'; break; }
+                if (!l2.empty() && l2 != "\r") { more = l2[0] == '\t' || l2[0] == ' '; break; }
                 if (n2 == std::string::npos) break;
                 save = n2 + 1;
             }
