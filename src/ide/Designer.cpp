@@ -679,9 +679,12 @@ void Designer::handle(uint32 got)
         if ((result & WMHI_CLASSMASK) == WMHI_CLOSEWINDOW) { wantsClose = true; continue; }
         if ((result & WMHI_CLASSMASK) != WMHI_GADGETUP) continue;
         switch (result & WMHI_GADGETMASK) {
-        case DG_PALETTE:
-            if (code == LBRE_DOUBLECLICK) addObject();
+        case DG_PALETTE: {
+            uint32 ev = 0;   // a list's double-click is its RelEvent, not the code
+            IIntuition->GetAttr(LISTBROWSER_RelEvent, palette.obj, &ev);
+            if (ev == LBRE_DOUBLECLICK) addObject();
             break;
+        }
         case DG_ADD: addObject(); break;
         case DG_TREE: {
             int i = tree.indexOf(tree.selected());
@@ -706,7 +709,9 @@ void Designer::handle(uint32 got)
             std::string v = n->get(propRows[i]->key);
             IIntuition->SetGadgetAttrs((struct Gadget *)g[DG_VALUE], win, nullptr, STRINGA_TextVal, (uint32)v.c_str(),
                                        GA_Disabled, FALSE, TAG_DONE);
-            if (code == LBRE_DOUBLECLICK || (again && (propRows[i]->type == PropType::Bool || propRows[i]->type == PropType::Choice)))
+            uint32 ev = 0;
+            IIntuition->GetAttr(LISTBROWSER_RelEvent, props.obj, &ev);
+            if (ev == LBRE_DOUBLECLICK || (again && (propRows[i]->type == PropType::Bool || propRows[i]->type == PropType::Choice)))
                 toggleOrCycle();
             else if (propRows[i]->type != PropType::Bool && propRows[i]->type != PropType::Choice)
                 IIntuition->IDoMethod(winObj, WM_ACTIVATEGADGET, g[DG_VALUE]);

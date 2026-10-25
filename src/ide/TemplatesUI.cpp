@@ -30,6 +30,14 @@
 
 namespace af {
 
+// A listbrowser reports a double-click in LISTBROWSER_RelEvent, not in WM_HANDLEINPUT's code.
+static bool listDoubleClick(Object *o)
+{
+    uint32 ev = 0;
+    IIntuition->GetAttr(LISTBROWSER_RelEvent, o, &ev);
+    return ev == LBRE_DOUBLECLICK;
+}
+
 static std::string templatesDir() { return "PROGDIR:Templates"; }
 
 static std::string envVar(const char *name)
@@ -289,7 +297,7 @@ void App::newProjectFromTemplate()
             uint32 id = result & WMHI_GADGETMASK;
             if (id == TG_CANCEL) done = true;
             else if (id == TG_DRAWER) IIntuition->IDoMethod(g[TG_DRAWER], GFILE_REQUEST, w);
-            else if (id == TG_OK || (id == TG_LIST && code == LBRE_DOUBLECLICK)) {
+            else if (id == TG_OK || (id == TG_LIST && listDoubleClick(list.obj))) {
                 struct Node *n = list.selected();
                 if (!n) continue;
                 const tmpl::Def &d = defs[(intptr_t)list.userData(n)];
