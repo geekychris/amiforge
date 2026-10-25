@@ -98,10 +98,12 @@ execute SDK:S/sdk-startup
 ## The window
 
 - **Toolbar**: New, Open and Save; Build and Run; Debug/Continue, Step Over, Step Into, Step Out
-  and Stop; Find; Docs.
-- **Project**: the project's files, sources first. Click one to open it.
-- **Editor**: one tab per file. A tab's close gadget closes that file, and a `*` means unsaved
-  changes. The margins hold:
+  and Stop; Find; Docs; **Split** and **Map**, which stay pressed while the split view or the
+  minimap is on (click again to turn it off; see [Editor features](#editor-features)).
+- **Left panel**: **Project**, the project's files, sources first (click one to open it), and
+  **Symbols**, the outline of the current file.
+- **Editor**: one tab per file. The **×** on the active tab closes that file, and a `*` means
+  unsaved changes. The margins hold:
   - line numbers;
   - markers: a red circle for a breakpoint (hollow if disabled), a yellow arrow and highlight
     where the program is stopped, a green arrow for the selected stack frame, and a red or amber
@@ -113,6 +115,8 @@ execute SDK:S/sdk-startup
   - **Find**: the results of Find in Files.
   - **Call Stack**, **Breakpoints**, **Memory** and **Disassembly**.
   - **Debug Log**: what the debugger did and why it stopped.
+  - **Windows**, **Leaks** and **Profile**: the debugger tools.
+  - **Git**: the Git panel.
 - **Status bar**: the cursor position on the left, and messages on the right.
 
 Drag the bars between the panes to resize them.
@@ -1188,6 +1192,8 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | F1 says the SDK isn't installed | The AutoDocs come from `SDK:Documentation/AutoDocs` |
 | Clone fails with "target OID ... doesn't exist" | The drawer is on a disk with 30-character names; use one with long names |
 | Clone fails with "failed to connect" | No route to the internet: check `ShowNetStatus` for a default gateway |
+| AmiForge ignores clicks and shows a busy pointer | A dialog (such as the project browser or Project Settings) is open behind the main window. Click the main window's depth gadget (top right) to send it back, then finish with the dialog |
+| The editor shows two or three columns of code | The split view and/or the minimap is on: click the pressed **Split** or **Map** button on the toolbar |
 | The program's drawer can't be deleted after stopping a crashed program | A known limitation: Stop ends the program without running its C library cleanup, so a lock it held (such as its current directory) stays until a reboot |
 | An installer from Package Release says "not executable" in a Shell | Archives don't keep the script bit: use `Execute Install <drawer>`, or double-click its icon |
 

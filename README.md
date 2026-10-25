@@ -12,7 +12,8 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
     makefiles and diffs.
   - Line numbers, folding, brace matching and auto-indent.
   - Find/replace with regular expressions, Find in Files, go to line, and comment/uncomment.
-  - Light and dark themes, a split view, a minimap, multiple cursors and snippets with fields.
+  - Light and dark themes, a split view and a minimap (toolbar buttons), multiple cursors and
+    snippets with fields.
   - A symbol outline, Find All References and Rename Symbol across the project.
 - **Code completion**:
   - pops up as you type;
