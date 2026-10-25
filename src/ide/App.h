@@ -663,6 +663,35 @@ public:
     bool showBrowserAtStartup();                        // ENVARC:AmiForge/ShowBrowser, default on
     std::string openProjectStart();                     // where Open Project's requester starts
     // --- end projects ---
+    // --- robust --- (Modal.cpp, RunControl.cpp, ProjectBrowser.cpp; models in Robust.*)
+    // Modal dialogs: beginModal(dialog) after WM_OPEN, waitModal(dialog) instead of
+    // IExec->Wait(its signal), endModal() before disposing it. While a dialog is modal the main
+    // window (and Find, AutoDocs, project browser) has a blocking requester, the main one the busy pointer; clicks or keys in the IDE's other
+    // windows bring the dialog back in front instead of being lost; refreshes still happen.
+    // Build and debugger signals are left pending for the main loop.
+    void beginModal(Object *dialogWinObj);
+    uint32_t waitModal(Object *dialogWinObj);   // returns the signals received (the dialog's among them)
+    void endModal();
+    void raiseDialog(Object *dialogWinObj);
+    std::vector<Object *> modalStack;           // open modal dialogs, innermost last
+    bool modalPoke = false;                     // the main window's IDCMP hook saw a click or key while modal
+    std::vector<std::pair<struct Requester *, struct Window *>> modalBlocks;   // block input to our other windows while modal
+    // Stop Program: the programs Build > Run started (RunControl.cpp)
+    struct RunCtl *runCtl = nullptr;
+    int32_t runSystem(const std::string &cmd, int32_t input, const std::string &name);   // SystemTags, tracked
+    uint32_t runSignals();
+    void runHandle();                           // death messages and the Stop timer
+    void runIdle();                             // in the main loop: a deferred "it won't stop" requester
+    void stopProgram();                         // Build > Stop Program (Shift-Ctrl-F5, the Stop button)
+    bool programRunning();
+    bool runQuitCheck();                        // before quitting: false = don't quit
+    void runCleanup();
+    // the project browser is a normal (non-modal) window, handled by the event loop
+    struct BrowserState *browser = nullptr;
+    uint32_t browserSignal();
+    void handleBrowser();
+    void closeBrowser();
+    // --- end robust ---
 };
 
 extern App *gApp;

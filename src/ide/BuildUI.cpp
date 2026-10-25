@@ -190,8 +190,8 @@ void App::runProgram()
     // the program starts in the project's directory
     BPTR dir = IDOS->Lock(project.dir.c_str(), SHARED_LOCK);
     BPTR old = dir ? IDOS->SetCurrentDir(dir) : 0;
-    int32 rc = IDOS->SystemTags(cmd.c_str(), SYS_Input, in, SYS_Output, 0, SYS_Asynch, TRUE,
-                                NP_Name, (uint32)project.name.c_str(), TAG_END);
+    // --- robust --- tracked, so Stop Program can send it Ctrl-C and the IDE sees it end
+    int32 rc = runSystem(cmd, in, project.runcmd.empty() ? project.output : project.runcmd);
     if (dir) {
         IDOS->SetCurrentDir(old);
         IDOS->UnLock(dir);
@@ -201,7 +201,7 @@ void App::runProgram()
         info("Couldn't start " + exe);
         return;
     }
-    setStatus("Started " + (project.runcmd.empty() ? project.output : project.runcmd));   // runcmd: designer
+    // --- robust --- runSystem has put "Running ... Stop Program ..." in the status bar
 }
 
 } // namespace af

@@ -133,9 +133,7 @@ bool App::releaseDialog()
         IIntuition->DisposeObject(wo);
         return false;
     }
-    busyPointer(true);
-    uint32 sig = 0;
-    IIntuition->GetAttr(WINDOW_SigMask, wo, &sig);
+    beginModal(wo);   // --- robust ---
     auto get = [&](int id) {
         uint32 v = 0;
         IIntuition->GetAttr(STRINGA_TextVal, g[id], &v);
@@ -143,7 +141,7 @@ bool App::releaseDialog()
     };
     int done = 0;
     while (!done) {
-        IExec->Wait(sig);
+        waitModal(wo);   // --- robust ---
         uint32 result;
         uint16 code;
         while ((result = IIntuition->IDoMethod(wo, WM_HANDLEINPUT, &code)) != WMHI_LASTMSG) {
@@ -174,8 +172,8 @@ bool App::releaseDialog()
             done = 1;
         }
     }
+    endModal();   // --- robust ---
     IIntuition->DisposeObject(wo);
-    busyPointer(false);
     if (done == 1) saveProject();
     return done == 1;
 }

@@ -196,6 +196,7 @@ static struct NewMenu menus[] = {
     ITEM("Stop Build", 0, CMD_STOP_BUILD),
     BAR,
     ITEM("Run  (Ctrl F5)", "E", CMD_RUN),
+    ITEM("Stop Program  (Shift Ctrl F5)", 0, CMD_STOP_PROGRAM),   // --- robust ---
     BAR,
     ITEM("Package Release...", 0, CMD_PACKAGE_RELEASE),   // designer
     BAR,
@@ -524,7 +525,8 @@ bool App::openMainWindow()
                 LAYOUT_AddChild, gad[GID_TB_OVER] = button(GID_TB_OVER, "Step Over", "F10"),
                 LAYOUT_AddChild, gad[GID_TB_INTO] = button(GID_TB_INTO, "Step Into", "F11"),
                 LAYOUT_AddChild, gad[GID_TB_OUT] = button(GID_TB_OUT, "Step Out", "Shift-F11"),
-                LAYOUT_AddChild, gad[GID_TB_STOP] = button(GID_TB_STOP, "Stop", "Stop debugging (Shift-F5)"),
+                LAYOUT_AddChild, gad[GID_TB_STOP] = button(GID_TB_STOP, "Stop",
+                    "Stop debugging (Shift-F5), or stop the program Run started (Shift-Ctrl-F5)"),   // --- robust ---
                 LAYOUT_AddChild, gap(),
                 CHILD_WeightedWidth, 0,
                 LAYOUT_AddChild, gad[GID_TB_FIND] = button(GID_TB_FIND, "Find", "Find / replace (Amiga-F)"),
@@ -749,7 +751,7 @@ void App::updateToolbar()
     setGadget(GID_TB_OVER, GA_Disabled, !st);
     setGadget(GID_TB_INTO, GA_Disabled, !st);
     setGadget(GID_TB_OUT, GA_Disabled, !st);
-    setGadget(GID_TB_STOP, GA_Disabled, !dbgOn);
+    setGadget(GID_TB_STOP, GA_Disabled, !dbgOn && !programRunning());   // --- robust --- or a program Run started
     setGadget(GID_TB_BUILD, GA_Disabled, builder.busy() || dbgOn);
     setGadget(GID_TB_RUN, GA_Disabled, builder.busy() || dbgOn);
 }
@@ -765,6 +767,15 @@ void App::busyPointer(bool busy)
 
 uint32_t App::idcmpHook(struct IntuiMessage *im)
 {
+    // --- robust --- a modal dialog is open (Modal.cpp): nothing reaches the editor; a click or
+    // key here brings the dialog back in front
+    if (!modalStack.empty()) {
+        if ((im->Class == IDCMP_RAWKEY && !(im->Code & IECODE_UP_PREFIX)) ||
+            (im->Class == IDCMP_MOUSEBUTTONS && im->Code == SELECTDOWN))
+            modalPoke = true;
+        return 0;
+    }
+    // --- end robust ---
     // --- editor features: several views, the minimap, snippets' Tab, Alt-click ---
     uint32_t handled;
     if (editorIdcmp(im, handled)) return handled;
@@ -854,7 +865,8 @@ bool App::handleKey(uint16_t code, uint16_t qual)
     case 0x52: cmd = shift ? CMD_FIND_PREV : CMD_FIND_NEXT; break;           // F3
     case 0x53: cmd = shift ? CMD_PREV_ERROR : CMD_NEXT_ERROR; break;         // F4
     case 0x54:                                                                // F5
-        cmd = ctrl ? CMD_RUN : shift ? CMD_DEBUG_STOP : CMD_DEBUG_START; break;
+        cmd = ctrl && shift ? CMD_STOP_PROGRAM                                // --- robust ---
+            : ctrl ? CMD_RUN : shift ? CMD_DEBUG_STOP : CMD_DEBUG_START; break;
     case 0x55: cmd = CMD_RUN; break;                                          // F6
     case 0x56: cmd = shift ? CMD_PROFILE : CMD_BUILD; break;                  // F7 (Shift: profile, debugtools)
     case 0x57: cmd = CMD_STEP_INSN; break;                                    // F8
@@ -900,7 +912,8 @@ void App::eventLoop()
         uint32 dbgSig = dbg ? dbg_signal_mask(dbg) : 0;
         uint32 designerSig = designerSignals();   // designer
         uint32 integSig = integrationsSignals();   // --- integrations ---
-        uint32 got = IExec->Wait(winSig | findSig | docSig | builder.signalMask() | dbgSig | designerSig | integSig | SIGBREAKF_CTRL_C);
+        uint32 robustSig = browserSignal() | runSignals();   // --- robust ---
+        uint32 got = IExec->Wait(winSig | findSig | docSig | builder.signalMask() | dbgSig | designerSig | integSig | robustSig | SIGBREAKF_CTRL_C);
         if (got & SIGBREAKF_CTRL_C) quit = true;
 
         if (got & winSig) {
@@ -944,6 +957,10 @@ void App::eventLoop()
         if (got & builder.signalMask()) pollBuild();
         if (dbg && (got & dbgSig)) pollDebugger();
         if (got & integSig) integrationsHandle(got);   // --- integrations ---
+        // --- robust ---
+        if (got & runSignals()) runHandle();
+        if (browser && (got & browserSignal())) handleBrowser();
+        // --- end robust ---
 
         while (!pendingCommands.empty()) {
             uint32_t c = pendingCommands.front();
@@ -951,6 +968,7 @@ void App::eventLoop()
             handleMenu(c);
         }
         integrationsIdle();   // --- integrations ---
+        runIdle();            // --- robust ---
         // Weight-bar drags lay the window out on input.device's task, where the placeholder's
         // GM_RENDER can't touch the editor: follow its box from here.
         layoutEditor(false);
@@ -972,7 +990,7 @@ void App::handleGadget(uint32_t gid, uint16_t code)
     case GID_TB_OVER: handleMenu(CMD_STEP_OVER); break;
     case GID_TB_INTO: handleMenu(CMD_STEP_INTO); break;
     case GID_TB_OUT: handleMenu(CMD_STEP_OUT); break;
-    case GID_TB_STOP: handleMenu(CMD_DEBUG_STOP); break;
+    case GID_TB_STOP: handleMenu(debugging() || !programRunning() ? CMD_DEBUG_STOP : CMD_STOP_PROGRAM); break;   // --- robust ---
     case GID_TB_FIND: handleMenu(CMD_FIND); break;
     case GID_TB_DOCS: handleMenu(CMD_DOC_LOOKUP); break;
     case GID_TB_SPLIT: toggleSplit(); break;     // --- editor features ---

@@ -414,12 +414,10 @@ void App::distccSettings()
     if (!wo) return;
     struct Window *w = (struct Window *)IIntuition->IDoMethod(wo, WM_OPEN);
     if (!w) { IIntuition->DisposeObject(wo); return; }
-    busyPointer(true);
-    uint32 sig = 0;
-    IIntuition->GetAttr(WINDOW_SigMask, wo, &sig);
+    beginModal(wo);   // --- robust ---
     int done = 0;
     while (!done) {
-        IExec->Wait(sig);
+        waitModal(wo);   // --- robust ---
         uint32 result;
         uint16 code;
         while ((result = IIntuition->IDoMethod(wo, WM_HANDLEINPUT, &code)) != WMHI_LASTMSG) {
@@ -451,8 +449,8 @@ void App::distccSettings()
             saveProject();
         }
     }
+    endModal();   // --- robust ---
     IIntuition->DisposeObject(wo);
-    busyPointer(false);
     if (done == 1) setStatus(project.distcc ? "Distributed builds on: " + project.distccHosts : "Distributed builds off");
 }
 
