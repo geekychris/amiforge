@@ -136,7 +136,7 @@ void App::browseProjects()
     enum { PB_FOLDER = 1, PB_LIST, PB_SHOW, PB_OPEN, PB_CHANGE, PB_REFRESH, PB_CLOSE, PB_N };
     Object *g[PB_N] = {};
     static const char *titles[] = { "Project", "Description", "Drawer" };
-    static const int weights[] = { 22, 53, 25 };
+    static const int weights[] = { 16, 60, 24 };
     ListView list(3);
     Class *layout = ILayout->LAYOUT_GetClass();
     auto button = [&](int id, const char *text) {
@@ -147,7 +147,7 @@ void App::browseProjects()
     Object *wo = IIntuition->NewObject(IWindow->WINDOW_GetClass(), nullptr,
         WA_Title, (uint32)"Projects", WA_DragBar, TRUE, WA_CloseGadget, TRUE, WA_DepthGadget, TRUE,
         WA_SizeGadget, TRUE, WA_Activate, TRUE, WA_PubScreen, (uint32)win->WScreen,
-        WA_InnerWidth, 720, WA_InnerHeight, 380,
+        WA_InnerWidth, 860, WA_InnerHeight, 400,
         WINDOW_Position, WPOS_CENTERWINDOW, WINDOW_RefWindow, (uint32)win,
         WINDOW_Layout, IIntuition->NewObject(layout, nullptr,
             LAYOUT_Orientation, LAYOUT_ORIENT_VERT, LAYOUT_SpaceOuter, TRUE,
@@ -174,6 +174,8 @@ void App::browseProjects()
             TAG_DONE),
         TAG_DONE);
     g[PB_LIST] = list.obj;
+    // columns by weight: fitted to the text, long descriptions would push Drawer out of sight
+    if (list.obj) IIntuition->SetAttrs(list.obj, LISTBROWSER_AutoFit, FALSE, TAG_DONE);
     if (!wo) return;
     struct Window *w = (struct Window *)IIntuition->IDoMethod(wo, WM_OPEN);
     if (!w) {
@@ -235,8 +237,11 @@ void App::browseProjects()
                 }
                 break;
             }
-            case PB_LIST:
-                if (code != LBRE_DOUBLECLICK) break;
+            case PB_LIST: {
+                uint32 ev = 0;
+                IIntuition->GetAttr(LISTBROWSER_RelEvent, list.obj, &ev);
+                if (ev != LBRE_DOUBLECLICK) break;
+            }
                 /* fall through */
             case PB_OPEN: {
                 struct Node *n = list.selected();

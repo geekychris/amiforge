@@ -407,7 +407,7 @@ Open Project and New Project from Template start there.
 
 **Project > Browse Projects** (Amiga-U) lists:
 - **Recent**: the projects on the Open Recent list that still exist;
-- **Projects in** the folder: every drawer in it, or one drawer further down, that has an `.afp`
+- **Projects**: every drawer in the folder, or one drawer further down, that has an `.afp`
   file, sorted by name. AmiForge doesn't look inside a project's own drawer, so `obj/` and
   similar sub-drawers are skipped.
 
@@ -1148,10 +1148,16 @@ AmiForge knows the usual Amiga-specific causes of build errors and crashes:
 | `sketch` | C++ drawing program. An Intuition window with GadTools menus (pen colour and brush size, as mutually exclusive check marks), drawing with `IDCMP_MOUSEMOVE`, an ASL save requester and an IFF ILBM written with iffparse.library; MultiView opens the result |
 
 Each example's classes own its OS resources (windows, bitmaps, ports, timer requests, IFF
-handles) and give them back in their destructors: turn on **Debug > Track Leaks** and run one
-to see nothing left over.
+handles) and give them back in their destructors. Run one with **Debug > Track Leaks** on: the
+only entries left are the C and C++ runtime's own start-up allocations (`init_libs`,
+`init_keystore`, `__gthread_key_create`), made before `main()`.
 
-![The clock example](images/example-clock.png)
+| | |
+|---|---|
+| ![The clock example](images/example-clock.png) | ![The todo example](images/example-todo.png) |
+| *clock: resize the window and the face follows* | *todo: ReAction with a checkbox per item* |
+| ![The sketch example](images/example-sketch.png) | ![The workers example](images/example-workers.png) |
+| *sketch: GadTools menus pick the pen; Save As writes an ILBM* | *workers: four processes count primes* |
 
 ![The bouncer example](images/bouncer.png)
 

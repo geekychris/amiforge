@@ -257,11 +257,13 @@ std::vector<Row> rows(const std::vector<Project> &recentOnes, const std::vector<
         heading("Recent");
         for (auto &p : recentOnes) add(p);
     }
-    heading("Projects in " + folder);
+    // the folder goes in the wide description column
+    heading("Projects");
+    out.back().cols[1] = "in " + folder;
     if (found.empty()) {
         Row r;
         r.heading = true;
-        r.cols[0] = "  (no projects here: Change Folder... picks another drawer)";
+        r.cols[1] = "(no projects here: Change Folder... picks another drawer)";
         out.push_back(r);
     }
     for (auto &p : found) add(p);

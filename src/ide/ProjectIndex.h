@@ -68,8 +68,8 @@ std::vector<Project> scan(const std::string &root, int depth, const ListDir &lis
 // The recent projects (full .afp paths, newest first) that still exist, described.
 std::vector<Project> recent(const std::vector<std::string> &afps, const ListDir &list, const ReadFile &read);
 
-// The browser's rows: "Recent" with its projects (if any), then "Projects in <folder>" with the
-// scanned ones (or a "(none ...)" note).
+// The browser's rows: "Recent" with its projects (if any), then "Projects" (description column:
+// "in <folder>") with the scanned ones (or a "(no projects here ...)" note).
 std::vector<Row> rows(const std::vector<Project> &recentOnes, const std::vector<Project> &found,
                       const std::string &folder);
 
