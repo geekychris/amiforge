@@ -155,6 +155,8 @@ static std::string entryText(const DocEntry &e)
     return text;
 }
 
+std::string App::docEntryText(const DocEntry &e) { return entryText(e); }
+
 // --- the window ---
 
 static uint32 docHookFunc(struct Hook *, APTR, struct IntuiMessage *im)

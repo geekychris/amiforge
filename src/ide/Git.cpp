@@ -223,9 +223,10 @@ void App::gitClone()
     if (!askString("Clone a Repository", "Repository URL (e.g. https://github.com/user/project):", url) || trim(url).empty())
         return;
     url = trim(url);
-    std::string parent = requestFile("Clone into which drawer?", false, lastDir.empty() ? "RAM:" : lastDir);
+    // default to the drawer above the current project, which is usually where projects live
+    std::string start = !project.dir.empty() ? dirName(project.dir) : (lastDir.empty() ? "RAM:" : lastDir);
+    std::string parent = requestDrawer("Clone into which drawer?", start);
     if (parent.empty()) return;
-    if (extension(parent) != "" || fileExists(parent + "/.git")) parent = dirName(parent);
     std::string name = fileName(url);
     if (extension(name) == "git") name = name.substr(0, name.size() - 4);
     if (name.empty()) name = "repository";

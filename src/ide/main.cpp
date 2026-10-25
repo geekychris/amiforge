@@ -58,6 +58,9 @@ int App::run(int argc, char **argv)
     if (args.empty() && !recentProjects.empty() && fileExists(recentProjects.front()))
         openProject(recentProjects.front());
     if (docs.empty()) newDocument();
+    // the AutoDoc index (for F1 and completion): read it now rather than on the first keystroke
+    setStatus("Reading the AutoDocs index...");
+    loadDocIndex();
     setStatus("Ready - F5 debug, F7 build, Ctrl-F5 run, F9 breakpoint");
 
     eventLoop();

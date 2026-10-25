@@ -5,7 +5,7 @@ M1 = os.environ.get("M1", "chriscollins@m1.local")
 special = {' ': 'spc', '.': 'dot', '/': 'slash', ':': 'shift-semicolon', '-': 'minus', '_': 'shift-minus',
            '@': 'shift-2', '=': 'equal', ',': 'comma', ';': 'semicolon', '"': 'shift-apostrophe',
            "'": 'apostrophe', '(': 'shift-9', ')': 'shift-0', '!': 'shift-1', '?': 'shift-slash',
-           '\n': 'ret'}
+           '\n': 'ret', '>': 'shift-dot', '<': 'shift-comma', '*': 'shift-8', '&': 'shift-7', '[': 'bracket_left', ']': 'bracket_right', '{': 'shift-bracket_left', '}': 'shift-bracket_right', '#': 'shift-3', '+': 'shift-equal'}
 keys = []
 for c in sys.argv[1]:
     if c in special: keys.append(special[c])

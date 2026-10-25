@@ -57,6 +57,7 @@ void App::handleMenu(uint32_t cmd)
     case CMD_FIND_IN_FILES: findInFiles(); break;
     case CMD_GOTO_LINE: gotoLineDialog(); break;
     case CMD_COMMENT: toggleComment(); break;
+    case CMD_COMPLETE: showCompletion(true); break;
     case CMD_INDENT: S(editor, SCI_TAB); break;
     case CMD_UNINDENT: S(editor, SCI_BACKTAB); break;
 

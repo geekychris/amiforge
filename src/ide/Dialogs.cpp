@@ -63,6 +63,21 @@ std::string App::requestFile(const char *title, bool save, const std::string &in
     return result;
 }
 
+std::string App::requestDrawer(const char *title, const std::string &initial)
+{
+    struct FileRequester *fr = (struct FileRequester *)IAsl->AllocAslRequestTags(ASL_FileRequest,
+        ASLFR_TitleText, (uint32)title,
+        ASLFR_Window, (uint32)win, ASLFR_SleepWindow, TRUE,
+        ASLFR_DrawersOnly, TRUE,
+        ASLFR_InitialDrawer, (uint32)initial.c_str(),
+        TAG_END);
+    if (!fr) return "";
+    std::string result;
+    if (IAsl->AslRequestTags(fr, TAG_END) && fr->fr_Drawer && fr->fr_Drawer[0]) result = fr->fr_Drawer;
+    IAsl->FreeAslRequest(fr);
+    return result;
+}
+
 std::vector<std::string> App::requestFiles(const char *title, const std::string &drawer)
 {
     std::vector<std::string> out;

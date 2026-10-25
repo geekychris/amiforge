@@ -167,3 +167,9 @@ SimpleGit's built-in certificate list is older than GitHub's current certificate
 sets `GIT_SSL_NO_VERIFY`. The connection is still encrypted, but the certificate isn't checked.
 
 The Amiga needs working networking with a default gateway (check with `ShowNetStatus`).
+
+**Repositories need a disk with long file names.** Git's object and pack files have names of
+38 characters or more. Classic FFS (`DOS\1`–`DOS\5`) cuts names at 30 characters, which breaks a
+repository: cloning fails with "target OID for the reference doesn't exist". Use a partition
+formatted as long-name FFS (`DOS\7`), SFS/02 or NGFS, or `RAM:` for a quick try. On the test
+setup, the dev disk (DH1:) was converted to `DOS\7` for this.

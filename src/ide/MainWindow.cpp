@@ -151,6 +151,7 @@ static struct NewMenu menus[] = {
     ITEM("Find in Files...", "H", CMD_FIND_IN_FILES),
     ITEM("Go to Line...", "L", CMD_GOTO_LINE),
     BAR,
+    ITEM("Complete Word  (Ctrl Space)", 0, CMD_COMPLETE),
     ITEM("Comment/Uncomment Lines", "/", CMD_COMMENT),
     ITEM("Indent", "]", CMD_INDENT),
     ITEM("Unindent", "[", CMD_UNINDENT),
@@ -650,6 +651,10 @@ uint32_t App::idcmpHook(struct IntuiMessage *im)
         bool fkey = (code >= 0x50 && code <= 0x59) || code == 0x4B || code == 0x6F || code == 0x5F;
         if (fkey) {
             handleKey(code, qual);
+            return 0;
+        }
+        if (code == 0x40 && (qual & IEQUALIFIER_CONTROL) && editor && editorFocus) {   // Ctrl-Space
+            pendingCommands.push_back(CMD_COMPLETE);
             return 0;
         }
         if (editor && editorFocus) editor->handleMessage(im);

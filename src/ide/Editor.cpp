@@ -537,6 +537,7 @@ void App::sciNotify(SciView *v, const Scintilla::NotificationData &n)
         break;
     case SCN_CHARADDED:
         autoIndent(n.ch);
+        completionCharAdded(n.ch);
         break;
     case SCN_MARGINCLICK: {
         intptr_t line = S(editor, SCI_LINEFROMPOSITION, (intptr_t)n.position);

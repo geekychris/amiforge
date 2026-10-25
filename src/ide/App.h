@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <map>
 #include <stdint.h>
 
 #include <exec/types.h>
@@ -254,6 +255,14 @@ public:
     void docForWordAtCaret();
     void docLinkClicked(intptr_t position);
     void openSdkDocs();
+    std::string docEntryText(const DocEntry &e);
+    // completion (Completion.cpp)
+    void refreshCompletionWords();
+    void showCompletion(bool explicitRequest);
+    void showCallTip();
+    std::string docPrototype(const DocEntry &e, const std::string &name);
+    void completionCharAdded(int ch);
+    std::map<std::string, std::pair<int64_t, std::vector<std::string>>> wordCache;
     void setGadgetIn(struct Window *w, Object *g, uint32_t tag, uint32_t value);
     std::vector<DocEntry> docIndex;
     Object *docWinObj = nullptr;
@@ -322,6 +331,7 @@ public:
     // --- dialogs (Dialogs.cpp) ---
     std::string requestFile(const char *title, bool save, const std::string &initial = "", const char *pattern = nullptr);
     std::vector<std::string> requestFiles(const char *title, const std::string &drawer);
+    std::string requestDrawer(const char *title, const std::string &initial);
     int ask(const char *title, const std::string &body, const char *buttons);   // 1..n left to right, 0 = last
     bool askString(const char *title, const std::string &body, std::string &value);
     bool askInteger(const char *title, const std::string &body, int &value, int min, int max);
