@@ -24,11 +24,12 @@ and use Git without leaving it.
 14. [Debugger tools: Windows inspector, leak tracker, profiler](#debugger-tools-windows-inspector-leak-tracker-profiler)
 15. [Git and GitHub](#git-and-github)
 16. [Git panel, resource editors, ARexx, distributed builds and explanations](#git-panel-resource-editors-arexx-distributed-builds-and-explanations)
-17. [The examples](#the-examples)
-18. [Running under QEMU](#running-under-qemu)
-19. [Troubleshooting](#troubleshooting)
-20. [Keyboard reference](#keyboard-reference)
-21. [Files and settings](#files-and-settings)
+17. [Controlling AmiForge from an AI assistant (MCP)](#controlling-amiforge-from-an-ai-assistant-mcp)
+18. [The examples](#the-examples)
+19. [Running under QEMU](#running-under-qemu)
+20. [Troubleshooting](#troubleshooting)
+21. [Keyboard reference](#keyboard-reference)
+22. [Files and settings](#files-and-settings)
 
 ---
 
@@ -1053,8 +1054,9 @@ tab:
 
 ### ARexx
 
-AmiForge has an ARexx port, **AMIFORGE** (AMIFORGE.1 for a second copy). Commands return
-their results in `RESULT`; `RC` is 5 when a FIND finds nothing and 10 for a bad argument.
+AmiForge has an ARexx port, **AMIFORGE** (AMIFORGE.1 for a second copy; `AmiForge
+REXXPORT=NAME` from a Shell picks the name). Commands return their results in `RESULT`; `RC`
+is 5 when a FIND finds nothing and 10 for a bad argument.
 
 | Command | Template | What it does |
 |---|---|---|
@@ -1076,6 +1078,53 @@ their results in `RESULT`; `RC` is 5 when a FIND finds nothing and 10 for a bad 
 | HELP | COMMAND | The commands, or one command's template |
 
 Arguments can be given in order or by name (`GOTO LINE=12 COL=5`).
+
+#### Commands for assistants and scripts
+
+These commands are what [the MCP tools](#controlling-amiforge-from-an-ai-assistant-mcp) use,
+and they are useful in scripts too. They never open a requester (when the IDE would ask
+something, the command fails and says what), they return at once, and their results are
+machine-readable: lists are one record per line with tab-separated fields, states are
+`key=value` lines. Text values (file names, code, expressions) take the escapes described in
+[the wire format](#for-script-writers-the-wire-format) (`\s` for a space, `\n` for a new
+line...); plain names without spaces need none. A relative FILE is in the project's drawer;
+without FILE, the current file.
+
+| Command | Template | RESULT |
+|---|---|---|
+| MCP | COMMAND/A/F | Runs a command without requesters; always RC 0, RESULT `AF1 rc more length payload` |
+| MCPMORE | | The next part of a long MCP result |
+| MCPBUF | SLOT/N/A,CLEAR/S,TEXT | Appends text to slot 1-9, used as `\@1` in a later command |
+| GETSTATE | | `key=value` lines: port, project, projectdir, projectsfolder, file, line, col, documents, modified, build (idle/running), buildresult (none/ok/failed), errors, warnings, debug (none/loaded/running/stopped), sessions, stopreason, stopfile, stopline, stopfunction, stoptext, exitcode, program (a RUNPROGRAM CAPTURE run: idle/running), status |
+| DOCUMENTS | | Open files: path, modified (0/1), current (0/1), lines |
+| PROJECTINFO | | `key=value`: path, name, dir, output, outputpath, cc, cflags, ldflags, libs, args, stopatmain, built... |
+| PROJECTFILES | | relative path, full path |
+| PROJECTS | DEPTH/N | Projects in the projects folder: name, .afp, description |
+| TEMPLATES | | Project templates: id, name, description |
+| OPENPROJECT | FILE/A | Opens a project; RC 10 (and why) if it didn't open, e.g. unsaved changes |
+| NEWPROJECT | TEMPLATE/A,NAME/A,DRAWER/A | Makes DRAWER/NAME from a template and opens it; the .afp |
+| ACTIVATE | FILE/A,LINE/N | Opens or switches to a file, at a line |
+| READ | FILE,FROMLINE/N,TOLINE/N | `lines<tab>from<tab>to<tab>path`, then the text (the editor's buffer if open) |
+| EDITLINES | FILE,FROMLINE/N/A,TOLINE/N/A,TEXT | Replaces lines (TOLINE = FROMLINE-1 inserts); the new line count |
+| SUBST | FILE,OLD/A,NEW,ALL/S | Replaces exact text, which must be unique unless ALL; `count<tab>line`, RC 5 if not found |
+| SAVEALL / REVERT | — / FILE | Saves all modified files / reloads one from disk |
+| STARTBUILD / STOPBUILD | REBUILD/S,CLEAN/S | Starts (or stops) a build; GETSTATE says when it's done |
+| ERRORS | ALL/S | kind, file, line, col, message, explanation |
+| BUILDLOG | | The build log |
+| RUNPROGRAM | CAPTURE/S | Runs the built program; CAPTURE: output to `T:AmiForge-mcp-run.txt` |
+| RUNOUTPUT / STOPPROGRAM | | `running=0/1` and the captured output / Ctrl-C to it |
+| DEBUGSTART | MAIN/S,NOMAIN/S | Starts the debugger (no build); the session number |
+| DEBUGSTOP, CONTINUE, STEP, NEXT, STEPOUT, PAUSE | | Debugger control (STEP into, NEXT over) |
+| RUNTO | FILE/A,LINE/N/A | Continues to a line |
+| BREAK / UNBREAK | FILE/A,LINE/N/A,COND / FILE,LINE/N,ALL/S | Sets (the line it went on) / clears breakpoints |
+| BREAKS | | file, line, enabled, condition, hits, address |
+| LOCALS | | name, type, value, has-children (1/0) |
+| STACK / FRAME | — / LEVEL/N/A | level, function, file, line, pc, module / selects a frame |
+| EVAL | CHILDREN/S,EXPR/A/F | name, type, value (CHILDREN: then its members) |
+| REGS / CRASH | | Registers: name, value / the last crash's explanation |
+| SYMBOLS | FILE | The outline: kind, name, line, detail |
+| REFERENCES | NAME/A | file, line, col, text of every use |
+| GITSTATUS | | `repository<tab>branch`, then XY status, path |
 
 #### Macros
 
@@ -1133,6 +1182,239 @@ AmiForge knows the usual Amiga-specific causes of build errors and crashes:
   again.
 
 ![A file's diff](images/integrations-git-diff.png)
+
+## Controlling AmiForge from an AI assistant (MCP)
+
+An AI coding assistant on your host computer, such as Claude Code, can drive AmiForge running
+on the Amiga: open a project, read and edit its files, build it and read the errors (with
+AmiForge's explanations), run the program and read its output, set breakpoints, debug, and
+look at the locals, the call stack and any expression. It goes through the **Model Context
+Protocol** (MCP), the standard way assistants call tools. You keep working in AmiForge as usual
+and see everything the assistant does: the files it opens, the edits, the build log, the
+execution marker.
+
+### How it fits together
+
+```
+ host computer (macOS, Linux, Windows)                     the Amiga (AmigaOS 4.1, e.g. QEMU)
++---------------------+   MCP over HTTP   +--------------------+   serial / TCP   +--------------+
+| AI assistant        | ----------------> | amiga-devbench     | ---------------> | amiga-bridge |
+| (Claude Code...)    |  amiforge_build,  | MCP server :3000   |  AREXXSEND line  |   daemon     |
+|                     |  amiforge_edit... | amiforge_tools.py  | <--------------- |              |
++---------------------+ <---------------- +--------------------+  AREXXRESULT     +------+-------+
+                          JSON results                                                   | ARexx message
+                                                                                         v
+                                                                                +----------------+
+                                                                                | AmiForge       |
+                                                                                | port AMIFORGE  |
+                                                                                | McpPort.cpp    |
+                                                                                +----------------+
+```
+
+- **amiga-devbench** (the host side of the amiga_mcp project) is the MCP server. Its
+  `amiforge_*` tools turn each request into ARexx commands for AmiForge and the answers into
+  JSON.
+- **amiga-bridge** is the small daemon on the Amiga that the devbench talks to over a serial
+  line or TCP. It passes each command to the ARexx port and brings the result back.
+- **AmiForge** answers on its ARexx port (`AMIFORGE`) with the commands listed in
+  [Commands for assistants](#commands-for-assistants-and-scripts) below. They never open a
+  requester and they return at once; a build or a debugger step is started, and the devbench
+  asks for the state until it has finished.
+
+### Setting it up
+
+1. **The devbench**, running with the AmigaOS 4 profile and connected to the guest's bridge.
+   In the amiga_mcp checkout:
+
+   ```
+   scripts/start.sh os4                  # devbench on :3000 + QEMU, waits for the bridge
+   # or, with QEMU already running:
+   python3 -m amiga_devbench --profile qemu-os4 --no-emulator
+   ```
+
+   On the Amiga, the bridge (`amiga-bridge`) must be running; the devbench's web page at
+   <http://localhost:3000/> shows a green light when it is.
+
+2. **The assistant**, told where the MCP server is. For Claude Code, in the project's
+   `.mcp.json` (or `~/.claude.json`):
+
+   ```json
+   {
+     "mcpServers": {
+       "amiga-dev": {
+         "type": "http",
+         "url": "http://localhost:3000/mcp"
+       }
+     }
+   }
+   ```
+
+   or from a shell: `claude mcp add --transport http amiga-dev http://localhost:3000/mcp`.
+   `/mcp` in Claude Code lists the server and its tools; the AmiForge ones start with
+   `amiforge_`.
+
+3. **AmiForge**, running on the Amiga. Start it yourself, or let the assistant do it with
+   `amiforge_launch` (it starts `DH1:AmiForge/AmiForge` unless told otherwise). Give it a
+   project to open (`amiforge_launch project=DH1:Work/hello/hello.afp`): without one, AmiForge
+   reopens your last project, or shows the project browser, which (like every AmiForge
+   window of its own) doesn't answer ARexx until it is closed.
+
+Nothing has to be configured in AmiForge: the port is always open.
+
+**A second copy.** A second AmiForge gets the port `AMIFORGE.1`. To give a copy a name of your
+own, start it from a Shell with `AmiForge REXXPORT=MYFORGE`; every `amiforge_*` tool takes a
+`port` argument (default `AMIFORGE`). This is how you can let an assistant work in its own
+copy while you work in yours.
+
+### The tools
+
+All results are JSON. A tool that fails returns `{"ok": false, "error": "...", "rc": n}`,
+where the error is AmiForge's own explanation ("the text to replace is in the file 2 times",
+"stop debugging before building", "AmiForge isn't running: ..."). Paths are Amiga paths;
+relative ones are in the project's drawer.
+
+| Tool | Arguments | What it does / returns |
+|---|---|---|
+| `amiforge_status` | `port` | The state: project, current file, cursor, open files (modified or not), build state and result, debugger state and where it stopped, whether a run is going. Use it first |
+| `amiforge_launch` | `path`, `project`, `port`, `wait_seconds` | Starts AmiForge (if its port isn't there) and waits for the port |
+| `amiforge_projects` | `depth` | The projects in the projects folder (name, .afp, description) and the project templates |
+| `amiforge_open_project` | `path` | Opens a project; fails if open files with unsaved changes would have to close. Returns its settings and files |
+| `amiforge_new_project` | `template`, `name`, `drawer` | Creates `<drawer>/<name>` from a template (ids from `amiforge_projects`) and opens it |
+| `amiforge_project_info` | | The project's settings (flags, libraries, output, arguments, stop at main...) and files |
+| `amiforge_open_file` | `path`, `line` | Opens a file in the editor (or switches to it) at a line, so you see what the assistant is looking at |
+| `amiforge_read_file` | `path`, `from_line`, `to_line`, `numbered` | A file's text as AmiForge has it: the editor's buffer when it's open (with unsaved changes), else the file on disk. Lines numbered `   12| ` |
+| `amiforge_edit` | `path`, `old_text`, `new_text`, `replace_all` | Replaces exact text in the editor (the file is opened if needed). `old_text` must occur once unless `replace_all`. Undoable with Ctrl-Z; not saved |
+| `amiforge_edit_lines` | `path`, `from_line`, `to_line`, `text` | Replaces whole lines; `to_line = from_line - 1` inserts, `from_line = last + 1` appends, empty text deletes |
+| `amiforge_save` | | Saves every modified file |
+| `amiforge_revert` | `path` | Drops a file's unsaved changes (reloads it) |
+| `amiforge_build` | `mode` (build, rebuild, clean), `wait`, `timeout` | Builds like F7 (saving first) and waits: `result` ok/failed, counts, `diagnostics` (kind, file, line, col, message, explanation) |
+| `amiforge_errors` | `include_all` | The last build's errors and warnings (with `include_all`, every log line) |
+| `amiforge_build_log` | `tail` | The build log as shown |
+| `amiforge_run` | `build`, `capture_output`, `wait_seconds` | Builds, then runs the program. With `capture_output` (default) its output goes to `T:AmiForge-mcp-run.txt` and comes back when it ends (or after `wait_seconds`, while it keeps running); without, it runs in a console window like Ctrl-F5 |
+| `amiforge_run_output` | | The captured output so far, and whether the program still runs |
+| `amiforge_stop_program` | | Ctrl-C to the captured program |
+| `amiforge_debug` | `action`, `file`, `line`, `stop_at_main`, `build`, `wait`, `timeout` | The debugger: `start`, `continue`, `step` (into), `next` (over), `step_out`, `run_to` (file, line), `pause`, `stop`, `state`. Waits until the program stops or exits and returns why, where (file, line, function, the source around it), the locals, and for a crash the explanation |
+| `amiforge_breakpoint` | `action` (set, clear, clear_all, list), `file`, `line`, `condition` | Breakpoints, before or during debugging; `condition` is a C expression. Returns the list (and for `set` the line it really went on) |
+| `amiforge_locals` | | The selected frame's parameters and locals (name, type, value, has_children) |
+| `amiforge_stack` | `select_frame` | The call stack (level, function, file, line, pc, module); `select_frame` picks the frame locals and eval use |
+| `amiforge_eval` | `expression`, `children` | A C expression in the stopped program (`p->next->value`, `buf[3]`, `(long)x * 2`); `children` adds its members or elements |
+| `amiforge_registers` | | r0-r31, pc, lr, ctr, msr, cr, xer, dar, dsisr |
+| `amiforge_symbols` | `path` | A file's outline: functions, types, macros, globals, labels with their lines |
+| `amiforge_references` | `name` | Every use of an identifier in the project (file, line, col, text) |
+| `amiforge_git_status` | | The repository, branch and changed files, as the Git tab sees them |
+| `amiforge_screenshot` | `window` | A screenshot of the Amiga screen (or a window) on the host, to see the IDE, the program or a requester |
+| `amiforge_command` | `command` | Any AmiForge ARexx command, wrapped as below, returning its RESULT |
+
+Examples of results:
+
+```json
+amiforge_build  ->
+{ "ok": true, "result": "failed", "errors": 1, "warnings": 0, "seconds": 21.4,
+  "diagnostics": [ { "kind": "error", "file": "DevDrive:Work/hello/main.c", "line": 14, "col": 5,
+                     "message": "'cout' undeclared (first use in this function)" } ] }
+
+amiforge_debug action=start  ->
+{ "ok": true, "debug": "stopped", "stopreason": "breakpoint",
+  "stopfile": "DevDrive:Work/hello/list.c", "stopline": 22, "stopfunction": "list_add",
+  "stoptext": "Breakpoint 1, list_add() at list.c:22",
+  "source": "   20| {\n   21|     struct node *n = malloc(sizeof *n);\n>  22|     n->value = value;\n...",
+  "locals": [ { "name": "l", "type": "struct list *", "value": "0x5a3c1e40", "has_children": true },
+              { "name": "value", "type": "int", "value": "3", "has_children": false } ] }
+```
+
+### Example sessions
+
+**"Build the project and fix the errors."** The assistant calls `amiforge_status` (which project
+is open, any unsaved files), `amiforge_build`, and gets the diagnostics with file and line.
+For each error it reads the lines around it with `amiforge_read_file`, changes them with
+`amiforge_edit` (you see the file come to the front and the text change), and builds again
+until `result` is `ok`. The explanation AmiForge adds to Amiga-specific errors (a missing
+`-lauto`, an interface that wasn't opened, a 68k-only call) is in the diagnostic, so the
+assistant gets the same hint you would.
+
+**"Set a breakpoint in list_add and show me the locals."** `amiforge_symbols` (or
+`amiforge_references list_add`) finds the line; `amiforge_breakpoint action=set file=list.c
+line=21`; `amiforge_debug action=start build=true`. When the program stops, the answer already
+has the source and the locals; `amiforge_eval expression="*l" children=true` shows the list
+itself, `amiforge_debug action=next` steps, `action=continue` runs to the next hit, and
+`action=stop` ends it.
+
+**"Run it and tell me what it prints."** `amiforge_run` builds, runs the program with its
+output captured and returns the output when it ends. A program that opens a window keeps
+running: `amiforge_screenshot` shows it, `amiforge_run_output` reads what it printed so far,
+and `amiforge_stop_program` sends it Ctrl-C.
+
+**"Start a new ReAction program called notes in DH1:Work."** `amiforge_projects` lists the
+templates; `amiforge_new_project template=reaction name=notes drawer=DH1:Work` creates and
+opens it, ready to edit and build.
+
+### Limits and safety
+
+- **What it can change.** The assistant can edit any file AmiForge can open, save them, create
+  projects, build (which saves every modified file first, as F7 does), run your program and
+  debug it. It works on the project that is open; it can't change the project's settings
+  (use Project Settings), commit with git, or delete files.
+- **No confirmation.** These commands don't ask: an edit is applied and a build or a run
+  starts at once. Requesters that would normally appear (for example "Save the changes?") are
+  answered with their last button (Cancel) and their text is returned as the error, so nothing
+  is ever discarded without being asked: opening another project while files have unsaved
+  changes fails until the assistant saves (`amiforge_save`) or reverts them.
+- **Edits are not saved until asked.** `amiforge_edit` and `amiforge_edit_lines` change the
+  editor's text, like typing: Ctrl-Z undoes them, and the file on disk changes only with
+  `amiforge_save` or a build. Reads see the editor's text, so the assistant never works from a
+  stale copy of a file you're editing.
+- **You and the assistant share the IDE.** If you type in a file while the assistant edits it,
+  both edits land. `amiforge_edit` matches exact text, so an edit whose text you changed
+  fails rather than going in the wrong place.
+- **While a window of AmiForge's own is open** (a requester, Project Settings, the project
+  browser, the template chooser, the GUI designer), the port doesn't answer; the tools say
+  so after 10 seconds ("AmiForge didn't answer within 10 s"). Close the window.
+- **The running program is real.** It runs on the Amiga with no memory protection, as from
+  the Run menu; a crash under the debugger is caught, one in a plain run may need a reboot of
+  the emulator.
+- **Speed.** Each command is a round trip through the bridge (tens of milliseconds); long
+  results come in pieces of about 3.5 KB. Builds take as long as they do under emulation.
+
+### Troubleshooting
+
+| Problem | What to do |
+|---|---|
+| "the devbench isn't connected to the Amiga bridge" | Start `amiga-bridge` on the Amiga; the devbench page must show green |
+| "AmiForge isn't running: there is no ARexx port AMIFORGE" | Start AmiForge (or `amiforge_launch`). A second copy is `AMIFORGE.1`: pass `port` |
+| "AmiForge didn't answer within 10 s" | AmiForge shows a window or requester of its own: look with `amiforge_screenshot` and close it |
+| "this AmiForge is too old for the amiforge_ tools" | The port answered without the MCP envelope: install an AmiForge with the MCP commands |
+| A build "failed" with no diagnostics | The tool returns the end of the build log (`log_tail`): a missing SDK tool or a link step |
+| `amiforge_run` returns no output | The program writes to its own window, or is still running (`running: true`): `amiforge_run_output` later |
+| Locals are `<unreadable>` | As in the IDE: build with `-gstabs` and `-O0` (the project's debug flags) |
+
+### For script writers: the wire format
+
+The tools are a thin layer: you can send the same commands from any ARexx script or with the
+devbench's `amiga_arexx_send`. The bridge carries a RESULT as one line and replaces `|` and
+newlines with spaces, so assistants wrap each command as `MCP <command>`. It always returns
+RC 0 and
+
+```
+AF1 <rc> <more> <length> <payload>
+```
+
+- `rc`: the command's own return code: 0 OK, 5 not found / nothing to do, 10 error, 20 unknown.
+- `more`: how many characters of the payload are still to come; `MCPMORE` returns the next
+  part in the same format.
+- `length`: the length of this part's payload (the transport strips trailing spaces; put them
+  back).
+- `payload`: the RESULT, or the error message when `rc` isn't 0, escaped: `\\` backslash,
+  `\n` newline, `\t` tab, `\r` CR, `\p` `|`, `\q` `"`, `\xHH` any other control character or
+  byte from 0x7F.
+
+Lists are one record per line with tab-separated fields; inside a field, `\t`, `\n` and `\\`
+stand for a tab, a newline and a backslash. `GETSTATE`, `PROJECTINFO` and `RUNOUTPUT`'s first
+line are `key=value` lines.
+
+Text arguments of these commands are escaped the same way with spaces too (`\s`), so every
+value is a single word: `MCP SUBST FILE=main.c OLD=return\s0; NEW=return\s1;`. Text too long
+for one line (about 8 KB) is sent in pieces with `MCPBUF SLOT=1 CLEAR TEXT=...`, `MCPBUF SLOT=1
+TEXT=...`, and given as `\@1`: `MCP EDITLINES FILE=main.c FROMLINE=10 TOLINE=12 TEXT=\@1`.
 
 ## The examples
 

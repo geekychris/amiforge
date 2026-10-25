@@ -7,6 +7,8 @@
 #include <proto/intuition.h>
 #include <workbench/startup.h>
 
+#include <strings.h>   // --- mcp ---
+
 static const char version[] __attribute__((used)) = "$VER: AmiForge 0.1 (24.10.2026)";
 static const char stack[] __attribute__((used)) = "$STACK: 524288";
 
@@ -30,6 +32,10 @@ App::~App()
 
 int App::run(int argc, char **argv)
 {
+    // --- mcp --- REXXPORT=name: the ARexx port's name (default AMIFORGE), e.g. for a second copy
+    for (int i = 1; argc > 0 && i < argc; i++)
+        if (strncasecmp(argv[i], "REXXPORT=", 9) == 0) mcpPortName = argv[i] + 9;
+    // --- end mcp ---
     loadRecent();   // before the window opens: the Open Recent menu is built from it
     if (!openMainWindow()) {
         closeMainWindow();
@@ -49,7 +55,8 @@ int App::run(int argc, char **argv)
             args.push_back(joinPath(dir, wb->sm_ArgList[i].wa_Name));
         }
     } else {
-        for (int i = 1; i < argc; i++) args.push_back(argv[i]);
+        for (int i = 1; i < argc; i++)
+            if (strncasecmp(argv[i], "REXXPORT=", 9) != 0) args.push_back(argv[i]);   // --- mcp ---
     }
     for (auto &a : args) {
         if (extension(a) == "afp") openProject(a);

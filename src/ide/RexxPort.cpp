@@ -59,10 +59,11 @@ bool App::openRexxPort()
     gCmds.push_back({});   // the end
     Class *cl = IARexx->AREXX_GetClass();
     uint32 err = 0;
-    rexxObj = IIntuition->NewObject(cl, nullptr, AREXX_HostName, (uint32)"AMIFORGE", AREXX_NoSlot, TRUE,
+    const char *host = mcpPortName.empty() ? "AMIFORGE" : mcpPortName.c_str();   // --- mcp --- REXXPORT=
+    rexxObj = IIntuition->NewObject(cl, nullptr, AREXX_HostName, (uint32)host, AREXX_NoSlot, TRUE,
                                     AREXX_Commands, (uint32)gCmds.data(), AREXX_ErrorCode, (uint32)&err, TAG_DONE);
     if (!rexxObj && err == RXERR_PORT_ALREADY_EXISTS)   // another AmiForge: AMIFORGE.1, .2...
-        rexxObj = IIntuition->NewObject(cl, nullptr, AREXX_HostName, (uint32)"AMIFORGE",
+        rexxObj = IIntuition->NewObject(cl, nullptr, AREXX_HostName, (uint32)host,
                                         AREXX_Commands, (uint32)gCmds.data(), TAG_DONE);
     if (!rexxObj) return false;
     uint32 name = 0;
@@ -123,19 +124,22 @@ std::string App::rexxCommand(const std::string &line, int &rc)
     rexx::splitCommand(line, cmd, rest);
     const rexx::CommandDef *def = rexx::findCommand(cmd);
     rc = 0;
-    if (!def) { rc = 20; return ""; }
+    rexxError.clear();   // --- mcp ---
+    if (!def) { rc = 20; rexxError = "unknown command " + cmd; return ""; }
     rexx::Args a;
     std::string err;
     if (!rexx::parseArgs(def->tmpl, rest, a, err)) {
         setStatus("ARexx " + cmd + ": " + err);
+        rexxError = cmd + ": " + err;   // --- mcp ---
         rc = 10;
         return "";
     }
+    if (mcpHandles(cmd)) return mcpCommand(cmd, a, rc);   // --- mcp --- (McpPort.cpp)
     bool needDoc = cmd == "SAVE" || cmd == "SAVEAS" || cmd == "CLOSE" || cmd == "GOTO" || cmd == "GETLINE" ||
                    cmd == "GETCOL" || cmd == "GETTEXT" || cmd == "GETLINETEXT" || cmd == "GETWORD" || cmd == "INSERT" ||
                    cmd == "REPLACE" || cmd == "SELECT" || cmd == "FIND";
-    if (needDoc && (!cur || !editor)) { rc = 10; return ""; }
-    if ((cmd == "INSERT" || cmd == "REPLACE") && (cur->hex || cur->readOnly)) { rc = 10; return ""; }
+    if (needDoc && (!cur || !editor)) { rc = 10; rexxError = "no file is open"; return ""; }   // mcp: rexxError
+    if ((cmd == "INSERT" || cmd == "REPLACE") && (cur->hex || cur->readOnly)) { rc = 10; rexxError = "the file is read-only"; return ""; }
     intptr_t pos = editor ? S(editor, SCI_GETCURRENTPOS) : 0;
 
     if (cmd == "OPEN") { rc = openFile(a.str("FILE")) ? 0 : 10; return ""; }

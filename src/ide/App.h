@@ -216,6 +216,8 @@ enum IntegGid {
     GID_INTEG_LAST
 };
 
+namespace rexx { struct Args; }   // --- mcp --- (RexxCmd.h)
+
 class App : public SciViewHost {
 public:
     App();
@@ -655,6 +657,22 @@ public:
     void explainRow(int index);
     std::string lastCrashExplanation;
     // --- end integrations ---
+    // --- mcp --- machine-readable ARexx commands for AI assistants (McpPort.cpp, McpCmd.h)
+    bool mcpHandles(const std::string &cmd);     // one of the commands McpPort.cpp implements
+    std::string mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc);
+    void mcpDebugEvent(const dbg_event &ev);     // pollDebugger: remember the last stop / exit
+    std::string mcpPortName;                     // REXXPORT=name on the command line (default AMIFORGE)
+    bool mcpQuiet = false;                       // while an MCP command runs: requesters are skipped
+    std::string mcpMessages;                     // what the skipped requesters said
+    std::string rexxError;                       // why the last command failed (for MCP results)
+    std::string mcpRest;                         // the rest of the last MCP result (MCPMORE)
+    std::map<int, std::string> mcpSlots;         // MCPBUF text, referred to as \@1..\@9
+    std::string mcpStopText, mcpStopReason, mcpStopFunction;
+    std::string mcpStopFile;
+    int mcpStopLine = 0, mcpExitCode = 0, mcpSessions = 0;
+    bool mcpExited = false;
+    std::string mcpRunTask;                      // process name of RUNPROGRAM CAPTURE's program
+    // --- end mcp ---
     // --- projects --- the projects folder and the project browser (ProjectBrowser.cpp)
     std::string projectsFolder();                       // ENV:AmiForge/ProjectsFolder, else PROGDIR:Examples (absolute)
     void setProjectsFolder(const std::string &dir);     // ENV: and ENVARC:

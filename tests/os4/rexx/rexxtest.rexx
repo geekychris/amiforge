@@ -1,19 +1,23 @@
 /* rexxtest.rexx - tests AmiForge's ARexx port. AmiForge must be running.
-     rx rexxtest.rexx [macrodir]
+     rx rexxtest.rexx [macrodir|-] [port]
    Results go to RAM:rexxtest.log ("PASS name" / "FAIL name: detail", then a summary).
-   With macrodir, the three example macros are run against a scratch file too. */
+   With macrodir, the three example macros are run against a scratch file too. port: the
+   ARexx port to test (default AMIFORGE; e.g. a copy started with REXXPORT=AFTEST). */
 OPTIONS RESULTS
 OPTIONS FAILAT 100
-PARSE ARG macros
+PARSE ARG macros host .
+IF macros = '-' THEN macros = ''
+IF host = '' THEN host = 'AMIFORGE'
+IF host ~= 'AMIFORGE' THEN macros = ''   /* the example macros address AMIFORGE */
 CALL OPEN('log', 'RAM:rexxtest.log', 'W')
 pass = 0
 fail = 0
-IF ~SHOW('P', 'AMIFORGE') THEN DO
-    CALL WRITELN('log', 'FAIL no AMIFORGE port')
+IF ~SHOW('P', host) THEN DO
+    CALL WRITELN('log', 'FAIL no' host 'port')
     CALL CLOSE('log')
     EXIT 10
 END
-ADDRESS AMIFORGE
+ADDRESS VALUE host
 
 file = 'RAM:rexxtest.c'
 CALL OPEN('f', file, 'W')
@@ -55,6 +59,28 @@ CALL check l1 = '/* top */' & l4 = '    exit 0;', 'SAVE wrote the file', l1 '/' 
 'STATUS ARexx test running'
 'SAVEAS RAM:rexxtest2.c';         CALL check RC = 0 & POS('rexxtest2.c', RESULT) > 0, 'SAVEAS', RESULT
 CALL check EXISTS('RAM:rexxtest2.c'), 'SAVEAS wrote', ''
+
+/* --- mcp --- the MCP commands (results are "AF1 rc more length payload") */
+'MCP GETSTATE';                   CALL check LEFT(RESULT, 6) = 'AF1 0 ' & POS('debug=none', RESULT) > 0, 'MCP GETSTATE', LEFT(RESULT, 60)
+'MCP NOSUCHCOMMAND';              CALL check RC = 0 & WORD(RESULT, 2) = 20, 'MCP unknown command', RESULT
+'MCP GOTO notanumber';            CALL check WORD(RESULT, 2) = 10 & POS('must be a number', RESULT) > 0, 'MCP error text', RESULT
+'MCP READ FROMLINE=4 TOLINE=4';   CALL check POS('\t4\t4\t', RESULT) > 0 & POS('exit 0;', RESULT) > 0, 'MCP READ', RESULT
+'MCP SUBST OLD=exit\s0; NEW=exit\s1;'
+                                  CALL check WORD(RESULT, 2) = 0, 'MCP SUBST', RESULT
+'GETLINETEXT 4';                  CALL check RESULT = '    exit 1;', 'MCP SUBST applied', RESULT
+'MCP SUBST OLD=no_such_text';     CALL check WORD(RESULT, 2) = 5, 'MCP SUBST not found', RESULT
+'MCP EDITLINES FROMLINE=1 TOLINE=1 TEXT=/*\stop2\s*/'
+'GETLINETEXT 1';                  CALL check RESULT = '/* top2 */', 'MCP EDITLINES', RESULT
+'MCP MCPBUF SLOT=1 CLEAR TEXT=int\sy'
+'MCP MCPBUF SLOT=1 TEXT=;'
+'MCP EDITLINES FROMLINE=2 TOLINE=1 TEXT=\@1'
+'GETLINETEXT 2';                  CALL check RESULT = 'int y;', 'MCP MCPBUF + insert', RESULT
+'MCP SYMBOLS';                    CALL check POS('function\tmain', RESULT) > 0, 'MCP SYMBOLS', RESULT
+'MCP DOCUMENTS';                  CALL check POS('rexxtest2.c', RESULT) > 0, 'MCP DOCUMENTS', RESULT
+'MCP LOCALS';                     CALL check WORD(RESULT, 2) = 10, 'MCP LOCALS without debugging', RESULT
+'MCP REFERENCES NAME=main';       CALL check WORD(RESULT, 2) = 0, 'MCP REFERENCES', RESULT
+'MCP HELP';                       CALL check WORD(RESULT, 3) > 0, 'MCP HELP is paged', WORD(RESULT, 3)
+'MCPMORE';                        CALL check LEFT(RESULT, 4) = 'AF1 ', 'MCPMORE', LEFT(RESULT, 20)
 
 IF macros ~= '' THEN DO
     /* the example macros */
