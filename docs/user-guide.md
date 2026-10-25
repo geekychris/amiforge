@@ -375,7 +375,10 @@ drawer) and the build settings, and remembers breakpoints and watches.
 - **Project > New Project** asks where to save the `.afp`. It adds the C, C++, assembler and
   header files already in that drawer, or writes a starter `main.c` if there are none. Saved
   projects get a Workbench icon that opens them in AmiForge.
-- **Project > Open Project**, or **Open Recent**: the last ten projects.
+- **Project > Open Project**, or **Open Recent**: the last ten projects. Open Project's requester
+  starts in the projects folder; when the open project lives somewhere else, it starts in the
+  drawer above that project instead, so its neighbours are one click away.
+- **Project > Browse Projects** (Amiga-U) and **Set Projects Folder** (see below).
 - **Add Files** and **Remove File** change the file list. Removing doesn't delete the file.
 - **Project > Settings**:
 
@@ -395,6 +398,31 @@ Keep `-gstabs` (C) and `-gstabs+` (C++) in the flags to debug at the source leve
 reads stabs, the debug format OS4's own tools use.
 
 Without a project, Build, Run and Debug work on the file being edited, as a one-file project.
+
+### The projects folder and the project browser
+
+The projects folder is the drawer where you keep your projects. It starts as the examples drawer
+that comes with AmiForge (`PROGDIR:Examples`); **Project > Set Projects Folder** picks another.
+Open Project and New Project from Template start there.
+
+**Project > Browse Projects** (Amiga-U) lists:
+- **Recent**: the projects on the Open Recent list that still exist;
+- **Projects in** the folder: every drawer in it, or one drawer further down, that has an `.afp`
+  file, sorted by name. AmiForge doesn't look inside a project's own drawer, so `obj/` and
+  similar sub-drawers are skipped.
+
+The columns are the project's name, its description and its drawer. The description is the
+first line of the `description=` in the `.afp` (the one Package Release uses, so Project >
+Settings isn't needed to set it), or else the first line of a `README`, `README.txt` or
+`README.md` in the drawer.
+
+Double-click a project, or select it and click **Open**. **Change Folder** sets the projects
+folder and lists it; **Refresh** reads it again.
+
+When AmiForge starts with no project to open (none given, and no last project), it shows the
+browser. **Show at startup** turns that off.
+
+![The project browser](images/project-browser.png)
 
 ## GUI designer, project templates and release packaging
 
@@ -1113,6 +1141,17 @@ AmiForge knows the usual Amiga-specific causes of build errors and crashes:
 | `shapes` | C++. Classes, virtual functions, `std::vector`, `std::unique_ptr` |
 | `asmdemo` | C calling a PowerPC assembler function (`fastsum.s`); step into it with F11 and F8 |
 | `bouncer` | C++ using the OS. RAII wrappers for an Intuition window with a GadTools menu, graphics.library drawing, IDCMP input and timer.device pacing. Click in its window to add balls |
+| `clock` | C++ using the OS. An analog and digital clock in a resizable window: timer.device wakes it four times a second, `DateStamp()` and `DateToStr()` give the time and date, and the face is drawn into an off-screen bitmap (a friend of the screen's) and blitted in, so it never flickers. No floating point: the hands use a sine table |
+| `todo` | C++ with ReAction. window.class and a layout with a listbrowser (a checkbox per item), a string gadget and buttons, one C++ class per gadget group. Return adds an item; Clear Done removes the ticked ones. The list is saved in `ENVARC:TodoExample` after every change |
+| `dirsize` | A C++ Shell tool. `dirsize [DIR] [TOP n] [NOREC]`: walks the drawers with `ExamineDir()`, totals the sizes by file type in a `std::map` and prints them sorted, with the biggest files. Ctrl-C stops it with `***Break`. Its program arguments are set in the project (`SDK:Include TOP 3`) |
+| `workers` | C++ and exec multitasking. `workers [WORKERS n] [LIMIT n]` splits counting primes between n processes started with `CreateNewProcTags()`. Each gets its job on its own message port and sends progress messages back; Ctrl-C is passed on to all of them. The workers use only exec and dos (not the C library, which is set up per process) |
+| `sketch` | C++ drawing program. An Intuition window with GadTools menus (pen colour and brush size, as mutually exclusive check marks), drawing with `IDCMP_MOUSEMOVE`, an ASL save requester and an IFF ILBM written with iffparse.library; MultiView opens the result |
+
+Each example's classes own its OS resources (windows, bitmaps, ports, timer requests, IFF
+handles) and give them back in their destructors: turn on **Debug > Track Leaks** and run one
+to see nothing left over.
+
+![The clock example](images/example-clock.png)
 
 ![The bouncer example](images/bouncer.png)
 
@@ -1165,6 +1204,7 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | Ctrl-F10 | Run to cursor |
 | Amiga-N / O / S / A / W | New / open / save / save as / close file |
 | Amiga-P | Open project |
+| Amiga-U | Browse projects |
 | Amiga-F / R / H / L | Find / replace / find in files / go to line |
 | Amiga-D / J | Open include / go to definition |
 | Amiga-/ | Comment / uncomment |
@@ -1188,6 +1228,8 @@ Help > Keyboard Shortcuts shows this list in AmiForge.
 | `project.afp` | A project: an ini-style text file with `[project]` settings, `[files]`, `[breakpoints]` and `[watches]` |
 | `obj/` | Object files, in the project's drawer |
 | `ENVARC:AmiForge/RecentProjects` | The Open Recent list |
+| `ENVARC:AmiForge/ProjectsFolder` | The projects folder (unset: `PROGDIR:Examples`) |
+| `ENVARC:AmiForge/ShowBrowser` | `0` to not show the project browser at startup |
 | `ENVARC:AmiForge/GitName`, `GitEmail`, `GitHubUser`, `GitHubToken` | Git settings |
 | `ENVARC:AmiForge/Theme`, `SplitView`, `Minimap` | Editor view settings |
 | `ENVARC:AmiForge/Snippets` | Your own snippets |
@@ -1195,6 +1237,7 @@ Help > Keyboard Shortcuts shows this list in AmiForge.
 | `ENVARC:AmiForge/Author` | Your name and e-mail for templates and releases |
 | `*.afg` | A GUI designed in Tools > GUI Designer |
 | `PROGDIR:Templates/` | Project templates |
+| `PROGDIR:Examples/` | The example projects, and the default projects folder |
 | `PROGDIR:Rexx/` | ARexx macros (the Macros menu) |
 
 An example `.afp`:
@@ -1206,6 +1249,7 @@ output=hello
 cflags=-O0 -gstabs -Wall
 libs=-lauto
 stopatmain=1
+description=C: a linked list across two files, a good first program to step through
 
 [files]
 file=main.c

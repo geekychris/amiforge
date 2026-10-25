@@ -59,7 +59,8 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
   pictures open in their own viewers.
 - **ARexx**: an `AMIFORGE` port to script the IDE, and a Macros menu of your own `.rexx` macros.
 - **Projects**: `.afp` files with Workbench icons, recent projects, and breakpoints and watches
-  that are saved with the project.
+  that are saved with the project. A projects folder (the examples by default) and a project
+  browser that lists every project in it, with descriptions.
 
 | | |
 |---|---|
@@ -78,7 +79,7 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
 
 1. Install the **AmigaOS 4.1 SDK** with GCC 11 (from Hyperion), so that `SDK:` is assigned.
 2. Unpack **AmiForge.lha** and run **Install-AmiForge**, or copy the `AmiForge` drawer anywhere.
-3. Open `Examples/hello/hello.afp`, then press **F7** to build, **Ctrl-F5** to run and **F5** to
+3. Start AmiForge: the project browser lists the examples. Double-click `hello`, then press **F7** to build, **Ctrl-F5** to run and **F5** to
    debug.
 
 Under QEMU's `sam460ex`, also run `Tools/QEMUCopyFix` at boot. QEMU doesn't emulate the DMA
@@ -96,6 +97,14 @@ examples, QEMU, troubleshooting, and every key.
 | `shapes` | C++: classes, virtual functions, `std::vector`, `std::unique_ptr` |
 | `asmdemo` | C calling a PowerPC assembler function |
 | `bouncer` | C++ using the OS: an Intuition window with a GadTools menu, graphics.library drawing, IDCMP input and timer.device |
+| `clock` | C++ using the OS: an analog and digital clock; timer.device ticks, `DateStamp()`, flicker-free drawing through an off-screen friend bitmap, a resizable window |
+| `todo` | C++ with ReAction: window.class, layout, a listbrowser with checkboxes, a string gadget and buttons, one class per gadget group; the list is kept in `ENVARC:TodoExample` |
+| `dirsize` | C++ Shell tool: `ReadArgs()`, recursive `ExamineDir()`, totals by file type in a `std::map`, sorted output, Ctrl-C |
+| `workers` | C++ and exec multitasking: worker processes from `CreateNewProcTags()` report through message ports; Ctrl-C stops them all |
+| `sketch` | C++ drawing program: an Intuition window with GadTools menus for pen and brush, mouse drawing, an ASL save requester, IFF ILBM written with iffparse.library |
+
+The examples drawer is the default projects folder: **Project > Browse Projects** (Amiga-U)
+lists every project in it with its description.
 
 ## Requirements
 

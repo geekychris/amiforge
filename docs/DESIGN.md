@@ -24,6 +24,7 @@ tests/targets/ small debuggee programs, always built -O0 -gstabs+
 tests/host/  host unit tests: make -C tests/host (debugger core), make -C tests/host ide
              (IDE models, one runner per area in tests/host/ide/*.mk)
 tests/templates/ check.sh: cross-compiles every template with -Werror
+tests/examples/  check.sh: cross-compiles every example with -Werror
 tools/       build.sh (Docker), m1*.sh/m1mcp.py (drive the OS4 guest on the test Mac)
 ```
 
@@ -201,9 +202,10 @@ The OS-independent logic of each feature lives in a model file that also compile
 | ARexx | `RexxCmd.*` (command parser) | `RexxPort.cpp` | arexx.class port `AMIFORGE`; the Macros menu lists `PROGDIR:Rexx` and the project's `Rexx/` |
 | distcc | `DistccCmd.*` | `Builder.cpp` | Sets `DISTCC_HOSTS`, `HOME`/`DISTCC_DIR` and `GCC_EXEC_PREFIX`; `tools/distcc-server.sh` runs distccd with the cross-compiler in Docker |
 | Explanations | `Explain.*` (rules for GCC/ld messages and crash states) | `BuildUI.cpp`, `DebugUI.cpp` | Rules are tested against real GCC 11.5 output |
+| Projects folder and browser | `ProjectIndex.*` (scan two drawers deep, descriptions from `.afp`/README, recent merge, Open Project's start drawer) | `ProjectBrowser.cpp` | Settings in `ENVARC:AmiForge/ProjectsFolder` and `ShowBrowser`; the browser is modal, like the template chooser |
 
 Each area keeps its code in shared files (`App.h`, `Commands.*`, `MainWindow.cpp`) inside
-`// --- <area> ---` blocks. Command IDs: editor 1300-1359, designer 1200-, integrations
+`// --- <area> ---` blocks. Command IDs: projects 1400-, editor 1300-1359, designer 1200-, integrations
 1000- (macros 1100-1139), debugtools 650-, Edit and Continue 660. The bottom tabs Windows,
 Leaks and Profile are at fixed indices 7-9 (`BOTTOM_*`); Git is found by name.
 

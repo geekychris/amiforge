@@ -103,3 +103,4 @@ programs in `DH1:AmiForge` and their sources in `DH1:AmiForge/src`.
   debugger with no tools: it must still end).
 
 `tests/templates/check.sh` cross-compiles every project template (and a sample GUI with each gadget kind) with `-Werror`.
+`tests/examples/check.sh` does the same for every example in `examples/`, with the flags from its `.afp`.
