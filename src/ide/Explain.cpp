@@ -378,6 +378,13 @@ Explanation explainDiagnostic(const std::string &raw, const std::string &sourceL
                      "in the project (Project > Add Files) and that it isn't inside #if 0 or a namespace.";
             return e;
         }
+        std::string osLib = libOf(n);
+        if (!osLib.empty()) {
+            e.rule = "os-undefined";
+            e.title = n + "() needs its interface";
+            e.text = osCallAdvice(n, osLib);
+            return e;
+        }
         static const char *mathFns[] = { "sin", "cos", "tan", "sqrt", "pow", "exp", "log", "floor", "ceil", "atan2",
             "fmod", "sinf", "cosf", "sqrtf", "powf", nullptr };
         for (const char **f = mathFns; *f; f++)

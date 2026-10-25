@@ -99,6 +99,7 @@ TEST(explain_linker_athread)
 TEST(explain_linker_other)
 {
     CHECK_EQ(R("(.text+0x1aa): undefined reference to `main'"), std::string("no-main"));
+    CHECK_EQ(R("errors.c:11: undefined reference to `OpenWindowTags'"), std::string("os-undefined"));
     CHECK_EQ(R("c5.c:(.text+0x40): undefined reference to `helper'"), std::string("undefined-reference"));
     CHECK_EQ(R("m.c:(.text+0x40): undefined reference to `sqrt'"), std::string("libm"));
     Explanation e = explainDiagnostic("/tmp/ccOadvHF.o:(.sdata+0x0): multiple definition of `x'; /tmp/cc0qsQPg.o:(.sdata+0x0): first defined here");

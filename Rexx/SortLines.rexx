@@ -23,7 +23,7 @@ DO i = 2 TO n
     v = lines.i
     j = i - 1
     DO WHILE j > 0
-        IF lines.j <<= v THEN LEAVE
+        IF lines.j <= v THEN LEAVE
         k = j + 1
         lines.k = lines.j
         j = j - 1

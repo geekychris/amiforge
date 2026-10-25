@@ -257,11 +257,16 @@ void App::gitUpdateBlame()
 {
     if (!editor || !cur) return;
     S(editor, SCI_MARGINTEXTCLEARALL);
+    if (gitState) gitState->owner.clear();
     if (!blameOn || cur->path.empty() || cur->hex || cur->readOnly) return;
     if (!gitState) gitState = new GitState;
     std::string dir = repoOf(cur->path);
     git::Repo *r = repoFor(gitState, dir);
-    if (!r) { setStatus("Blame: this file isn't in a git repository"); return; }
+    if (!r) {
+        S(editor, SCI_SETMARGINWIDTHN, MARGIN_BLAME, 0);
+        setStatus("Blame: this file isn't in a git repository");
+        return;
+    }
     checkHead(gitState);
     std::string rel = relIn(dir, cur->path);
     GitState *gs = gitState;
@@ -562,12 +567,14 @@ void App::gitPanelAction(int what)
     switch (what) {
     case GID_GIT_STAGE:
         if (!saveAll()) return;
+        gitPendingRefresh = "panel";   // come back to the Git tab when it worked
         if (s->work == 'D') gitRun(dir, { { "Staging the deletion of " + path, "rm --cached " + q(path) } }, "git rm");
         else gitRun(dir, { { "Staging " + path, "add " + q(path) } }, "git add");
         break;
     case GID_GIT_UNSTAGE:
         if (s->staged == ' ' || s->staged == '?') { setStatus(path + " isn't staged"); return; }
-        gitRun(dir, { { "Unstaging " + path, "reset -q HEAD -- " + q(path) } }, "git reset");
+        gitPendingRefresh = "panel";
+        gitRun(dir, { { "Unstaging " + path, "reset HEAD -- " + q(path) } }, "git reset");
         break;
     case GID_GIT_DISCARD: {
         if (s->staged == '?') {
@@ -583,6 +590,7 @@ void App::gitPanelAction(int what)
             // it's about to be replaced from the index: don't ask to save it later
             d->modified = false;
         }
+        gitPendingRefresh = "panel";
         gitRun(dir, { { "Discarding the changes to " + path, "checkout -- " + q(path) } }, "git checkout");
         break;
     }
@@ -647,6 +655,7 @@ void App::gitSwitchBranch(int index)
         return;
     }
     if (!saveAll()) return;
+    gitPendingRefresh = "panel";
     gitRun(dir, { { "Switching to " + to, "checkout " + q(to) } }, "git checkout");
 }
 
@@ -661,7 +670,22 @@ void App::gitNewBranch()
         if (!name.empty()) info("A branch name can't contain spaces or any of ~ ^ : ? * [ \\");
         return;
     }
-    gitRun(dir, { { "Creating branch " + name, "branch " + q(name) }, { "Switching to " + name, "checkout " + q(name) } }, "git branch");
+    // sgit's "branch" returns 1 even when it worked, so the ref is written here: a branch is
+    // just a file holding the commit it points at
+    if (!gitState) gitState = new GitState;
+    git::Repo *r = repoFor(gitState, dir);
+    std::string head = r ? r->resolve("HEAD") : "";
+    if (head.empty()) { info("There is no commit to start a branch from yet."); return; }
+    for (auto &b : r->branches())
+        if (b == name) { info("There is already a branch called " + name + "."); return; }
+    std::string refPath = joinPath(dir, ".git/refs/heads/" + name);
+    for (size_t p = 0; (p = name.find('/', p)) != std::string::npos; p++) {   // "feature/x": make the drawers
+        BPTR l = IDOS->CreateDir(joinPath(dir, ".git/refs/heads/" + name.substr(0, p)).c_str());
+        if (l) IDOS->UnLock(l);
+    }
+    if (!writeFile(refPath, head + "\n")) { info("Couldn't create the branch (" + refPath + ")."); return; }
+    gitPendingRefresh = "panel";
+    gitRun(dir, { { "Switching to the new branch " + name, "checkout " + q(name) } }, "git checkout");
 }
 
 // After a checkout or discard: files that changed on disk are read again (unless edited).
@@ -692,7 +716,8 @@ void App::gitReloadOpenFiles()
 
 void App::integrationsGitDone(bool ok)
 {
-    (void)ok;
+    bool fromPanel = gitPendingRefresh == "panel";
+    gitPendingRefresh.clear();
     gitReloadOpenFiles();
     if (gitState) {
         gitState->headId.clear();          // a commit or checkout moves HEAD
@@ -702,6 +727,10 @@ void App::integrationsGitDone(bool ok)
     gitRefreshPanel();
     gitUpdateMarkers();
     if (blameOn) gitUpdateBlame();
+    if (fromPanel && ok) {
+        int p = bottomPageIndex("Git");
+        if (p >= 0) showBottomPage(p);
+    }
 }
 
 void App::integrationsTextChanged()

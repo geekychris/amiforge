@@ -90,8 +90,15 @@ static int32 builderMain(STRPTR, int32, struct ExecBase *)
     addSdkToPath();
     // --- integrations --- distcc reads its hosts from the environment (a local variable here
     // is inherited by the commands SystemTags runs)
-    if (!j->distccHosts.empty())
+    if (!j->distccHosts.empty()) {
         IDOS->SetVar("DISTCC_HOSTS", j->distccHosts.c_str(), j->distccHosts.size(), GVF_LOCAL_ONLY);
+        // distcc keeps its state under $HOME/.distcc (or DISTCC_DIR) and refuses to work without one
+        BPTR l = IDOS->CreateDir("T:distcc");
+        if (l) IDOS->UnLock(l);
+        IDOS->SetVar("DISTCC_DIR", "T:distcc", -1, GVF_LOCAL_ONLY);
+        char home[8];
+        if (IDOS->GetVar("HOME", home, sizeof home, 0) < 0) IDOS->SetVar("HOME", "T:", -1, GVF_LOCAL_ONLY);
+    }
     BPTR dirLock = IDOS->Lock(j->dir.c_str(), SHARED_LOCK);
     BPTR oldDir = dirLock ? IDOS->SetCurrentDir(dirLock) : 0;
     bool ok = dirLock != 0;

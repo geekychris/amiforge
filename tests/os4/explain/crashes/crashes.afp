@@ -1,0 +1,18 @@
+# AmiForge project
+[project]
+name=crashes
+output=crashes
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=null
+console=
+stopatmain=0
+
+[files]
+file=crashes.c
