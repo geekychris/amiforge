@@ -25,6 +25,24 @@ anything. Many early conclusions here turned out wrong for exactly this reason.
 | Does the MSR trace bit work? | Not tried: stepping is done in software. |
 | Can kernel code be read for disassembly? | `GetMemoryAttrs` reports kernel pages as not user-readable, so `dbg_read_memory` refuses them. `IDebug->DisassembleNative` and direct reads of them do work. |
 
+## The scheduler stall (found last; may explain some traps below)
+
+A debuggee with a debug hook can sit `TS_READY` on exec's ready list at the same address,
+indefinitely, while nothing else runs. The scheduler doesn't dispatch it until something
+reschedules it (a `SuspendTask` does). This caused missed stops and the "never exits" runs.
+`dbg_poll` detects it (ready at the same `ip` on two polls in a row) and kicks the task with
+`SuspendTask` + `RestartTask`. `restart_checked` verifies every restart after a hook
+suspension in the same way.
+
+With this in place, dbgtest passes 99/99 on a clean boot, including 12 runs in a row.
+Traps 2–4 below (waking on the DeathMessage, restarting too soon, `Signal()` from the hook)
+may be this stall seen from different angles rather than separate causes. Their workarounds
+are still in place and harmless.
+
+The launcher also changed. It hooks itself (`AddDebugHook(FindTask(NULL), ...)`) and waits
+for CTRL-F before calling `RunCommand`, rather than being created suspended and hooked from
+outside. It takes the hook off again before DOS cleans the process up.
+
 ## The traps (each of these hung a program or the whole guest)
 
 1. **Don't start the program as an `NP_Seglist` process.** If one parent creates a newlib
