@@ -22,6 +22,7 @@
 #include <proto/chooser.h>
 #include <proto/texteditor.h>
 #include <workbench/workbench.h>
+#include <dos/dostags.h>
 #include <classes/window.h>
 #include <gadgets/layout.h>
 #include <gadgets/string.h>
@@ -273,7 +274,13 @@ void App::continuePackaging(bool ok)
         j->readme = joinPath(relDir, base + ".readme");
         // a fresh stage
         std::vector<std::pair<std::string, std::string>> cmds;
-        IDOS->SystemTags(("Delete >NIL: \"" + j->stage + "\" \"" + j->archive + "\" ALL QUIET FORCE").c_str(), TAG_END);
+        {
+            BPTR nil = IDOS->Open("NIL:", MODE_NEWFILE), nilIn = IDOS->Open("NIL:", MODE_OLDFILE);
+            IDOS->SystemTags(("Delete \"" + j->stage + "\" \"" + j->archive + "\" ALL QUIET FORCE").c_str(),
+                             SYS_Input, nilIn, SYS_Output, nil, TAG_END);
+            if (nil) IDOS->Close(nil);
+            if (nilIn) IDOS->Close(nilIn);
+        }
         std::string drawer = joinPath(j->stage, i.name);
         if (!mkdirs(relDir) || !mkdirs(j->stage) || !mkdirs(drawer)) { fail("Can't make " + drawer); return; }
         std::string readme = rel::aminetReadme(i);
@@ -295,7 +302,7 @@ void App::continuePackaging(bool ok)
         cmds.push_back({ "Copying the program", "Copy \"" + j->programPath + "\" " + prog + " CLONE" });
         if (extension(i.program) != "library" && extension(i.program) != "device")
             cmds.push_back({ "Stripping it", "SDK:gcc/bin/strip " + prog });
-        cmds.push_back({ "Packing the drawer", "SDK:C/tar cf \"" + tar + "\" \"" + i.name + "\" \"" + i.name + ".info\" Install Install.info" });
+        cmds.push_back({ "Packing the drawer", "SDK:C/tar --force-local -cf \"" + tar + "\" \"" + i.name + "\" \"" + i.name + ".info\" Install Install.info" });
         cmds.push_back({ "Making the LhA archive", "xad2lha \"" + tar + "\" \"" + j->archive + "\" QUIET" });
         cmds.push_back({ "Tidying up", "Delete \"" + tar + "\" QUIET" });
         cmds.push_back({ "The archive holds", "xadList \"" + j->archive + "\"" });
