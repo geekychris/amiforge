@@ -113,11 +113,14 @@ void App::debugStart()
         info(std::string("Couldn't load the program for debugging:\n") + dbg_last_error(dbg));
         return;
     }
-    syncDebuggerBreakpoints();
+    profileRun = profileNext;          // --- debugtools ---
+    profileNext = false;
+    if (!profileRun) syncDebuggerBreakpoints();   // a profile run doesn't stop
     debugLogView.clear();
-    debugLog("Debugging " + exe);
+    debugLog((profileRun ? "Profiling " : "Debugging ") + exe);
     refreshBreakpointList();
-    if (!dbg_run(dbg, project.stopAtMain)) {
+    dtBeforeRun();                     // --- debugtools ---
+    if (!dbg_run(dbg, profileRun ? 0 : project.stopAtMain)) {
         info(std::string("Couldn't start the program:\n") + dbg_last_error(dbg));
         dbg_unload(dbg);
         return;
@@ -199,6 +202,7 @@ void App::debugStop()
 {
     if (!dbg) return;
     if (debugging()) dbg_kill(dbg);
+    dtSessionEnded();                  // --- debugtools ---
     freeVars(this);
     dbg_unload(dbg);
     dbgBpIds.clear();
@@ -214,6 +218,7 @@ void App::debugStop()
 void App::pollDebugger()
 {
     dbg_event ev;
+    if (dbg) dtPoll();                 // --- debugtools ---
     while (dbg && dbg_poll(dbg, &ev)) {
         switch (ev.type) {
         case DBG_EV_MESSAGE:
@@ -222,6 +227,7 @@ void App::pollDebugger()
         case DBG_EV_EXITED:
             debugLog(ev.text[0] ? std::string(ev.text) : strprintf("Program exited with code %d", ev.exit_code), penNote);
             setStatus(strprintf("%s exited with code %d", project.output.c_str(), ev.exit_code));
+            dtSessionEnded();          // --- debugtools ---
             freeVars(this);
             dbg_unload(dbg);
             dbgBpIds.clear();
@@ -263,6 +269,7 @@ void App::onStopped(const dbg_event &ev)
         showBottomPage(5);   // no source: show the disassembly
     }
     refreshDebugPanels();
+    refreshInspector();                // --- debugtools ---
     if (crash) {
         showBottomPage(2);
         IIntuition->DisplayBeep(nullptr);

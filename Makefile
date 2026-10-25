@@ -77,6 +77,12 @@ tests: $(TESTS) $(TARGETS)
 $(B)/tests/scitest: tests/os4/scitest.cpp $(B)/libscintilla.a
 	@mkdir -p $(@D); $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $< -L$(B) -lscintilla $(LIBS)
 
+# --- debugtools: the tools test links the IDE's models and the inspector's OS code ---
+TOOLSTEST_SRC = src/ide/LeakModel.cpp src/ide/ProfileModel.cpp src/ide/InspectModel.cpp src/ide/InspectSnapshot.cpp
+$(B)/tests/toolstest: tests/os4/toolstest.cpp $(TOOLSTEST_SRC) $(B)/libafdbg.a
+	@mkdir -p $(@D); $(CXX) $(CXXFLAGS) -Isrc/ide $(LDFLAGS) -o $@ $< $(TOOLSTEST_SRC) -L$(B) -lafdbg $(LIBS)
+# --- end debugtools ---
+
 $(B)/tests/%: tests/os4/%.cpp $(B)/libscintilla.a $(B)/libafdbg.a
 	@mkdir -p $(@D); $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $< -L$(B) -lscintilla -lafdbg $(LIBS)
 

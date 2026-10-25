@@ -50,6 +50,7 @@ bool Project::load(const std::string &afp, std::string &err)
             else if (k == "args") args = v;
             else if (k == "console") console = v;
             else if (k == "stopatmain") stopAtMain = v != "0" && strcasecmp(v.c_str(), "no") != 0;
+            else if (k == "trackleaks") trackLeaks = v == "1";   // --- debugtools ---
         } else if (section == "files" && k == "file") {
             files.push_back(v);
         } else if (section == "watches" && k == "watch") {
@@ -90,6 +91,7 @@ bool Project::save(std::string &err)
     s += "args=" + args + "\n";
     s += "console=" + console + "\n";
     s += std::string("stopatmain=") + (stopAtMain ? "1" : "0") + "\n";
+    if (trackLeaks) s += "trackleaks=1\n";   // --- debugtools ---
     s += "\n[files]\n";
     for (auto &f : files) s += "file=" + f + "\n";
     if (!breakpoints.empty()) {

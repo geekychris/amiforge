@@ -194,6 +194,13 @@ static struct NewMenu menus[] = {
     ITEM("Toggle Breakpoint  (F9)", 0, CMD_TOGGLE_BP),
     ITEM("Delete All Breakpoints", 0, CMD_CLEAR_BPS),
     ITEM("Add Watch...", 0, CMD_ADD_WATCH),
+    // --- debugtools ---
+    BAR,
+    { NM_ITEM, (STRPTR)"Track Leaks", 0, CHECKIT | MENUTOGGLE, 0, (APTR)CMD_TRACK_LEAKS },
+    ITEM("Profile", 0, CMD_PROFILE),
+    ITEM("Clear Profile", 0, CMD_PROFILE_CLEAR),
+    ITEM("Inspect Windows", 0, CMD_INSPECT),
+    // --- end debugtools ---
 
     TITLE("Git"),
     ITEM("Status", 0, CMD_GIT_STATUS),
@@ -227,6 +234,11 @@ void App::rebuildMenus()
     for (struct NewMenu *m = menus; ; m++) {
         menuData.push_back(*m);
         if (m->nm_Type == NM_END) break;
+        // --- debugtools: Track Leaks shows the project's setting ---
+        if (m->nm_UserData == (APTR)CMD_TRACK_LEAKS) {
+            if (project.trackLeaks) menuData.back().nm_Flags |= CHECKED;
+            else menuData.back().nm_Flags &= ~CHECKED;
+        }
         if (m->nm_Type == NM_ITEM && m->nm_Label != NM_BARLABEL && strcmp((const char *)m->nm_Label, "Open Recent") == 0) {
             for (size_t i = 0; i < recentProjects.size() && i < 10; i++)
                 menuData.push_back({ NM_SUB, (STRPTR)menuLabels[i].c_str(), 0, 0, 0, (APTR)(uint32)(CMD_RECENT_FIRST + i) });
@@ -294,7 +306,8 @@ bool App::openMainWindow()
     appPort = (struct MsgPort *)IExec->AllocSysObjectTags(ASOT_PORT, TAG_END);
 
     static const char *sideNames[] = { "Locals", "Watches", "Registers", nullptr };
-    static const char *bottomNames[] = { "Build", "Find", "Call Stack", "Breakpoints", "Memory", "Disassembly", "Debug Log", nullptr };
+    static const char *bottomNames[] = { "Build", "Find", "Call Stack", "Breakpoints", "Memory", "Disassembly", "Debug Log",
+                                         "Windows", "Leaks", "Profile", nullptr };   // debugtools: the last three
     sideLabels = tabList(sideNames);
     bottomLabels = tabList(bottomNames);
     tabLabels = new struct List;
@@ -310,6 +323,14 @@ bool App::openMainWindow()
     static const int bpWeights[] = { 8, 60, 32 };
     static const char *findTitles[] = { "Location", "Text" };
     static const int findWeights[] = { 30, 70 };
+    // --- debugtools ---
+    static const char *inspectTitles[] = { "Item", "Value" };
+    static const int inspectWeights[] = { 40, 60 };
+    static const char *leakTitles[] = { "Not released", "Details", "Acquired at" };
+    static const int leakWeights[] = { 34, 30, 36 };
+    static const char *profTitles[] = { "Function", "Self", "In OS", "Total", "Hottest line" };
+    static const int profWeights[] = { 34, 14, 16, 12, 24 };
+    // --- end debugtools ---
 
     // The file tab row: an empty clicktab has no height, so reserve a row of the screen font.
     // The close gadget clicktab shows on the active tab: the system close image.
@@ -375,6 +396,27 @@ bool App::openMainWindow()
             TAG_DONE),
         PAGE_Add, disasm.create(GID_DISASM, nullptr, nullptr, false, false, &monoAttr),
         PAGE_Add, debugLogView.create(GID_DEBUGLOG, nullptr, nullptr, false, false, &monoAttr),
+        // --- debugtools ---
+        PAGE_Add, IIntuition->NewObject(layout, nullptr, LAYOUT_Orientation, LAYOUT_ORIENT_VERT,
+            LAYOUT_AddChild, inspectView.create(GID_INSPECT, inspectTitles, inspectWeights, true),
+            LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr, LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
+                LAYOUT_AddChild, gad[GID_INSPECT_REFRESH] = button(GID_INSPECT_REFRESH, "Refresh",
+                    "Read the program's screens, windows and gadgets again"),
+                LAYOUT_AddChild, gad[GID_INSPECT_HIGHLIGHT] = button(GID_INSPECT_HIGHLIGHT, "Highlight",
+                    "Bring the selected window to the front and flash it"),
+                TAG_DONE),
+            CHILD_WeightedHeight, 0,
+            TAG_DONE),
+        PAGE_Add, leaksView.create(GID_LEAKS, leakTitles, leakWeights, true),
+        PAGE_Add, IIntuition->NewObject(layout, nullptr, LAYOUT_Orientation, LAYOUT_ORIENT_VERT,
+            LAYOUT_AddChild, profileView.create(GID_PROFILE, profTitles, profWeights),
+            LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr, LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
+                LAYOUT_AddChild, gad[GID_PROFILE_CLEAR] = button(GID_PROFILE_CLEAR, "Clear",
+                    "Remove the profile and the line annotations"),
+                TAG_DONE),
+            CHILD_WeightedHeight, 0,
+            TAG_DONE),
+        // --- end debugtools ---
         TAG_DONE);
     gad[GID_BOTTOM_PAGES] = bottomPages;
 
@@ -506,7 +548,8 @@ bool App::openMainWindow()
     win = (struct Window *)IIntuition->IDoMethod(winObj, WM_OPEN);
     if (!win) return false;
     for (ListView *lv : { &projectList, &buildLog, &findLog, &locals, &watches, &regs, &stack,
-                          &bpList, &memView, &disasm, &debugLogView })
+                          &bpList, &memView, &disasm, &debugLogView,
+                          &inspectView, &leaksView, &profileView })   // debugtools: the last three
         lv->win = win;
 
     editor = SciView::create(win, this);
@@ -934,6 +977,22 @@ void App::handleGadget(uint32_t gid, uint16_t code)
     }
     case GID_WATCH_DEL: removeWatch(); break;
     case GID_MEM_ADDR: refreshMemory(); break;
+    // --- debugtools ---
+    case GID_INSPECT: inspectorClicked(); break;
+    case GID_INSPECT_REFRESH: refreshInspector(); break;
+    case GID_INSPECT_HIGHLIGHT: {
+        struct Node *n = inspectView.selected();
+        int i = n ? (int)(intptr_t)inspectView.userData(n) - 1 : -1;
+        if (i >= 0 && i < (int)inspectRowList.size() && inspectRowList[i].window >= 0 &&
+            inspectRowList[i].window < (int)inspectSnap.windows.size())
+            highlightWindow(inspectSnap.windows[inspectRowList[i].window].addr,
+                            inspectRowList[i].kind == InspKind::Gadget ? inspectRowList[i].index : -1);
+        break;
+    }
+    case GID_LEAKS: leakClicked(); break;
+    case GID_PROFILE: profileClicked(); break;
+    case GID_PROFILE_CLEAR: clearProfile(); break;
+    // --- end debugtools ---
     default:
         break;
     }
