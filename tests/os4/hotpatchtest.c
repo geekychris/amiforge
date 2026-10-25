@@ -192,6 +192,37 @@ static void test(void)
     } else ok(0, "second run exits");
 }
 
+/* C++: a virtual method patched while objects exist (their vtables lead to the new code) */
+static void test_cplus(void)
+{
+    char prog[300], obj[300], msg[1024];
+    snprintf(prog, sizeof prog, "%s/hpcpp", g_dir);
+    snprintf(obj, sizeof obj, "%s/hotpatch/cpp2/shape.o", g_dir);
+    IDOS->Delete("T:hpcpp.out");
+    if (!dbg_load(S, prog, "", g_dir, "T:hpcpp.out")) { ok(0, "load %s: %s", prog, dbg_last_error(S)); return; }
+    int bp = dbg_bp_add(S, "shape.cpp", 10, NULL);
+    ok(dbg_run(S, 0), "C++: run");
+    dbg_event ev;
+    if (!expect_stop("C++: first area() call", "Square::area", 10, &ev)) return;
+    ok(eval_long("side") == 3, "C++: side is 3");
+    int r = dbg_hotpatch(S, obj, "shape.cpp", msg, sizeof msg);
+    printf("  patch: %s\n", msg);
+    ok(r, "C++: area() patched");
+    ok(dbg_continue(S), "C++: continue");
+    if (!expect_stop("C++: second area() call (new code)", "Square::area", 10, &ev)) return;
+    ok(eval_long("side") == 4, "C++: side is 4 (the object kept its state)");
+    ok(eval_long("this->side") == 4, "C++: this->side is 4");
+    dbg_bp_remove(S, bp);
+    ok(dbg_continue(S), "C++: continue to the end");
+    if (!wait_event(&ev, 10000) || ev.type != DBG_EV_EXITED) { ok(0, "C++: program exits"); return; }
+    ok(ev.exit_code == 0, "C++: exit code 0");
+    BPTR fh = IDOS->Open("T:hpcpp.out", MODE_OLDFILE);
+    char out[512] = "";
+    if (fh) { int32 n = IDOS->Read(fh, out, sizeof out - 1); if (n > 0) out[n] = 0; IDOS->Close(fh); }
+    printf("  output:\n%s", out);
+    ok(strstr(out, "area=9\narea=160\narea=250\narea=360\n") != NULL, "C++: the virtual call ran the new area() from the second call on");
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1) snprintf(g_dir, sizeof g_dir, "%s", argv[1]);
@@ -202,6 +233,8 @@ int main(int argc, char **argv)
     if (!S) { printf("dbg_create failed\n"); return 20; }
     if (argc > 2 && !strcmp(argv[2], "trace")) dbg_set_trace(S, trace_line, NULL);
     test();
+    if (dbg_get_state(S) != DBG_NONE) dbg_unload(S);
+    test_cplus();
     if (dbg_get_state(S) != DBG_NONE) dbg_unload(S);
     dbg_destroy(S);
     IExec->CloseDevice((struct IORequest *)treq);

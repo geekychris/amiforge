@@ -65,6 +65,7 @@ typedef struct {
     char *stabstr;
     uint32_t stabstr_size;
     char warn[256];              /* things that work but the user should know */
+    int force_far;               /* tests: calls out of the patch always through stubs */
     hp_priv *priv;
 } hp_patch;
 
@@ -80,6 +81,7 @@ void hp_patch_free(hp_patch *p);
 /* Instruction(s) that jump from `from` to `to`: a relative `b` (returns 1) or
  * lis r0 / ori r0 / mtctr r0 / bctr (returns 4). */
 int hp_branch(uint32_t from, uint32_t to, uint32_t out[4]);
+int hp_branch_ex(uint32_t from, uint32_t to, int force_far, uint32_t out[4]);   /* force_far: always 4 */
 
 /* Debug info for the patch (from its relocated stabs); run-time addresses = link addresses. */
 struct dbg_info *hp_debug_info(const hp_patch *p, char *err, size_t errlen);

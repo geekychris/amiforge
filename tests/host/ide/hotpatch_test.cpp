@@ -84,6 +84,23 @@ TEST(branch_near_and_far)
     // just out of reach forward
     CHECK_EQ(hp_branch(0x10000000, 0x12000000, w), 4);
     CHECK_EQ(hp_branch(0x10000000, 0x11FFFFFC, w), 1);
+    CHECK_EQ(hp_branch_ex(0x1000, 0x1100, 1, w), 4);
+    CHECK_EQ(w[0], 0x3C000000u);
+    CHECK_EQ(w[1], 0x60001100u);
+}
+
+TEST(force_far_uses_stubs_for_every_outside_call)
+{
+    Elf prog(fx("v1/prog"), 0), obj(fx("v2/compute.o"), 1);
+    if (!prog.e || !obj.e) { CHECK(false); return; }
+    hp_patch p;
+    char err[256] = "";
+    CHECK(hp_prepare(&p, obj.e, prog.e, "compute.c", l2r, nullptr, err, sizeof err));
+    p.force_far = 1;
+    // right next to the program: in range, but stubs anyway
+    CHECK(hp_link(&p, LOAD + 0x01100000u, err, sizeof err));
+    CHECK(p.nstubs >= 1);   // strlen (twice() is inside the patch: a direct call)
+    hp_patch_free(&p);
 }
 
 TEST(links_changed_function_keeping_data)

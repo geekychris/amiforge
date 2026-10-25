@@ -1877,6 +1877,9 @@ int dbg_hotpatch(dbg_session *s, const char *object, const char *source, char *m
     while (nspare) IExec->FreeVec(spare[--nspare]);
     if (!mem) { hp_patch_free(&p); hp_elf_free(obj); return hp_msg(msg, msglen, "Not enough memory for the changed code."); }
     uint32_t base = (uint32_t)mem;
+    char farvar[8];   /* tests: ENV:AFHOTPATCH_FAR=1 takes the long-branch paths even when in range */
+    int force_far = IDOS->GetVar("AFHOTPATCH_FAR", farvar, sizeof farvar, 0) > 0 && farvar[0] == '1';
+    p.force_far = force_far;
     if (!hp_link(&p, base, err, sizeof err)) {
         IExec->FreeVec(mem); hp_patch_free(&p); hp_elf_free(obj);
         return hp_msg(msg, msglen, "Can't apply the changes to %s: %s.", path_base(source), err);
@@ -1902,7 +1905,7 @@ int dbg_hotpatch(dbg_session *s, const char *object, const char *source, char *m
             redirect *r = vec_push(&reds);
             if (!r) continue;
             r->at = olds[k]; r->to = f->new_addr; r->name = f->name;
-            r->words = hp_branch(r->at, r->to, r->w);
+            r->words = hp_branch_ex(r->at, r->to, force_far, r->w);
             if (sizes[k] && sizes[k] < 4u * (uint32_t)r->words) {
                 reds.n--;
                 size_t l = strlen(skipped);

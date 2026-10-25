@@ -530,7 +530,8 @@ static int apply(hp_patch *p, uint8_t *at, uint32_t P, uint32_t type, uint32_t S
     }
     case 10: case 18: case 23: {                         /* REL24, PLTREL24, LOCAL24PC */
         int32_t d = (int32_t)(V - P);
-        if (d < -0x2000000 || d > 0x1fffffc || (d & 3)) {
+        int outside = V < p->base || V >= p->base + p->mem_size;
+        if (d < -0x2000000 || d > 0x1fffffc || (d & 3) || (p->force_far && allow_stub && outside)) {
             uint32_t s = allow_stub ? stub_for(p, V) : 0;
             if (!s) return fail(err, errlen, "branch to %s out of range", what);
             d = (int32_t)(s - P);
@@ -655,8 +656,13 @@ int hp_link(hp_patch *p, uint32_t base, char *err, size_t errlen)
 
 int hp_branch(uint32_t from, uint32_t to, uint32_t out[4])
 {
+    return hp_branch_ex(from, to, 0, out);
+}
+
+int hp_branch_ex(uint32_t from, uint32_t to, int force_far, uint32_t out[4])
+{
     int32_t d = (int32_t)(to - from);
-    if (d >= -0x2000000 && d <= 0x1fffffc && !(d & 3)) {
+    if (!force_far && d >= -0x2000000 && d <= 0x1fffffc && !(d & 3)) {
         out[0] = 0x48000000u | ((uint32_t)d & 0x03fffffcu);
         return 1;
     }
