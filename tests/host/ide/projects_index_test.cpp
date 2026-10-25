@@ -191,7 +191,8 @@ TEST(recent_merge)
     CHECK_EQ(r[0].cols[0], std::string("Recent"));
     CHECK_EQ(r[1].afp, std::string("DH1:Ex/clock/clock.afp"));
     CHECK(r[3].heading);
-    CHECK_EQ(r[3].cols[0], std::string("Projects in DH1:Ex"));
+    CHECK_EQ(r[3].cols[0], std::string("Projects"));
+    CHECK_EQ(r[3].cols[1], std::string("in DH1:Ex"));
     CHECK_EQ(r[4].cols[2], std::string("games/bouncer"));
     CHECK(r[4].afp.size() > 0);
     // no recent: no Recent heading; nothing found: a note row without an afp
