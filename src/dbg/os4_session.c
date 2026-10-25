@@ -34,6 +34,7 @@
 #include <strings.h>
 #include <stdarg.h>
 #include "dbg_int.h"
+#include "hotpatch.h"     /* --- hotpatch */
 
 #define POLL_MS        10       /* hit polling while the program runs */
 #define QUICK_WAIT_MS  40       /* how long an internal resume waits for its next hit */
@@ -142,7 +143,16 @@ struct dbg_session {
     int nresolved;
     void (*trace_fn)(void *ud, const char *line);
     void *trace_ud;
+
+    /* --- hotpatch: Edit and Continue (dbg_hotpatch) --- */
+    hp_elf *hp_exe;             /* the program's ELF, read on the first patch */
+    vec hp_mem;                 /* APTR: memory holding this run's patches */
+    vec hp_funcs;               /* hp_entry: code of every patched function, for later patches */
+    int hp_count;               /* patches applied to the loaded program */
 };
+
+typedef struct { char *source, *name; uint32_t addr, size; } hp_entry;   /* --- hotpatch */
+static void hp_release(dbg_session *s);
 
 
 /* ======================================================================== utilities */
@@ -594,6 +604,7 @@ dbg_session *dbg_create(void)
     vec_init(&s->bps, sizeof(bpoint));
     vec_init(&s->traps, sizeof(trap));
     vec_init(&s->events, sizeof(dbg_event));
+    vec_init(&s->hp_mem, sizeof(APTR)); vec_init(&s->hp_funcs, sizeof(hp_entry));   /* --- hotpatch */
     s->idebug = (struct DebugIFace *)IExec->GetInterface((struct Library *)SysBase, "debug", 1, NULL);
     s->immu = (struct MMUIFace *)IExec->GetInterface((struct Library *)SysBase, "mmu", 1, NULL);
     s->dport = IExec->AllocSysObjectTags(ASOT_PORT, TAG_DONE);
@@ -630,6 +641,9 @@ void dbg_destroy(dbg_session *s)
         free(b->file); free(b->function); free(b->condition);
     }
     vec_free(&s->bps); vec_free(&s->traps); vec_free(&s->events);
+    hp_release(s);                                          /* --- hotpatch */
+    hp_elf_free(s->hp_exe); s->hp_exe = NULL;
+    vec_free(&s->hp_mem); vec_free(&s->hp_funcs);
     for (int i = 0; i < s->nresolved; i++) free(s->resolved[i]);
     free(s->path); free(s->args); free(s->cwd); free(s->console); free(s->srcpath); free(s->run_args);
     reap_timer(s, 1);
@@ -690,6 +704,7 @@ static void unload_seg(dbg_session *s)
 {
     remove_all_traps(s);
     if (s->seg) { IDOS->UnLoadSeg(s->seg); s->seg = 0; }
+    hp_release(s);                                          /* --- hotpatch */
     if (s->di) info_set_reloc(s->di, NULL, 0);
 }
 
@@ -1370,7 +1385,16 @@ int dbg_run(dbg_session *s, int stop_at_main)
     trace(s, "run %s %s", s->path ? s->path : "", s->args ? s->args : "");
     if (s->state != DBG_LOADED && s->state != DBG_EXITED) return set_err(s, "nothing to run");
     if (s->ran) {                                     /* fresh data sections for every run */
+        int patched = s->hp_count;                    /* --- hotpatch: back to the file's debug info */
         unload_seg(s);
+        if (patched) {
+            char err[128];
+            dbg_info *di = info_load(s->path, err, sizeof err);
+            if (!di) { info_free(s->di); s->di = NULL; s->state = DBG_NONE; return set_err(s, "%s", err); }
+            info_free(s->di);
+            s->di = di;
+            hp_elf_free(s->hp_exe); s->hp_exe = NULL;
+        }
         if (!load_seg(s)) { s->state = DBG_NONE; return 0; }
         resolve_all_bps(s);
     }
@@ -1759,4 +1783,219 @@ uint32_t dbg_function_addr(dbg_session *s, const char *function)
     const dfunc *f = info_func_named(s->di, function);
     if (f) return info_l2r(s->di, f->body);
     return info_symbol_addr(s->di, function);
+}
+
+
+/* ======================================================================== --- hotpatch: Edit and Continue */
+
+/* Frees the patches of the current run (the program's code is gone or about to be). */
+static void hp_release(dbg_session *s)
+{
+    for (size_t i = 0; i < s->hp_mem.n; i++) IExec->FreeVec(VEC_AT(&s->hp_mem, APTR, i));
+    s->hp_mem.n = 0;
+    for (size_t i = 0; i < s->hp_funcs.n; i++) {
+        hp_entry *e = &VEC_AT(&s->hp_funcs, hp_entry, i);
+        free(e->source); free(e->name);
+    }
+    s->hp_funcs.n = 0;
+    s->hp_count = 0;
+}
+
+static uint32_t hp_l2r(void *ud, uint32_t link) { return info_l2r(((dbg_session *)ud)->di, link); }
+
+/* Copies into executable memory: write access switched on around the copy (keeping
+ * EXECUTE and the cache bits, as code_write does), then caches flushed. */
+static void hp_copy_code(dbg_session *s, uint32_t addr, const void *src, uint32_t len)
+{
+    APTR st = IExec->SuperState();
+    for (uint32_t done = 0; done < len;) {
+        uint32_t a = addr + done, n = 4096 - (a & 4095);
+        if (n > len - done) n = len - done;
+        uint32_t old = s->immu->GetMemoryAttrs((APTR)a, 0);
+        uint32_t rw = ((old & ~(uint32_t)MEMATTRF_RW_MASK) | MEMATTRF_READ_WRITE) &
+                      ~(uint32_t)(MEMATTRF_REFERENCED | MEMATTRF_CHANGED | MEMATTRF_NOT_MAPPED);
+        s->immu->SetMemoryAttrs((APTR)a, n, rw);
+        memcpy((void *)a, (const uint8_t *)src + done, n);
+        s->immu->SetMemoryAttrs((APTR)a, n, old & ~(uint32_t)(MEMATTRF_REFERENCED | MEMATTRF_CHANGED));
+        done += n;
+    }
+    if (st) IExec->UserState(st);
+    IExec->CacheClearE((APTR)addr, len, CACRF_ClearI | CACRF_ClearD);
+}
+
+/* Does [lo, hi) overlap the program's link-time addresses (which would confuse the
+ * link/run address mapping)? */
+static int hp_overlaps_link(const dbg_info *di, uint32_t lo, uint32_t hi)
+{
+    for (int i = 0; i < di->elf.nsect; i++) {
+        const elf_section *e = &di->elf.sect[i];
+        if (!(e->flags & ELF_SHF_ALLOC) || !e->size) continue;
+        if (lo < e->addr + e->size && e->addr < hi) return 1;
+    }
+    return 0;
+}
+
+static int hp_msg(char *msg, size_t n, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
+static int hp_msg(char *msg, size_t n, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    if (msg && n) vsnprintf(msg, n, fmt, ap);
+    va_end(ap);
+    return 0;
+}
+
+int dbg_hotpatch_count(dbg_session *s) { return s ? s->hp_count : 0; }
+
+int dbg_hotpatch(dbg_session *s, const char *object, const char *source, char *msg, size_t msglen)
+{
+    if (msg && msglen) msg[0] = 0;
+    if (!s->di || !s->seg || !s->proc || s->state != DBG_STOPPED)
+        return hp_msg(msg, msglen, "Changes can only be applied while the program is stopped in the debugger.");
+    char err[300];
+    if (!s->hp_exe) {
+        s->hp_exe = hp_elf_load(s->path, 0, err, sizeof err);
+        if (!s->hp_exe) return hp_msg(msg, msglen, "Can't read the program: %s", err);
+    }
+    hp_elf *obj = hp_elf_load(object, 1, err, sizeof err);
+    if (!obj) return hp_msg(msg, msglen, "Can't read the compiled file: %s", err);
+    hp_patch p;
+    if (!hp_prepare(&p, obj, s->hp_exe, source, hp_l2r, s, err, sizeof err)) {
+        hp_elf_free(obj);
+        return hp_msg(msg, msglen, "Can't apply the changes to %s: %s.", path_base(source), err);
+    }
+
+    /* memory for it, away from the program's link-time addresses */
+    APTR mem = NULL, spare[4];
+    int nspare = 0;
+    for (int tries = 0; tries < 4 && !mem; tries++) {
+        APTR m = IExec->AllocVecTags(p.mem_size, AVT_Type, MEMF_EXECUTABLE, AVT_ClearWithValue, 0, TAG_DONE);
+        if (!m) break;
+        if (hp_overlaps_link(s->di, (uint32_t)m, (uint32_t)m + p.mem_size)) spare[nspare++] = m;
+        else mem = m;
+    }
+    while (nspare) IExec->FreeVec(spare[--nspare]);
+    if (!mem) { hp_patch_free(&p); hp_elf_free(obj); return hp_msg(msg, msglen, "Not enough memory for the changed code."); }
+    uint32_t base = (uint32_t)mem;
+    if (!hp_link(&p, base, err, sizeof err)) {
+        IExec->FreeVec(mem); hp_patch_free(&p); hp_elf_free(obj);
+        return hp_msg(msg, msglen, "Can't apply the changes to %s: %s.", path_base(source), err);
+    }
+
+    /* which entries get a branch: the program's version and earlier patches' versions */
+    typedef struct { uint32_t at, to; int words; uint32_t w[4]; const char *name; } redirect;
+    vec reds;
+    vec_init(&reds, sizeof(redirect));
+    char skipped[200] = "";
+    for (int i = 0; i < p.nfuncs; i++) {
+        const hp_func *f = &p.funcs[i];
+        uint32_t olds[17], sizes[17];
+        int n = 0;
+        if (f->old_addr) { olds[n] = f->old_addr; sizes[n++] = f->old_size; }
+        for (size_t k = 0; k < s->hp_funcs.n && n < 17; k++) {
+            hp_entry *e = &VEC_AT(&s->hp_funcs, hp_entry, k);
+            if (!strcmp(e->name, f->name) && path_base(e->source) && str_ieq(path_base(e->source), path_base(source))) {
+                olds[n] = e->addr; sizes[n++] = e->size;
+            }
+        }
+        for (int k = 0; k < n; k++) {
+            redirect *r = vec_push(&reds);
+            if (!r) continue;
+            r->at = olds[k]; r->to = f->new_addr; r->name = f->name;
+            r->words = hp_branch(r->at, r->to, r->w);
+            if (sizes[k] && sizes[k] < 4u * (uint32_t)r->words) {
+                reds.n--;
+                size_t l = strlen(skipped);
+                snprintf(skipped + l, sizeof skipped - l, "%s%s", l ? ", " : "", f->name);
+            }
+        }
+    }
+    /* never overwrite instructions a frame is in the middle of */
+    for (size_t i = 0; i < reds.n; i++) {
+        redirect *r = &VEC_AT(&reds, redirect, i);
+        for (int k = 0; k < s->nframes; k++) {
+            uint32_t pc = s->frames[k].pc;
+            if (pc > r->at && pc < r->at + 4u * (uint32_t)r->words) {
+                char dm[200];
+                const char *nm = dbg_demangle(r->name, dm, sizeof dm);
+                vec_free(&reds); IExec->FreeVec(mem); hp_patch_free(&p); hp_elf_free(obj);
+                return hp_msg(msg, msglen, "%s is in its first instructions: step once more, then apply the changes.", nm ? nm : r->name);
+            }
+        }
+    }
+
+    /* in it goes */
+    hp_copy_code(s, base, p.image, p.mem_size);
+    *(APTR *)vec_push(&s->hp_mem) = mem;
+    dbg_info *pi = hp_debug_info(&p, err, sizeof err);
+    int have_info = pi && hp_merge_info(s->di, pi, source, base, p.mem_size, p.code_lo, p.code_hi);
+    if (pi && !have_info) info_free(pi);
+    if (!have_info) {
+        /* the code is still part of the program for traps and memory access */
+        dreloc *rl = realloc(s->di->reloc, sizeof(dreloc) * (size_t)(s->di->nreloc + 1));
+        uint32_t (*pc)[2] = realloc(s->di->patch_code, sizeof(*pc) * (size_t)(s->di->npatch_code + 1));
+        if (rl) { s->di->reloc = rl; rl[s->di->nreloc++] = (dreloc){ base, p.mem_size, base }; }
+        if (pc) { s->di->patch_code = pc; pc[s->di->npatch_code][0] = p.code_lo; pc[s->di->npatch_code++][1] = p.code_hi; }
+    }
+    for (size_t i = 0; i < reds.n; i++) {
+        redirect *r = &VEC_AT(&reds, redirect, i);
+        uint8_t b[16];
+        for (int k = 0; k < r->words; k++) put_be32(b + 4 * k, r->w[k]);
+        if (mem_write(s, r->at, b, 4u * (uint32_t)r->words) != 4 * r->words)
+            trace(s, "hotpatch: couldn't redirect %s at %08lx", r->name, (unsigned long)r->at);
+        else
+            trace(s, "hotpatch: %s %08lx -> %08lx (%d words)", r->name, (unsigned long)r->at, (unsigned long)r->to, r->words);
+    }
+    for (int i = 0; i < p.nfuncs; i++) {
+        hp_entry *e = vec_push(&s->hp_funcs);
+        if (!e) break;
+        e->source = sdup(source); e->name = sdup(p.funcs[i].name);
+        e->addr = p.funcs[i].new_addr; e->size = p.funcs[i].new_size;
+    }
+    s->hp_count++;
+
+    /* breakpoints in the file move to the new code; frames and lines are looked up again */
+    resolve_all_bps(s);
+    sync_traps(s);
+    arena_free(&s->stop_mem);
+    compute_frames(s);
+    s->generation++;
+
+    /* summary */
+    char list[300] = "", running[200] = "";
+    int nnew = 0, nchanged = 0;
+    for (int i = 0; i < p.nfuncs; i++) {
+        const hp_func *f = &p.funcs[i];
+        char dm[200];
+        const char *nm = dbg_demangle(f->name, dm, sizeof dm);
+        if (nm) { char *par = strchr(dm, '('); if (par) *par = 0; } else nm = f->name;
+        if (f->old_addr) nchanged++; else nnew++;
+        size_t l = strlen(list);
+        if (l < sizeof list - 40) snprintf(list + l, sizeof list - l, "%s%s()%s", l ? ", " : "", nm, f->old_addr ? "" : " (new)");
+        /* a call already running keeps its old code */
+        for (int k = 0; k < s->nframes; k++) {
+            uint32_t pc = s->frames[k].pc - (k ? 4 : 0);
+            const dfunc *df = info_func_at(s->di, pc);
+            if (df && df->superseded && !strcmp(df->name, f->name) && pc != f->old_addr) {
+                size_t m = strlen(running);
+                if (m < sizeof running - 40 && !strstr(running, nm)) snprintf(running + m, sizeof running - m, "%s%s()", m ? ", " : "", nm);
+                break;
+            }
+        }
+    }
+    int len = snprintf(msg, msglen, "Applied the changes to %s: %s.", path_base(source), list);
+    if (running[0] && len > 0 && (size_t)len < msglen)
+        len += snprintf(msg + len, msglen - (size_t)len, " %s %s running: the current call finishes in the old code, the next call uses the new code.",
+                        running, strchr(running, ',') ? "are" : "is");
+    if (skipped[0] && len > 0 && (size_t)len < msglen)
+        len += snprintf(msg + len, msglen - (size_t)len, " %s too small to redirect: still the old code.", skipped);
+    if (!have_info && len > 0 && (size_t)len < msglen)
+        len += snprintf(msg + len, msglen - (size_t)len, " (No debug info for the new code: %s.)", err);
+    if (p.warn[0] && len > 0 && (size_t)len < msglen)
+        snprintf(msg + len, msglen - (size_t)len, " Note: %s.", p.warn);
+    trace(s, "hotpatch: %d changed, %d new, %d stubs, %lu bytes at %08lx", nchanged, nnew, p.nstubs, (unsigned long)p.mem_size, (unsigned long)base);
+    vec_free(&reds);
+    hp_patch_free(&p);
+    hp_elf_free(obj);
+    return 1;
 }

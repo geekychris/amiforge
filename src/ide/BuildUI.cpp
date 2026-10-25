@@ -77,6 +77,11 @@ void App::pollBuild()
     buildLog.detach();
     while (builder.poll(l)) {
         any = true;
+        if (l.kind == MsgKind::Done && hotBusy) {   // --- hotpatch
+            buildLog.attach(buildLog.count() - 1);
+            hotAfterCompile(builder.lastOk);
+            return;
+        }
         if (l.kind == MsgKind::Done && gitBusy) {
             gitBusy = false;
             bool ok = builder.lastOk;

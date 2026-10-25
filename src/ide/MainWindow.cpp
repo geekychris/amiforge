@@ -190,6 +190,7 @@ static struct NewMenu menus[] = {
     ITEM("Step Out  (Shift F11)", 0, CMD_STEP_OUT),
     ITEM("Step Instruction  (F8)", 0, CMD_STEP_INSN),
     ITEM("Run to Cursor  (Ctrl F10)", 0, CMD_RUN_TO_CURSOR),
+    ITEM("Apply Code Changes  (Ctrl F9)", 0, CMD_APPLY_CHANGES),   // --- hotpatch
     BAR,
     ITEM("Toggle Breakpoint  (F9)", 0, CMD_TOGGLE_BP),
     ITEM("Delete All Breakpoints", 0, CMD_CLEAR_BPS),
@@ -723,7 +724,7 @@ bool App::handleKey(uint16_t code, uint16_t qual)
     case 0x55: cmd = CMD_RUN; break;                                          // F6
     case 0x56: cmd = CMD_BUILD; break;                                        // F7
     case 0x57: cmd = CMD_STEP_INSN; break;                                    // F8
-    case 0x58: cmd = CMD_TOGGLE_BP; break;                                    // F9
+    case 0x58: cmd = ctrl ? CMD_APPLY_CHANGES : CMD_TOGGLE_BP; break;         // F9 (--- hotpatch: Ctrl)
     case 0x59: cmd = ctrl ? CMD_RUN_TO_CURSOR : CMD_STEP_OVER; break;         // F10
     case 0x4B: cmd = shift ? CMD_STEP_OUT : CMD_STEP_INTO; break;             // F11
     default: return false;

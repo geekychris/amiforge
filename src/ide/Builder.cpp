@@ -205,6 +205,19 @@ static std::string objectFor(const Project &p, const std::string &src)
     return joinPath(p.objdir, base + ".o");
 }
 
+// --- hotpatch: the command that compiles one source the way a build would
+std::string Builder::compileCommand(const Project &p, const std::string &src, const std::string &obj)
+{
+    std::string cmd;
+    if (isAsmFile(src)) cmd = tool(p.cc) + " " + p.asflags;
+    else if (isCppFile(src)) cmd = tool(p.cxx) + " " + p.cxxflags;
+    else cmd = tool(p.cc) + " " + p.cflags;
+    return cmd + " -c " + q(src) + " -o " + q(obj);
+}
+
+std::string Builder::objectPath(const Project &p, const std::string &src) { return objectFor(p, src); }
+// --- end hotpatch
+
 bool Builder::start(const Project &p, const std::string &what)
 {
     if (running) return false;

@@ -29,6 +29,7 @@
 #ifndef AF_DBG_H
 #define AF_DBG_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -191,6 +192,16 @@ void dbg_set_trace(dbg_session *s, void (*fn)(void *ud, const char *line), void 
 int dbg_addr_to_line(dbg_session *s, uint32_t addr, const char **file, int *line, const char **function);
 uint32_t dbg_line_to_addr(dbg_session *s, const char *file, int line, int *actual_line);
 uint32_t dbg_function_addr(dbg_session *s, const char *function);
+
+/* --- hotpatch: Edit and Continue (DBG_STOPPED only) ---
+ * Replaces the functions of one source file with the versions in `object`, the file freshly
+ * compiled with the program's flags; the program keeps its data and carries on with the new
+ * code (a call already running finishes in the old code). Breakpoints in the file move to the
+ * new code. Refused when the change needs a restart (new or resized globals/statics, a function
+ * the program doesn't contain...). Returns 1 and a summary in msg, or 0 and the reason (nothing
+ * changed). Patches last until the program ends: the next run uses the file on disk. */
+int dbg_hotpatch(dbg_session *s, const char *object, const char *source, char *msg, size_t msglen);
+int dbg_hotpatch_count(dbg_session *s);   /* patches applied to the running program */
 
 #ifdef __cplusplus
 }
