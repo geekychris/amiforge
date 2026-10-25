@@ -80,6 +80,11 @@ Document *App::openFile(const std::string &pathIn, bool doActivate)
         info("Can't open " + path);
         return nullptr;
     }
+    // --- integrations --- icons, pictures and binary files open in their own editors
+    {
+        Document *special = nullptr;
+        if (integrationsOpen(path, text, special)) return special;
+    }
     auto d = std::make_unique<Document>();
     d->path = path;
     d->title = fileName(path);
@@ -134,6 +139,7 @@ void App::activate(Document *d)
         S(editor, SCI_SETFIRSTVISIBLELINE, d->firstLine);
         S(editor, SCI_SETXOFFSET, d->xOffset);
         refreshMarkers();
+        integrationsActivated(d);   // --- integrations ---
     }
     rebuildTabs();
     updateTitle();
@@ -158,6 +164,21 @@ bool App::saveDocument(Document *d, bool saveAs)
         if (path.empty()) return false;
         path = absolutePath(path);
     }
+    // --- integrations --- a hex document saves its bytes
+    if (d->hex) {
+        if (!writeFile(path, d->bytes)) {
+            info("Can't write " + path);
+            return false;
+        }
+        d->path = path;
+        d->title = fileName(path) + " (hex)";
+        d->modified = false;
+        d->hexUndo.clear();
+        rebuildTabs();
+        updateTitle();
+        setStatus("Saved " + path + strprintf(" (%lu bytes)", (unsigned long)d->bytes.size()));
+        return true;
+    }
     intptr_t len = S(editor, SCI_GETLENGTH);
     std::string text(len, '\0');
     std::vector<char> buf(len + 1);
@@ -173,9 +194,11 @@ bool App::saveDocument(Document *d, bool saveAs)
     S(editor, SCI_SETSAVEPOINT);
     d->modified = false;
     if (renamed) sciSetupSourceEditor(editor, path.c_str(), fontSize);
+    if (renamed) d->readOnly = false, d->lexerName.clear();   // --- integrations --- a saved diff becomes a file
     rebuildTabs();
     updateTitle();
     setStatus("Saved " + path);
+    integrationsSaved(d);   // --- integrations ---
     return true;
 }
 
@@ -534,6 +557,10 @@ void App::sciNotify(SciView *v, const Scintilla::NotificationData &n)
         break;
     case SCN_UPDATEUI:
         updateCaretStatus();
+        if ((int)n.updated & SC_UPDATE_SELECTION) integrationsCaretMoved();   // --- integrations ---
+        break;
+    case SCN_MODIFIED:   // --- integrations --- (change markers, blame)
+        if ((int)n.modificationType & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT)) integrationsTextChanged();
         break;
     case SCN_CHARADDED:
         autoIndent(n.ch);
@@ -541,6 +568,7 @@ void App::sciNotify(SciView *v, const Scintilla::NotificationData &n)
         break;
     case SCN_MARGINCLICK: {
         intptr_t line = S(editor, SCI_LINEFROMPOSITION, (intptr_t)n.position);
+        if (integrationsMarginClick(n.margin, (int)line)) break;   // --- integrations ---
         if (n.margin == AF_MARGIN_FOLD) S(editor, SCI_TOGGLEFOLD, line);
         else if (cur) toggleBreakpoint(cur, (int)line + 1);
         break;

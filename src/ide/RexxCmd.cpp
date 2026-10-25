@@ -19,7 +19,7 @@ const std::vector<CommandDef> &commands()
         { "GETLINE", "", "RESULT = the cursor's line number" },
         { "GETCOL", "", "RESULT = the cursor's column" },
         { "GETFILE", "", "RESULT = the current file's path" },
-        { "GETTEXT", "ALL/S", "RESULT = the selection (or the whole file, or with ALL always the whole file)" },
+        { "GETTEXT", "ALL/S", "RESULT = the selection (\"\" if none); with ALL the whole file" },
         { "GETLINETEXT", "LINE/N", "RESULT = the text of a line (default: the cursor's)" },
         { "GETWORD", "", "RESULT = the word at the cursor" },
         { "INSERT", "TEXT/A/F", "Insert text at the cursor (\\n for a new line)" },

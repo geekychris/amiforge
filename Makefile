@@ -27,6 +27,8 @@ CXXFLAGS = $(BASE) -std=c++17 -Wall
 TPFLAGS  = $(BASE) -std=c++17
 LDFLAGS  = -mcrt=newlib -athread=native
 LIBS     = -lauto
+# --- integrations --- zlib: git objects are read in-process (src/ide/GitCore.cpp)
+IDE_LIBS = -lz
 
 B = build
 O = $(B)/obj
@@ -60,7 +62,7 @@ $(B)/libafdbg.a: $(DBG_OBJS)
 	@mkdir -p $(@D); rm -f $@; $(AR) rcs $@ $^
 
 $(B)/AmiForge: $(IDE_OBJS) $(B)/libscintilla.a $(B)/libafdbg.a
-	$(CXX) $(LDFLAGS) -o $@.debug $(IDE_OBJS) -L$(B) -lscintilla -lafdbg $(LIBS)
+	$(CXX) $(LDFLAGS) -o $@.debug $(IDE_OBJS) -L$(B) -lscintilla -lafdbg $(LIBS) $(IDE_LIBS)
 	$(STRIP) -o $@ $@.debug
 
 # test programs that run on OS4
