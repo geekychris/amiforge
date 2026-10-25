@@ -550,9 +550,5 @@ void App::sciNotify(SciView *v, const Scintilla::NotificationData &n)
     }
 }
 
-void App::sciContextMenu(SciView *, int, int)
-{
-    // the IDE's actions are on the menus and function keys
-}
 
 } // namespace af

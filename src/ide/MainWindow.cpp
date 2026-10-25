@@ -150,6 +150,8 @@ static struct NewMenu menus[] = {
     ITEM("Replace...", "R", CMD_REPLACE),
     ITEM("Find in Files...", "H", CMD_FIND_IN_FILES),
     ITEM("Go to Line...", "L", CMD_GOTO_LINE),
+    ITEM("Open Include File  (Ctrl-Click)", "D", CMD_OPEN_INCLUDE),
+    ITEM("Go to Definition  (F12, Ctrl-Click)", "J", CMD_GOTO_DEF),
     BAR,
     ITEM("Complete Word  (Ctrl Space)", 0, CMD_COMPLETE),
     ITEM("Comment/Uncomment Lines", "/", CMD_COMMENT),
@@ -209,6 +211,7 @@ static struct NewMenu menus[] = {
     ITEM("AutoDoc for Word at Cursor  (F1)", 0, CMD_DOC_LOOKUP),
     ITEM("AutoDocs Browser...", 0, CMD_DOC_BROWSER),
     ITEM("SDK Documentation", 0, CMD_SDK_DOCS),
+    ITEM("Keyboard Shortcuts...", 0, CMD_SHORTCUTS),
     BAR,
     ITEM("About AmiForge...", 0, CMD_ABOUT),
     { NM_END, 0, 0, 0, 0, 0 }
@@ -247,6 +250,8 @@ static uint32 idcmpHookFunc(struct Hook *, APTR, struct IntuiMessage *im)
 static struct Hook gIdcmpHook = { {nullptr, nullptr}, (HOOKFUNC)idcmpHookFunc, nullptr, nullptr };
 
 static std::vector<uint32_t> pendingCommands;   // queued from inside the IDCMP hook
+
+void App::queueCommand(uint32_t cmd) { pendingCommands.push_back(cmd); }
 
 static Object *gap()
 {
@@ -412,6 +417,7 @@ bool App::openMainWindow()
                 LAYOUT_AddChild, gap(),
                 CHILD_WeightedWidth, 0,
                 LAYOUT_AddChild, gad[GID_TB_FIND] = button(GID_TB_FIND, "Find", "Find / replace (Amiga-F)"),
+                LAYOUT_AddChild, gad[GID_TB_DOCS] = button(GID_TB_DOCS, "Docs", "AutoDoc for the word at the cursor (F1)"),
                 TAG_DONE),
             CHILD_WeightedHeight, 0,
             // everything that can be resized with weight bars
@@ -484,11 +490,11 @@ bool App::openMainWindow()
             LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr,
                 LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
                 LAYOUT_AddChild, gad[GID_STATUS] = IIntuition->NewObject(IButton->BUTTON_GetClass(), nullptr,
-                    GA_ID, GID_STATUS, GA_ReadOnly, TRUE, GA_Text, (uint32)"",
+                    GA_ID, GID_STATUS, GA_ReadOnly, TRUE, GA_Underscore, 0, GA_Text, (uint32)"",
                     BUTTON_Justification, BCJ_LEFT, TAG_DONE),
                 CHILD_WeightedWidth, 30,
                 LAYOUT_AddChild, gad[GID_STATUS2] = IIntuition->NewObject(IButton->BUTTON_GetClass(), nullptr,
-                    GA_ID, GID_STATUS2, GA_ReadOnly, TRUE, GA_Text, (uint32)"Ready",
+                    GA_ID, GID_STATUS2, GA_ReadOnly, TRUE, GA_Underscore, 0, GA_Text, (uint32)"Ready",
                     BUTTON_Justification, BCJ_LEFT, TAG_DONE),
                 CHILD_WeightedWidth, 70,
                 TAG_DONE),
@@ -661,8 +667,34 @@ uint32_t App::idcmpHook(struct IntuiMessage *im)
         return 0;
     }
     case IDCMP_MOUSEBUTTONS: {
+        int l = 0, t = 0, w = 0, h = 0;
+        if (editor) editor->getBounds(&l, &t, &w, &h);
+        bool inside = editor && im->MouseX >= l && im->MouseX < l + w && im->MouseY >= t && im->MouseY < t + h;
+        // Ctrl-click: open the #include / go to the definition (not a Scintilla multi-selection)
+        if (inside && im->Code == SELECTDOWN && (im->Qualifier & IEQUALIFIER_CONTROL)) {
+            pendingClickPos = editor->send(SCI_POSITIONFROMPOINT, im->MouseX - l, im->MouseY - t);
+            swallowSelectUp = true;
+            pendingCommands.push_back(CMD_CTRL_CLICK);
+            return 0;
+        }
+        if (im->Code == SELECTUP && swallowSelectUp) {
+            swallowSelectUp = false;
+            return 0;
+        }
         if (editor && editor->handleMessage(im)) {
             if (!editorFocus) { editorFocus = true; editor->setFocus(true); }
+        }
+        return 0;
+    }
+    case IDCMP_MOUSEMOVE: {
+        // over the editor the right button opens its context menu, elsewhere the menu bar
+        if (editor && win) {
+            int l, t, w, h;
+            editor->getBounds(&l, &t, &w, &h);
+            bool inside = im->MouseX >= l && im->MouseX < l + w && im->MouseY >= t && im->MouseY < t + h;
+            if (inside) win->Flags |= WFLG_RMBTRAP;
+            else win->Flags &= ~WFLG_RMBTRAP;
+            editor->handleMessage(im);
         }
         return 0;
     }
@@ -682,6 +714,7 @@ bool App::handleKey(uint16_t code, uint16_t qual)
     uint32_t cmd = 0;
     switch (code) {
     case 0x50: cmd = CMD_DOC_LOOKUP; break;                                    // F1
+    case 0x6F: cmd = CMD_GOTO_DEF; break;                                      // F12
     case 0x5F: cmd = CMD_DOC_LOOKUP; break;                                    // Help
     case 0x52: cmd = shift ? CMD_FIND_PREV : CMD_FIND_NEXT; break;           // F3
     case 0x53: cmd = shift ? CMD_PREV_ERROR : CMD_NEXT_ERROR; break;         // F4
@@ -797,6 +830,7 @@ void App::handleGadget(uint32_t gid, uint16_t code)
     case GID_TB_OUT: handleMenu(CMD_STEP_OUT); break;
     case GID_TB_STOP: handleMenu(CMD_DEBUG_STOP); break;
     case GID_TB_FIND: handleMenu(CMD_FIND); break;
+    case GID_TB_DOCS: handleMenu(CMD_DOC_LOOKUP); break;
     case GID_VSCROLL:
     case GID_HSCROLL: {
         uint32 top = 0;

@@ -8,6 +8,9 @@ A native IDE for **AmigaOS 4.1** (PowerPC), running on the Amiga itself:
   go to line and comment/uncomment.
 - **Toolchain**: the AmigaOS 4.1 SDK's native GCC 11.5, which covers C, C++ and GNU `as` for
   `.s` files. Projects build file by file, with compiler errors you can click to jump to.
+- **Code navigation**: Ctrl-click (or F12) opens `#include`d headers and goes to definitions.
+  Completion pops up as you type (OS functions, `IExec->` members, project words), and calltips
+  show OS prototypes. The right mouse button gives a context menu.
 - **AutoDocs**: press F1 on an OS function (`OpenWindowTags`, `IExec->AllocVecTags`) to read its
   AutoDoc from the SDK. Help > AutoDocs Browser searches all of them, and references in an entry
   are links.
@@ -44,6 +47,9 @@ A native IDE for **AmigaOS 4.1** (PowerPC), running on the Amiga itself:
 | Ctrl-F10 | Run to cursor |
 | F8 | Step one instruction |
 | F1 (or Help) | AutoDoc for the function under the cursor |
+| Ctrl-Space | Complete the word (the list also appears by itself after 3 letters) |
+| Ctrl-click / F12 | Open an `#include`d header / go to a definition |
+| Right mouse button | Context menu: include, definition, docs, completion, breakpoint, watch |
 | F3 / Shift-F3 | Find next / previous |
 | F4 / Shift-F4 | Next / previous error |
 | Amiga-N/O/S/W | New / open / save / close file |

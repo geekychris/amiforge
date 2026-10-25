@@ -49,6 +49,35 @@ diffs. Files are Latin-1 (the Amiga character set).
 
 Folding: click the [-] in the fold margin, or use View > Fold All / Unfold All.
 
+## Finding your way around
+
+**Right-click in the editor** for a menu of what applies to the word or line under the
+pointer:
+- Open the header of an `#include`, or go to a definition.
+- Its AutoDoc, or complete the word.
+- Toggle a breakpoint, run to the cursor, or add a watch.
+- Cut, copy and paste.
+- Keyboard Shortcuts.
+
+| To... | Do this |
+|---|---|
+| Open a header named in an `#include` | Ctrl-click the line, or put the cursor on it and press F12 (or Amiga-D) |
+| Go to where something is defined | Ctrl-click it, or F12 / Amiga-J |
+| Read an OS function's documentation | F1, the Help key or the **Docs** button. Help > AutoDocs Browser shows them all |
+| Complete a name | Type 3 letters and pick from the list, or press Ctrl-Space at any time |
+| See an OS library's functions | Type `IExec->`, `IIntuition->`, `IDOS->`... |
+| See a function's arguments | Type `(` after an OS function's name |
+| See all the keys | Help > Keyboard Shortcuts, or right-click > Keyboard Shortcuts |
+
+How lookups work:
+- **Headers:** `"quoted"` names are looked for next to the file, then in the project. `<angle>`
+  names are looked for in the SDK's include directories (OS includes, newlib, the C++ library
+  and GCC's own headers). SDK headers open read-only.
+- **Go to Definition** looks for the nearest declaration above the cursor (local variables and
+  parameters), then for a struct, class, union, enum, `#define` or typedef in the project, then
+  for a function. For an OS function it opens the AutoDoc.
+- **In the completion list,** use Up/Down and Return or Tab to insert, and Esc to close it.
+
 ## Projects
 
 A project file (`.afp`) lists the sources (relative to the project's drawer) and the build

@@ -152,6 +152,19 @@ void App::handleMenu(uint32_t cmd)
     case CMD_DOC_LOOKUP: docForWordAtCaret(); break;
     case CMD_DOC_BROWSER: openDocWindow(); break;
     case CMD_SDK_DOCS: openSdkDocs(); break;
+    case CMD_SHORTCUTS: showShortcuts(); break;
+    case CMD_CONTEXT_MENU: showContextMenu(); break;
+    case CMD_OPEN_INCLUDE:
+        if (editor && cur && !openIncludeAt(editor->send(SCI_GETCURRENTPOS)))
+            setStatus("Put the cursor on an #include line first");
+        break;
+    case CMD_GOTO_DEF:
+        if (editor && cur) ctrlClick(editor->send(SCI_GETCURRENTPOS));
+        break;
+    case CMD_CTRL_CLICK:
+        if (pendingClickPos >= 0) ctrlClick(pendingClickPos);
+        pendingClickPos = -1;
+        break;
 
     default:
         if (cmd >= CMD_RECENT_FIRST && cmd <= CMD_RECENT_LAST) {

@@ -164,7 +164,7 @@ private:
 enum Gid {
     GID_ROOT = 1, GID_TOOLBAR,
     GID_TB_NEW, GID_TB_OPEN, GID_TB_SAVE, GID_TB_BUILD, GID_TB_RUN, GID_TB_DEBUG,
-    GID_TB_CONTINUE, GID_TB_OVER, GID_TB_INTO, GID_TB_OUT, GID_TB_STOP, GID_TB_FIND,
+    GID_TB_CONTINUE, GID_TB_OVER, GID_TB_INTO, GID_TB_OUT, GID_TB_STOP, GID_TB_FIND, GID_TB_DOCS,
     GID_PROJECT, GID_TABS, GID_EDITOR, GID_VSCROLL, GID_HSCROLL,
     GID_SIDE_TABS, GID_SIDE_PAGES, GID_LOCALS, GID_WATCHES, GID_REGS, GID_WATCH_STR, GID_WATCH_ADD, GID_WATCH_DEL,
     GID_BOTTOM_TABS, GID_BOTTOM_PAGES, GID_BUILDLOG, GID_FINDLOG, GID_STACK, GID_BPS, GID_BP_DEL, GID_BP_DELALL,
@@ -255,6 +255,17 @@ public:
     void docForWordAtCaret();
     void docLinkClicked(intptr_t position);
     void openSdkDocs();
+    // navigation (Navigate.cpp)
+    std::string resolveInclude(const std::string &name, bool quoted, const std::string &fromFile);
+    std::string wordAt(intptr_t pos);
+    bool openIncludeAt(intptr_t pos);
+    bool gotoDefinition(const std::string &name);
+    void ctrlClick(intptr_t pos);
+    void showContextMenu();
+    void showShortcuts();
+    void queueCommand(uint32_t cmd);
+    intptr_t pendingClickPos = -1;
+    bool swallowSelectUp = false;
     std::string docEntryText(const DocEntry &e);
     // completion (Completion.cpp)
     void refreshCompletionWords();
