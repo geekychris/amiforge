@@ -144,3 +144,44 @@ TEST(plan_from_template)
     });
     CHECK_EQ((int)q.errors.size(), 2);
 }
+
+// Every template shipped in templates/ parses, and plans without missing files or unknown
+// substitutions. (The runner starts in tests/host.)
+#include <dirent.h>
+#include <fstream>
+#include <sstream>
+
+static bool slurp(const std::string &p, std::string &out)
+{
+    std::ifstream f(p, std::ios::binary);
+    if (!f) return false;
+    std::stringstream ss;
+    ss << f.rdbuf();
+    out = ss.str();
+    return true;
+}
+
+TEST(shipped_templates_are_complete)
+{
+    std::string root = "../../templates";
+    DIR *d = opendir(root.c_str());
+    CHECK(d != nullptr);
+    if (!d) return;
+    int n = 0;
+    while (struct dirent *e = readdir(d)) {
+        if (e->d_name[0] == '.') continue;
+        std::string dir = root + "/" + e->d_name, text, err;
+        if (!slurp(dir + "/template.def", text)) continue;
+        Def def;
+        bool ok = parseDef(text, def, err);
+        if (!ok) aftest::fail(__FILE__, __LINE__, std::string(e->d_name) + ": " + err);
+        Vars v = makeVars("Check", "A <a@b.c>", 1, 2, 2026);
+        Plan p = plan(instantiate(def, v), v, [&](const std::string &src, std::string &out) { return slurp(dir + "/" + src, out); });
+        for (auto &x : p.errors) aftest::fail(__FILE__, __LINE__, std::string(e->d_name) + ": " + x);
+        CHECK(!p.projectFiles.empty());
+        CHECK(!p.open.empty());
+        n++;
+    }
+    closedir(d);
+    CHECK_EQ(n, 9);
+}
