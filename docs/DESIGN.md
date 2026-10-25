@@ -17,9 +17,13 @@ src/dbg/     debugger core (dbg.h API). Portable parts (ELF/stabs reader, PPC de
              runtime that talks to exec/dos.
 src/ide/     the application: ReAction GUI, projects, build runner, panels
 third_party/ scintilla 5.5.7 and lexilla 5.4.5, unmodified upstream
-tests/os4/   test programs that run on OS4 (scitest, dbgtest...)
+templates/   project templates (template.def + files), shipped as PROGDIR:Templates
+Rexx/        example ARexx macros, shipped as PROGDIR:Rexx
+tests/os4/   test programs that run on OS4 (scitest, dbgtest, toolstest, hotpatchtest, rexx/...)
 tests/targets/ small debuggee programs, always built -O0 -gstabs+
-tests/host/  host unit tests (make -C tests/host)
+tests/host/  host unit tests: make -C tests/host (debugger core), make -C tests/host ide
+             (IDE models, one runner per area in tests/host/ide/*.mk)
+tests/templates/ check.sh: cross-compiles every template with -Werror
 tools/       build.sh (Docker), m1*.sh/m1mcp.py (drive the OS4 guest on the test Mac)
 ```
 
@@ -173,3 +177,33 @@ pointer must show `<unreadable>`, not crash the IDE.
   `file:line: Error:`, ld `undefined reference`).
 - **Native toolchain:** the SDK installed in `SDK:` (gcc 11.5 in SDK:gcc/bin). `S:User-Startup`
   assigns SDK: and runs `SDK:S/sdk-startup`.
+
+## Features added in 0.2
+
+The OS-independent logic of each feature lives in a model file that also compiles on the host
+(`-DAF_HOST_TEST`) and has unit tests; the ReAction and exec/dos side is in a separate file.
+
+| Feature | Model (host-tested) | OS4 side | Notes |
+|---|---|---|---|
+| Themes | `src/sci/Theme.*` | `SciSetup.cpp` | A theme is a table of Scintilla styles; the tests check contrast |
+| Split view, minimap, multiple cursors | | `EditorFeatures.cpp` | `mainView`/`splitView`/`miniView` share one Scintilla document; `editor` is the active view |
+| Snippets | `Snippets.*` | `EditorFeatures.cpp` | `${1:x}` fields are an indicator whose value is the field number |
+| Outline, references, rename | `Symbols.*` | `EditorFeatures.cpp` | Text-based (comments and strings skipped), not scope-aware |
+| GUI designer | `GuiModel.*` (the `.afg` format, code generator) | `Designer.cpp` | Regenerating keeps the code between `/* user code */` markers; unknown blocks are parked, not lost |
+| Templates | `TemplateEngine.*` | `TemplatesUI.cpp` | `template.def` lists files, substitutions and post-create commands (e.g. `idltool`) |
+| Package Release | `ReleaseGen.*` (readme, install script, flags) | `ReleaseUI.cpp` | Release build into `obj-release`, staged drawer with icons, `tar` then `xad2lha` (OS4 has no LhA that creates archives) |
+| Edit and Continue | `src/dbg/hotpatch.c` | `os4_session.c` (`dbg_hotpatch`), `HotPatch.cpp` | Links the recompiled object itself against the running program's symbols (no `ld`); globals map onto the program's copies; old entries get a branch (long branch or stub when out of range); debug info is merged and the newest version wins in lookups |
+| Leak tracker | `LeakModel.*`, `resnames.cpp` | `src/dbg/os4_tools.c` | `SetMethod` patches on exec/dos filtered to the debuggee's task, plus the program's own INewlib slots from `main()`; each event records LR and the back chain |
+| Profiler | `ProfileModel.*` | `os4_tools.c` | A priority-10 sampler process using `ReadTaskContext`, weighted by EClock time |
+| Intuition inspector | `InspectModel.*` | `InspectSnapshot.cpp` | Walks IntuitionBase's screens and windows under `LockIBase`, filtered to the debuggee's ports |
+| Git panel, markers, blame | `GitCore.*` (loose objects, packs, deltas, index), `LineDiff.*` | `GitPanel.cpp`, `Integrations.cpp` | Reads the repository directly; writes go through SimpleGit, which has no blame. New Branch writes the ref itself (`sgit checkout` resets work) |
+| Hex, icon and picture editors | `HexData.*` | `HexEditor.cpp`, `ResourceEditors.cpp` | Icons through icon.library, pictures through datatypes |
+| ARexx | `RexxCmd.*` (command parser) | `RexxPort.cpp` | arexx.class port `AMIFORGE`; the Macros menu lists `PROGDIR:Rexx` and the project's `Rexx/` |
+| distcc | `DistccCmd.*` | `Builder.cpp` | Sets `DISTCC_HOSTS`, `HOME`/`DISTCC_DIR` and `GCC_EXEC_PREFIX`; `tools/distcc-server.sh` runs distccd with the cross-compiler in Docker |
+| Explanations | `Explain.*` (rules for GCC/ld messages and crash states) | `BuildUI.cpp`, `DebugUI.cpp` | Rules are tested against real GCC 11.5 output |
+
+Each area keeps its code in shared files (`App.h`, `Commands.*`, `MainWindow.cpp`) inside
+`// --- <area> ---` blocks. Command IDs: editor 1300-1359, designer 1200-, integrations
+1000- (macros 1100-1139), debugtools 650-, Edit and Continue 660. The bottom tabs Windows,
+Leaks and Profile are at fixed indices 7-9 (`BOTTOM_*`); Git is found by name.
+
