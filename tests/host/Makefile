@@ -55,9 +55,9 @@ IDE_AREAS :=
 include $(wildcard ide/*.mk)
 IDE_CXXFLAGS = -std=c++17 -g -O1 -Wall -I$(ROOT)/src -I$(ROOT)/src/ide -Iide -DAF_HOST_TEST
 define ide_area
-$(OUT)/ide_$(1): ide/main.cpp $$(addprefix ide/,$$($(1)_TESTS)) $$(addprefix $(ROOT)/,$$($(1)_SRCS)) ide/aftest.h
+$(OUT)/ide_$(1): ide/main.cpp $$(addprefix ide/,$$($(1)_TESTS)) $$(addprefix $(ROOT)/,$$($(1)_SRCS) $$($(1)_HDRS)) ide/aftest.h
 	@mkdir -p $$(@D)
-	$$(CXX) $$(IDE_CXXFLAGS) ide/main.cpp $$(addprefix ide/,$$($(1)_TESTS)) $$(addprefix $(ROOT)/,$$($(1)_SRCS)) -o $$@
+	$$(CXX) $$(IDE_CXXFLAGS) ide/main.cpp $$(addprefix ide/,$$($(1)_TESTS)) $$(addprefix $(ROOT)/,$$($(1)_SRCS)) $$($(1)_LIBS) -o $$@
 endef
 $(foreach a,$(IDE_AREAS),$(eval $(call ide_area,$(a))))
 ide: $(foreach a,$(IDE_AREAS),$(OUT)/ide_$(a))
