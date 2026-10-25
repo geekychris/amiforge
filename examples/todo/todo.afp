@@ -1,0 +1,21 @@
+# AmiForge project
+[project]
+name=todo
+output=todo
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=
+console=
+stopatmain=0
+description=A to-do list with ReAction: window.class, layout, listbrowser with checkboxes, string and buttons\nOne C++ class per gadget group; the list is saved in ENVARC:TodoExample.
+
+[files]
+file=todo.cpp
+file=gadgets.cpp
+file=todo.h

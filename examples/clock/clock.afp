@@ -1,0 +1,21 @@
+# AmiForge project
+[project]
+name=clock
+output=clock
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=
+console=
+stopatmain=0
+description=Analog and digital clock: timer.device ticks, DateStamp, flicker-free drawing through an off-screen bitmap\nC++ with RAII wrappers for the window, the bitmap and the timer request.
+
+[files]
+file=clock.cpp
+file=os.cpp
+file=os.h

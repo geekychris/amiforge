@@ -1,0 +1,21 @@
+# AmiForge project
+[project]
+name=workers
+output=workers
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=WORKERS 4 LIMIT 400000
+console=
+stopatmain=0
+description=Exec multitasking: worker processes (CreateNewProcTags) count primes and report through message ports\nC++ wrappers for the port, each worker and the crew; Ctrl-C stops them all cleanly.
+
+[files]
+file=workers.cpp
+file=worker.cpp
+file=workers.h

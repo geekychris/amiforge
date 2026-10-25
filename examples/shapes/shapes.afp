@@ -13,6 +13,7 @@ objdir=obj
 args=
 console=
 stopatmain=1
+description=C++: classes, virtual functions, std::vector and std::unique_ptr
 
 [files]
 file=shapes.cpp

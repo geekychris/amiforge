@@ -13,6 +13,7 @@ objdir=obj
 args=
 console=
 stopatmain=1
+description=C calling a PowerPC assembler function (fastsum.s); step into it with F11 and F8
 
 [files]
 file=main.c

@@ -3,7 +3,8 @@
 #
 #   AmiForge.info                 drawer icon
 #   AmiForge/AmiForge(.info)      the IDE (stripped build/AmiForge) and its tool icon
-#   AmiForge/Examples/<name>/     hello, shapes, asmdemo, each .afp with a project icon
+#   AmiForge/Examples/<name>/     every drawer in examples/, each .afp with a project icon
+#                                 (PROGDIR:Examples is the default projects folder)
 #   AmiForge/Docs/                README.txt, user-guide.txt (Latin-1 text from the Markdown)
 #   AmiForge/Install-AmiForge     AmigaDOS script: copies the drawer to a destination
 #   AmiForge/Templates/<id>/      project templates (template.def + files)
@@ -49,10 +50,11 @@ cp $icons/drawer.info $d/Rexx.info
 
 # examples: sources plus a project icon per .afp
 cp $icons/drawer.info $d/Examples.info
-for ex in hello shapes asmdemo bouncer; do
-    [[ -d $root/examples/$ex ]] || { print -u2 "make-dist: examples/$ex is missing"; exit 1 }
+for ex in $root/examples/*(/:t); do
+    ls $root/examples/$ex/*.afp >/dev/null 2>&1 || { print -u2 "make-dist: examples/$ex has no .afp"; exit 1 }
     mkdir -p $d/Examples/$ex
     cp $root/examples/$ex/*(.) $d/Examples/$ex/
+    rm -f $d/Examples/$ex/*.o(N)
     cp $icons/drawer.info $d/Examples/$ex.info
     for afp in $d/Examples/$ex/*.afp(N); do cp $icons/project.info $afp.info; done
 done

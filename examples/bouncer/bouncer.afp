@@ -13,6 +13,7 @@ objdir=obj
 args=
 console=
 stopatmain=0
+description=C++ using the OS: an Intuition window with a GadTools menu, graphics.library drawing and timer.device pacing
 
 [files]
 file=bouncer.cpp

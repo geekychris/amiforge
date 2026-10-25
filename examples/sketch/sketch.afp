@@ -1,0 +1,21 @@
+# AmiForge project
+[project]
+name=sketch
+output=sketch
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=
+console=
+stopatmain=0
+description=Draw with the mouse: Intuition window, GadTools menus for pen and brush, saves an IFF ILBM with iffparse\nC++ classes own the window, its menus and the IFF handle.
+
+[files]
+file=sketch.cpp
+file=canvas.cpp
+file=canvas.h

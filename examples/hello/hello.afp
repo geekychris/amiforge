@@ -13,6 +13,7 @@ objdir=obj
 args=
 console=
 stopatmain=1
+description=C: a linked list across two files, a good first program to step through
 
 [files]
 file=main.c
