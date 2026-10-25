@@ -37,7 +37,7 @@ std::string aminetReadme(const Info &i)
     if (body.empty() || body.back() != '\n') r += "\n";
     r += "\nInstalling\n----------\n";
     r += "Double-click the Install icon, or copy the " + i.name + " drawer wherever you like.\n";
-    r += "From a Shell: Install <drawer>\n";
+    r += "From a Shell: Execute Install <drawer>\n";
     r += "\nRequirements\n------------\nAmigaOS 4.1 (PowerPC)";
     if (!i.requires.empty()) r += ", " + i.requires;
     r += ".\n\nHistory\n-------\n" + (i.version.empty() ? std::string("1.0") : i.version) + " (" + i.date + ")  First release.\n";
@@ -94,7 +94,7 @@ std::string installScript(const Info &i)
     s << ".key DEST\n"
          ".bra {\n"
          ".ket }\n"
-         "; Installs " << i.name << " " << i.version << ". From a Shell: Install <drawer>,\n"
+         "; Installs " << i.name << " " << i.version << ". From a Shell: Execute Install <drawer>,\n"
          "; or double-click the icon to choose the drawer in a requester.\n"
          "FailAt 21\n"
          "Set dest \"{DEST}\"\n"

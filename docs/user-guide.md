@@ -970,14 +970,18 @@ The markers follow your typing (a moment after you stop) and are updated when yo
 **Git > Git Panel** (or the **Git** tab at the bottom) shows the repository of the project:
 
 - **Branch**: the current branch. Choose another one to switch to it (AmiForge asks first if
-  there are uncommitted changes, and re-reads open files that changed). **New Branch...**
-  creates a branch at the current commit and switches to it.
+  there are uncommitted changes, and re-reads open files that changed). Switching to a branch
+  at another commit uses SimpleGit's checkout, which resets changed files and deletes untracked
+  ones; AmiForge lists what would be lost before it goes ahead. Switching to a branch at the
+  same commit, and **New Branch...** (a branch at the current commit, which it switches to),
+  keep your uncommitted work.
 - The changed files, with their state: *changed*, *staged*, *staged, changed*, *added*,
   *deleted*, *untracked*. Files matched by `.gitignore` aren't listed.
 - **Stage** (`git add`), **Unstage**, **Discard...** (throws away the file's unstaged changes;
   for an untracked file, deletes it), **Diff** (or double-click a file): the file's changes in a
   read-only tab, as a unified diff.
-- **Blame** and **Commit...** (the same as Git > Commit).
+- **Blame** and **Commit...** (the same as Git > Commit: it stages every project file first,
+  including any you unstaged).
 
 #### Blame
 
@@ -1138,6 +1142,8 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | F1 says the SDK isn't installed | The AutoDocs come from `SDK:Documentation/AutoDocs` |
 | Clone fails with "target OID ... doesn't exist" | The drawer is on a disk with 30-character names; use one with long names |
 | Clone fails with "failed to connect" | No route to the internet: check `ShowNetStatus` for a default gateway |
+| The program's drawer can't be deleted after stopping a crashed program | A known limitation: Stop ends the program without running its C library cleanup, so a lock it held (such as its current directory) stays until a reboot |
+| An installer from Package Release says "not executable" in a Shell | Archives don't keep the script bit: use `Execute Install <drawer>`, or double-click its icon |
 
 ## Keyboard reference
 
