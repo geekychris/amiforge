@@ -67,6 +67,22 @@ void App::pollBuild()
     buildLog.detach();
     while (builder.poll(l)) {
         any = true;
+        if (l.kind == MsgKind::Done && gitBusy) {
+            gitBusy = false;
+            bool ok = builder.lastOk;
+            std::string summary = ok ? "Done." : "The git command failed.";
+            BuildLine s;
+            s.kind = ok ? MsgKind::Info : MsgKind::Error;
+            s.text = summary;
+            diagnostics.push_back(s);
+            struct Node *n = buildLog.add({summary}, (void *)(intptr_t)diagnostics.size());
+            if (n) buildLog.setPens(n, ok ? penNote : penError);
+            buildLog.attach(buildLog.count() - 1);
+            setStatus(summary);
+            updateToolbar();
+            if (!pendingCloneDir.empty()) gitAfterClone(ok);
+            return;
+        }
         if (l.kind == MsgKind::Done) {
             bool ok = builder.lastOk;
             std::string summary = ok ? strprintf("Build succeeded (%d warning%s).", builder.warnings, builder.warnings == 1 ? "" : "s")

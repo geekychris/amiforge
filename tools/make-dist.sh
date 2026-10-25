@@ -42,7 +42,7 @@ fi
 
 # examples: sources plus a project icon per .afp
 cp $icons/drawer.info $d/Examples.info
-for ex in hello shapes asmdemo; do
+for ex in hello shapes asmdemo bouncer; do
     [[ -d $root/examples/$ex ]] || { print -u2 "make-dist: examples/$ex is missing"; exit 1 }
     mkdir -p $d/Examples/$ex
     cp $root/examples/$ex/*(.) $d/Examples/$ex/

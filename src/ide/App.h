@@ -91,6 +91,8 @@ public:
     ~Builder();
     // Start building `targets` ("build", "rebuild", "clean", "compile:<file>"). Lines arrive via poll().
     bool start(const Project &p, const std::string &what);
+    // Run arbitrary commands (label, command line) in dir, reporting like a build.
+    bool startCommands(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds);
     bool busy() const { return running; }
     void stop();
     uint32_t signalMask() const;
@@ -105,6 +107,14 @@ private:
     int8_t sigBit = -1;
 };
 bool parseDiagnostic(const std::string &text, const std::string &cwd, BuildLine &out);
+
+// --- AutoDocs (AutoDocs.cpp) ---
+struct DocEntry {
+    std::string full;   // "exec.library/AllocVecTagList", "exec.library/debug/AddDebugHook"
+    std::string func;   // "AllocVecTagList"
+    std::string lib;    // "exec.library"
+    std::string file;   // the .doc file
+};
 
 // --- documents ---
 struct Document {
@@ -231,6 +241,42 @@ public:
     void refreshProjectList();
     void projectSettings();
     void findInFiles();
+    // AutoDocs (AutoDocs.cpp)
+    bool loadDocIndex();
+    const DocEntry *findDoc(const std::string &word);
+    void openDocWindow();
+    void closeDocWindow();
+    void layoutDocView();
+    void showDocMatches(const std::string &filter);
+    void showDoc(const DocEntry *e, bool remember);
+    void lookupDoc(const std::string &word);
+    void handleDocWindow();
+    void docForWordAtCaret();
+    void docLinkClicked(intptr_t position);
+    void openSdkDocs();
+    void setGadgetIn(struct Window *w, Object *g, uint32_t tag, uint32_t value);
+    std::vector<DocEntry> docIndex;
+    Object *docWinObj = nullptr;
+    struct Window *docWin = nullptr;
+    Object *docGad[8] = {};
+    ListView docList{2};
+    SciView *docView = nullptr;
+    std::vector<std::string> docHistory;
+    std::string docCurrent;
+    intptr_t pendingDocLink = -1;
+    // git (Git.cpp)
+    std::string gitRepoDir();
+    bool gitRun(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds, const std::string &title);
+    void gitStatus();
+    void gitDiff();
+    void gitLog();
+    void gitCommit();
+    void gitPushPull(bool push);
+    void gitClone();
+    void gitAfterClone(bool ok);
+    void gitSetup();
+    bool gitBusy = false;
+    std::string pendingCloneDir;
     // recent projects (ENVARC:AmiForge/RecentProjects, newest first)
     void loadRecent();
     void saveRecent();

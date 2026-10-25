@@ -137,6 +137,21 @@ void App::handleMenu(uint32_t cmd)
         if (askString("Add Watch", "Expression to watch:", e) && !trim(e).empty()) addWatch(trim(e));
         break;
     }
+    // git
+    case CMD_GIT_STATUS: gitStatus(); break;
+    case CMD_GIT_DIFF: gitDiff(); break;
+    case CMD_GIT_LOG: gitLog(); break;
+    case CMD_GIT_COMMIT: gitCommit(); break;
+    case CMD_GIT_PULL: gitPushPull(false); break;
+    case CMD_GIT_PUSH: gitPushPull(true); break;
+    case CMD_GIT_CLONE: gitClone(); break;
+    case CMD_GIT_SETUP: gitSetup(); break;
+
+    // help
+    case CMD_DOC_LOOKUP: docForWordAtCaret(); break;
+    case CMD_DOC_BROWSER: openDocWindow(); break;
+    case CMD_SDK_DOCS: openSdkDocs(); break;
+
     default:
         if (cmd >= CMD_RECENT_FIRST && cmd <= CMD_RECENT_LAST) {
             size_t i = cmd - CMD_RECENT_FIRST;

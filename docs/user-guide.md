@@ -133,3 +133,37 @@ DAR register holds the bad address for a DSI. Stop with Shift-F5.
 
 Assembler files built with `-gstabs` step line by line like C. **F8** steps single
 instructions anywhere, and the Disassembly tab shows where you are.
+
+## AutoDocs
+
+The AmigaOS 4 SDK documents every library function in its AutoDocs
+(`SDK:Documentation/AutoDocs`).
+
+- **F1** (or the Help key) on a function name in the editor opens its entry. AmiForge accepts
+  interface calls (`IIntuition->OpenWindowTags`) and the `Tags`/`TagList`/`A` variants of a name.
+- **Help > AutoDocs Browser** lists every entry. Type in Find to narrow it down.
+- In an entry, names of other functions (`exec.library/AllocVec`, `OpenWindow()`) are links.
+  Click one to go there, and use **Back** to return. Double-click any word to look it up.
+- **SDK Documentation** opens the SDK's documentation drawer, which has the SDK manual (PDF) and
+  the guides for the compiler and tools.
+
+## Git and GitHub
+
+The Git menu works on the repository that contains the project, meaning the nearest drawer
+above it with a `.git` drawer. It uses SimpleGit (`SDK:C/sgit`, installed from the SDK's
+`sgit.lha`). Output appears in the Build tab.
+
+| Command | What it does |
+|---|---|
+| Status, Diff, Log | Show the repository's state |
+| Commit... | Saves everything, adds the project's files and the `.afp`, and commits with your message |
+| Pull, Push | Pull or push the current branch from or to `origin` |
+| Clone Repository... | Clones a URL into a drawer you pick, then opens its `.afp` or offers to make a project |
+| GitHub Setup... | Sets your name and email for commits, and your GitHub user name and personal access token |
+
+Push and pull use the token you set in GitHub Setup (kept in `ENVARC:AmiForge/GitHubToken`).
+Without one, they open a console window where SimpleGit asks for your user name and token.
+SimpleGit's built-in certificate list is older than GitHub's current certificates, so AmiForge
+sets `GIT_SSL_NO_VERIFY`. The connection is still encrypted, but the certificate isn't checked.
+
+The Amiga needs working networking with a default gateway (check with `ShowNetStatus`).

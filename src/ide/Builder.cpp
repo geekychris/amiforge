@@ -75,8 +75,12 @@ static int32 builderMain(STRPTR, int32, struct ExecBase *)
             ok = false;
             break;
         }
-        postStr(j, MsgKind::Info, j->cmds[i].label.c_str());
-        postStr(j, MsgKind::Command, j->cmds[i].line.c_str());
+        if (!j->cmds[i].label.empty()) postStr(j, MsgKind::Info, j->cmds[i].label.c_str());
+        // show the command, but never a password in a URL ("https://user:token@host")
+        std::string shown = j->cmds[i].line;
+        size_t sch = shown.find("://"), at = sch == std::string::npos ? sch : shown.find('@', sch);
+        if (at != std::string::npos && shown.find(' ', sch) > at) shown = shown.substr(0, sch + 3) + "***" + shown.substr(at);
+        postStr(j, MsgKind::Command, shown.c_str());
         BPTR out = IDOS->Open(tmp, MODE_NEWFILE);
         BPTR in = IDOS->Open("NIL:", MODE_OLDFILE);
         int32 rc = IDOS->SystemTags(j->cmds[i].line.c_str(),
@@ -261,6 +265,33 @@ bool Builder::start(const Project &p, const std::string &what)
 
     gJob = j;
     j->proc = IDOS->CreateNewProcTags(NP_Entry, builderMain, NP_Name, "AmiForge builder",
+                                      NP_Child, TRUE, NP_StackSize, 64 * 1024,
+                                      NP_Cli, TRUE, NP_CopyVars, TRUE, TAG_END);
+    if (!j->proc) {
+        IExec->FreeSysObject(ASOT_MUTEX, j->mutex);
+        delete j;
+        return false;
+    }
+    job = j;
+    running = true;
+    return true;
+}
+
+bool Builder::startCommands(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds)
+{
+    if (running || cmds.empty()) return false;
+    if (sigBit < 0 && (sigBit = IExec->AllocSignal(-1)) < 0) return false;
+    errors = warnings = 0;
+    lastOk = false;
+    Job *j = new Job;
+    j->dir = dir;
+    j->owner = IExec->FindTask(nullptr);
+    j->sig = 1UL << sigBit;
+    j->mutex = IExec->AllocSysObjectTags(ASOT_MUTEX, TAG_END);
+    IExec->NewList((struct List *)&j->out);
+    for (auto &c : cmds) j->cmds.push_back({c.first, c.second});
+    gJob = j;
+    j->proc = IDOS->CreateNewProcTags(NP_Entry, builderMain, NP_Name, "AmiForge commands",
                                       NP_Child, TRUE, NP_StackSize, 64 * 1024,
                                       NP_Cli, TRUE, NP_CopyVars, TRUE, TAG_END);
     if (!j->proc) {

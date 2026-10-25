@@ -8,6 +8,11 @@ A native IDE for **AmigaOS 4.1** (PowerPC), running on the Amiga itself:
   go to line and comment/uncomment.
 - **Toolchain**: the AmigaOS 4.1 SDK's native GCC 11.5, which covers C, C++ and GNU `as` for
   `.s` files. Projects build file by file, with compiler errors you can click to jump to.
+- **AutoDocs**: press F1 on an OS function (`OpenWindowTags`, `IExec->AllocVecTags`) to read its
+  AutoDoc from the SDK. Help > AutoDocs Browser searches all of them, and references in an entry
+  are links.
+- **Git and GitHub**: clone, status, diff, log, commit, pull and push from the Git menu, using
+  SimpleGit (`sgit`) from the SDK.
 - **Debugger**: source-level, on the exec debug interface. It has:
   - breakpoints (with conditions), run to cursor, step over / into / out, and instruction step;
   - locals, watches, registers, call stack, memory and disassembly views;
@@ -38,6 +43,7 @@ A native IDE for **AmigaOS 4.1** (PowerPC), running on the Amiga itself:
 | F10 / F11 / Shift-F11 | Step over / into / out |
 | Ctrl-F10 | Run to cursor |
 | F8 | Step one instruction |
+| F1 (or Help) | AutoDoc for the function under the cursor |
 | F3 / Shift-F3 | Find next / previous |
 | F4 / Shift-F4 | Next / previous error |
 | Amiga-N/O/S/W | New / open / save / close file |
@@ -52,6 +58,8 @@ keeps your breakpoints and watches. The `examples/` directory has three:
 - `hello`: C, with a linked list to explore in the debugger.
 - `shapes`: C++, with classes, virtual functions and `std::vector`.
 - `asmdemo`: C calling a PowerPC assembler function.
+- `bouncer`: C++ using the OS. It has RAII wrappers for an Intuition window with a GadTools
+  menu, graphics.library drawing, IDCMP input, and timer.device for the frame rate.
 
 Without a project, Build and Run work on the current file.
 

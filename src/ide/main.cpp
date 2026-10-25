@@ -63,6 +63,7 @@ int App::run(int argc, char **argv)
     eventLoop();
 
     closeFindWindow();
+    closeDocWindow();
     freePens(this);
     closeMainWindow();
     return 0;

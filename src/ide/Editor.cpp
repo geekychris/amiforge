@@ -502,6 +502,23 @@ void App::autoIndent(int ch)
 
 void App::sciNotify(SciView *v, const Scintilla::NotificationData &n)
 {
+    if (v == docView) {
+        // AutoDocs viewer: links (and double-clicked words) open other entries
+        if ((int)n.nmhdr.code == SCN_HOTSPOTRELEASECLICK) pendingDocLink = (intptr_t)n.position;   // after the click is over
+        else if ((int)n.nmhdr.code == SCN_DOUBLECLICK) {
+            intptr_t a = v->send(SCI_WORDSTARTPOSITION, n.position, 1), b = v->send(SCI_WORDENDPOSITION, n.position, 1);
+            if (b > a) {
+                std::vector<char> buf(b - a + 1);
+                struct Sci_TextRangeFull tr;
+                tr.chrg.cpMin = a;
+                tr.chrg.cpMax = b;
+                tr.lpstrText = buf.data();
+                v->send(SCI_GETTEXTRANGEFULL, 0, (intptr_t)&tr);
+                lookupDoc(buf.data());
+            }
+        }
+        return;
+    }
     if (v != editor) return;
     switch ((int)n.nmhdr.code) {
     case SCN_SAVEPOINTLEFT:

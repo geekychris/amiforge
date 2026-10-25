@@ -78,11 +78,23 @@ static uint32 areaDispatch(Class *cl, Object *o, Msg msg)
     }
     case GM_RENDER:
         // Layout and refreshes on our own task: re-place and re-blit the editor now.
-        if (IExec->FindTask(nullptr) == mainTask && gApp) gApp->layoutEditor();
+        if (IExec->FindTask(nullptr) == mainTask && gApp) {
+            if (o == gApp->gad[GID_EDITOR]) gApp->layoutEditor();
+            else gApp->layoutDocView();
+        }
         return 0;
     default:
         return IIntuition->IDoSuperMethodA(cl, o, msg);
     }
+}
+
+static Class *makeAreaClass();
+
+// An editor placeholder for other windows (the AutoDocs viewer).
+Object *newEditorArea(uint32_t gid)
+{
+    if (!areaClass) areaClass = makeAreaClass();
+    return areaClass ? IIntuition->NewObject(areaClass, nullptr, GA_ID, gid, TAG_DONE) : nullptr;
 }
 
 static Class *makeAreaClass()
@@ -179,6 +191,25 @@ static struct NewMenu menus[] = {
     ITEM("Toggle Breakpoint  (F9)", 0, CMD_TOGGLE_BP),
     ITEM("Delete All Breakpoints", 0, CMD_CLEAR_BPS),
     ITEM("Add Watch...", 0, CMD_ADD_WATCH),
+
+    TITLE("Git"),
+    ITEM("Status", 0, CMD_GIT_STATUS),
+    ITEM("Diff", 0, CMD_GIT_DIFF),
+    ITEM("Log", 0, CMD_GIT_LOG),
+    BAR,
+    ITEM("Commit...", 0, CMD_GIT_COMMIT),
+    ITEM("Pull", 0, CMD_GIT_PULL),
+    ITEM("Push", 0, CMD_GIT_PUSH),
+    BAR,
+    ITEM("Clone Repository...", 0, CMD_GIT_CLONE),
+    ITEM("GitHub Setup...", 0, CMD_GIT_SETUP),
+
+    TITLE("Help"),
+    ITEM("AutoDoc for Word at Cursor  (F1)", 0, CMD_DOC_LOOKUP),
+    ITEM("AutoDocs Browser...", 0, CMD_DOC_BROWSER),
+    ITEM("SDK Documentation", 0, CMD_SDK_DOCS),
+    BAR,
+    ITEM("About AmiForge...", 0, CMD_ABOUT),
     { NM_END, 0, 0, 0, 0, 0 }
 };
 
@@ -616,7 +647,7 @@ uint32_t App::idcmpHook(struct IntuiMessage *im)
         }
         // IDE-wide keys first (function keys); then the editor
         uint16 code = im->Code, qual = im->Qualifier;
-        bool fkey = (code >= 0x50 && code <= 0x59) || code == 0x4B || code == 0x6F;
+        bool fkey = (code >= 0x50 && code <= 0x59) || code == 0x4B || code == 0x6F || code == 0x5F;
         if (fkey) {
             handleKey(code, qual);
             return 0;
@@ -645,6 +676,8 @@ bool App::handleKey(uint16_t code, uint16_t qual)
     bool ctrl = qual & IEQUALIFIER_CONTROL;
     uint32_t cmd = 0;
     switch (code) {
+    case 0x50: cmd = CMD_DOC_LOOKUP; break;                                    // F1
+    case 0x5F: cmd = CMD_DOC_LOOKUP; break;                                    // Help
     case 0x52: cmd = shift ? CMD_FIND_PREV : CMD_FIND_NEXT; break;           // F3
     case 0x53: cmd = shift ? CMD_PREV_ERROR : CMD_NEXT_ERROR; break;         // F4
     case 0x54:                                                                // F5
@@ -685,10 +718,11 @@ void App::eventLoop()
     uint32 winSig = 0;
     IIntuition->GetAttr(WINDOW_SigMask, winObj, &winSig);
     while (!quit) {
-        uint32 findSig = 0;
+        uint32 findSig = 0, docSig = 0;
         if (findWinObj) IIntuition->GetAttr(WINDOW_SigMask, findWinObj, &findSig);
+        if (docWinObj) IIntuition->GetAttr(WINDOW_SigMask, docWinObj, &docSig);
         uint32 dbgSig = dbg ? dbg_signal_mask(dbg) : 0;
-        uint32 got = IExec->Wait(winSig | findSig | builder.signalMask() | dbgSig | SIGBREAKF_CTRL_C);
+        uint32 got = IExec->Wait(winSig | findSig | docSig | builder.signalMask() | dbgSig | SIGBREAKF_CTRL_C);
         if (got & SIGBREAKF_CTRL_C) quit = true;
 
         if (got & winSig) {
@@ -727,6 +761,7 @@ void App::eventLoop()
             }
         }
         if (findWinObj && (got & findSig)) handleFindWindow();
+        if (docWinObj && (got & docSig)) handleDocWindow();
         if (got & builder.signalMask()) pollBuild();
         if (dbg && (got & dbgSig)) pollDebugger();
 
