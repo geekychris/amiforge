@@ -1,0 +1,22 @@
+[template]
+name=Shared library
+description=An OS4 shared library described in IDL XML (headers made by idltool), and a program that tests it.
+order=70
+[project]
+output=${LOWER}.library
+cflags=-O0 -gstabs -Wall -Iinclude
+ldflags=-nostartfiles
+libs=
+stopatmain=0
+runcmd=Execute run-test
+[files]
+extra=lib.xml -> ${LOWER}.xml
+file=init.c
+file=impl.c -> ${LOWER}.c
+generated=include/interfaces/${LOWER}.h
+generated=include/proto/${LOWER}.h
+extra=test.c -> test_${LOWER}.c
+extra=run-test
+open=${LOWER}.c
+[create]
+command=SDK:C/idltool -i -p -n -c ${LOWER}.xml

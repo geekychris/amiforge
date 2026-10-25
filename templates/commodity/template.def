@@ -1,0 +1,10 @@
+[template]
+name=Commodity
+description=A commodity with a hot key, controlled from Exchange: shows a window when the hot key is pressed.
+order=50
+[project]
+output=${LOWER}
+args=HOTKEY="ctrl alt h"
+[files]
+file=main.c -> ${LOWER}.c
+open=${LOWER}.c

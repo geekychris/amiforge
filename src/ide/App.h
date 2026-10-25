@@ -75,6 +75,11 @@ struct Project {
     std::string console;        // empty = default CON: window
     bool stopAtMain = true;
     bool trackLeaks = false;    // --- debugtools: Debug > Track Leaks ---
+    // --- designer ---
+    std::string runcmd;         // Run runs this (in the project's drawer) instead of the program
+    std::string author, version = "1.0", shortDesc, aminetType = "util/misc", description;
+    std::string releaseFlags;   // empty = the debug flags without -g, -O0 -> -O2
+    // --- end designer ---
     std::vector<std::string> files;    // relative to dir
     std::vector<std::string> watches;
     struct Bp { std::string file; int line; bool enabled; std::string cond; };
@@ -537,6 +542,24 @@ public:
     void withDocument(Document *d, const std::function<void()> &fn);   // edit/read another open document
     bool batchEditing = false;
     std::vector<std::string> sourceFilesForSearch();   // project files + other open files
+    // --- designer ---
+    // project templates (TemplatesUI.cpp)
+    void newProjectFromTemplate();
+    bool createFromTemplate(const std::string &templateDir, const std::string &name, const std::string &drawer,
+                            std::string &afpOut, std::string &err, std::vector<std::string> *openOut = nullptr);
+    bool generateGuiFiles(const std::string &afg, std::string &cFile, std::string &hFile, std::string &err);
+    // GUI designer (Designer.cpp)
+    void openDesigner(const std::string &afg = "");
+    void closeDesigner();
+    uint32_t designerSignals();
+    void handleDesigner(uint32_t got);
+    class Designer *designer = nullptr;
+    // release packaging (ReleaseUI.cpp)
+    void packageRelease();
+    void continuePackaging(bool buildOk);
+    bool releaseDialog();
+    struct ReleaseJob *releaseJob = nullptr;
+    // --- end designer ---
 };
 
 extern App *gApp;

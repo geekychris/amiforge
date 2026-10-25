@@ -1,0 +1,13 @@
+# AmiForge GUI (edit with Tools > GUI Designer)
+window name=${LOWER} title="${NAME}" width=320
+vlayout id=root
+  hlayout id=nameGroup title="Who are you?"
+    string id=name label=_Name text=Amiga hint="Type your name"
+  hlayout id=optGroup
+    checkbox id=loud text="_Loud"
+    chooser id=greeting items="Hello|Good morning|Welcome" label=_Greeting
+  fuelgauge id=gauge level=0 minheight=20
+  hlayout id=buttons even=1
+    button id=greet text=_Greet hint="Say hello"
+    space
+    button id=quit text=_Quit

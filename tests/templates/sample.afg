@@ -1,0 +1,23 @@
+# Every kind of object the designer has, for tests/templates/check.sh
+window name=sample title="All gadgets" width=400 height=300 resizable=0
+vlayout id=root
+  hlayout id=row1 title="Text" frame=group
+    string id=str label=_String text="Hello \"quoted\"" maxchars=40 hint="A string"
+    integer id=num label=_Number value=5 min=-10 max=10
+  hlayout id=row2 frame=field even=1
+    checkbox id=chk text=_Check checked=1
+    chooser id=cho items="A|B|C" selected=2
+    radio id=rad items="X|Y"
+  vlayout id=row3 frame=button
+    slider id=sld min=0 max=10 level=3
+    slider id=vsl vertical=1 minheight=40
+    scroller id=scr total=50 visible=5 top=1
+    scroller id=vsc vertical=1
+  listbrowser id=lst items="one|two|three" weight=50 minheight=60
+  label id=lbl text="A label"
+  fuelgauge id=fg level=75
+  getfile id=gf title="Pick" pattern=#?.c save=1
+  texteditor id=te text="Some text" disabled=1
+  hlayout id=row4
+    space id=sp
+    button id=ok text=_OK weight=0

@@ -1,0 +1,16 @@
+[template]
+name=Device driver skeleton
+description=An exec device (Open/Close/BeginIO/AbortIO) holding a small buffer, and a program that tests it.
+order=80
+[project]
+output=${LOWER}.device
+ldflags=-nostartfiles
+libs=
+stopatmain=0
+runcmd=Execute run-test
+[files]
+file=device.c -> ${LOWER}.c
+file=device.h -> ${LOWER}.h
+extra=test.c -> test_${LOWER}.c
+extra=run-test
+open=${LOWER}.c

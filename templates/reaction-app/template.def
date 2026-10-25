@@ -1,0 +1,13 @@
+[template]
+name=ReAction application
+description=A window built with ReAction classes from a GUI Designer file (Tools > GUI Designer).
+order=30
+[project]
+output=${LOWER}
+[files]
+file=main.c
+extra=gui.afg -> ${LOWER}.afg
+extra=gui_seed.c -> ${LOWER}_gui.c
+open=main.c
+[create]
+gui=${LOWER}.afg

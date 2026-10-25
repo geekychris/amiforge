@@ -1,0 +1,10 @@
+[template]
+name=AHI sound player
+description=Plays a tune it generates itself, through ahi.device (AHI's default unit).
+order=65
+[project]
+output=${LOWER}
+args=NOTES=262,330,392,523
+[files]
+file=main.c -> ${LOWER}.c
+open=${LOWER}.c

@@ -117,6 +117,9 @@ void App::pollBuild()
             updateToolbar();
             if (ok && after == 1) runProgram();
             else if (ok && after == 2) debugStart();
+            // --- designer ---
+            else if (after == 3) { continuePackaging(ok); return; }
+            // --- end designer ---
             else if (!ok) {
                 // jump to the first error
                 for (auto &d : diagnostics)
@@ -162,6 +165,10 @@ bool App::buildBeforeRun(int after)
 void App::runProgram()
 {
     std::string exe = project.outputPath();
+    // --- designer ---
+    if (!project.runcmd.empty()) exe.clear();    // a run command instead of the program
+    else
+    // --- end designer ---
     if (!fileExists(exe)) {
         info("Can't find " + exe + " - build the project first.");
         return;
@@ -175,6 +182,9 @@ void App::runProgram()
         return;
     }
     std::string cmd = "\"" + exe + "\"" + (project.args.empty() ? "" : " " + project.args);
+    // --- designer ---
+    if (!project.runcmd.empty()) cmd = project.runcmd;
+    // --- end designer ---
     // the program starts in the project's directory
     BPTR dir = IDOS->Lock(project.dir.c_str(), SHARED_LOCK);
     BPTR old = dir ? IDOS->SetCurrentDir(dir) : 0;
@@ -189,7 +199,7 @@ void App::runProgram()
         info("Couldn't start " + exe);
         return;
     }
-    setStatus("Started " + project.output);
+    setStatus("Started " + (project.runcmd.empty() ? project.output : project.runcmd));   // runcmd: designer
 }
 
 } // namespace af

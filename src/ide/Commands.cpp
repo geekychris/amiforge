@@ -17,6 +17,11 @@ void App::handleMenu(uint32_t cmd)
     switch (cmd) {
     // project
     case CMD_NEW_PROJECT: newProject(); break;
+    // --- designer ---
+    case CMD_NEW_FROM_TEMPLATE: newProjectFromTemplate(); break;
+    case CMD_GUI_DESIGNER: openDesigner(); break;
+    case CMD_PACKAGE_RELEASE: packageRelease(); break;
+    // --- end designer ---
     case CMD_OPEN_PROJECT: openProject(); break;
     case CMD_SAVE_PROJECT: saveProject(); break;
     case CMD_CLOSE_PROJECT: closeProject(); break;

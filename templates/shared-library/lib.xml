@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE library SYSTEM "library.dtd">
+<!-- ${NAME}: the library's functions. After changing them, run
+       SDK:C/idltool -i -p -n -c ${LOWER}.xml
+     to remake include/ and ${LOWER}_vectors.c/.h, then add the functions to ${LOWER}.c. -->
+<library name="${LOWER}" basename="${IDENT}Base" openname="${LOWER}.library">
+	<include>exec/types.h</include>
+	<interface name="main" version="1.0" struct="${IDENT}IFace" prefix="_${IDENT}_" asmprefix="I${IDENT}" global="I${IDENT}">
+		<method name="Obtain" result="uint32"/>
+		<method name="Release" result="uint32"/>
+		<method name="Expunge" result="void" status="unimplemented"/>
+		<method name="Clone" result="struct Interface *" status="unimplemented"/>
+		<method name="Add" result="int32">
+			<arg name="a" type="int32"/>
+			<arg name="b" type="int32"/>
+		</method>
+		<method name="Multiply" result="int32">
+			<arg name="a" type="int32"/>
+			<arg name="b" type="int32"/>
+		</method>
+		<method name="Hello" result="CONST_STRPTR"/>
+	</interface>
+</library>

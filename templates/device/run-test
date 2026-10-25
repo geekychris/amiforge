@@ -1,0 +1,11 @@
+; Builds the test program and runs it against the device just built.
+; (AmiForge's Run - Ctrl-F5 - runs this script: see Project > Settings, "Run command".)
+FailAt 21
+; forget a copy of the device that's still in memory from the last run
+Avail >NIL: FLUSH
+SDK:gcc/bin/gcc -O0 -gstabs -Wall -o test_${LOWER} test_${LOWER}.c -lauto
+If WARN
+  Echo "The test program didn't compile."
+  Quit 10
+EndIf
+test_${LOWER}

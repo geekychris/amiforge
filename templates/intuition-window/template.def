@@ -1,0 +1,9 @@
+[template]
+name=Intuition window + GadTools menu
+description=A classic Intuition window with a GadTools menu, drawing with graphics.library.
+order=40
+[project]
+output=${LOWER}
+[files]
+file=main.c -> ${LOWER}.c
+open=${LOWER}.c

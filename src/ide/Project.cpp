@@ -18,6 +18,32 @@
 
 namespace af {
 
+// --- designer ---
+// Multi-line values (the release description) on one .afp line.
+static std::string escapeNewlines(const std::string &v)
+{
+    std::string o;
+    for (char c : v) {
+        if (c == '\\') o += "\\\\";
+        else if (c == '\n') o += "\\n";
+        else o += c;
+    }
+    return o;
+}
+
+static std::string unescapeNewlines(const std::string &v)
+{
+    std::string o;
+    for (size_t i = 0; i < v.size(); i++) {
+        if (v[i] == '\\' && i + 1 < v.size()) {
+            o += v[i + 1] == 'n' ? '\n' : v[i + 1];
+            i++;
+        } else o += v[i];
+    }
+    return o;
+}
+// --- end designer ---
+
 bool Project::load(const std::string &afp, std::string &err)
 {
     std::string text;
@@ -51,6 +77,15 @@ bool Project::load(const std::string &afp, std::string &err)
             else if (k == "console") console = v;
             else if (k == "stopatmain") stopAtMain = v != "0" && strcasecmp(v.c_str(), "no") != 0;
             else if (k == "trackleaks") trackLeaks = v == "1";   // --- debugtools ---
+            // --- designer ---
+            else if (k == "runcmd") runcmd = v;
+            else if (k == "author") author = v;
+            else if (k == "version") version = v;
+            else if (k == "short") shortDesc = v;
+            else if (k == "aminettype") aminetType = v;
+            else if (k == "description") description = unescapeNewlines(v);
+            else if (k == "releaseflags") releaseFlags = v;
+            // --- end designer ---
         } else if (section == "files" && k == "file") {
             files.push_back(v);
         } else if (section == "watches" && k == "watch") {
@@ -92,6 +127,15 @@ bool Project::save(std::string &err)
     s += "console=" + console + "\n";
     s += std::string("stopatmain=") + (stopAtMain ? "1" : "0") + "\n";
     if (trackLeaks) s += "trackleaks=1\n";   // --- debugtools ---
+    // --- designer ---
+    if (!runcmd.empty()) s += "runcmd=" + runcmd + "\n";
+    if (!author.empty()) s += "author=" + author + "\n";
+    if (!version.empty() && version != "1.0") s += "version=" + version + "\n";
+    if (!shortDesc.empty()) s += "short=" + shortDesc + "\n";
+    if (!aminetType.empty() && aminetType != "util/misc") s += "aminettype=" + aminetType + "\n";
+    if (!description.empty()) s += "description=" + escapeNewlines(description) + "\n";
+    if (!releaseFlags.empty()) s += "releaseflags=" + releaseFlags + "\n";
+    // --- end designer ---
     s += "\n[files]\n";
     for (auto &f : files) s += "file=" + f + "\n";
     if (!breakpoints.empty()) {

@@ -1,0 +1,12 @@
+[template]
+name=Console C++ program
+description=A Shell program in C++ with a class, std::vector, std::string and algorithms.
+order=20
+[project]
+output=${LOWER}
+args=banana apple cherry
+[files]
+file=main.cpp -> ${LOWER}.cpp
+file=words.h
+file=words.cpp
+open=${LOWER}.cpp

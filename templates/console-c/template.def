@@ -1,0 +1,10 @@
+[template]
+name=Console C program
+description=A Shell program in C: reads its arguments with ReadArgs() and prints a result.
+order=10
+[project]
+output=${LOWER}
+args=WORLD
+[files]
+file=main.c -> ${LOWER}.c
+open=${LOWER}.c

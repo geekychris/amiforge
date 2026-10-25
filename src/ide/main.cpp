@@ -67,6 +67,7 @@ int App::run(int argc, char **argv)
 
     closeFindWindow();
     closeDocWindow();
+    closeDesigner();   // designer
     freePens(this);
     closeMainWindow();
     return 0;
