@@ -1,11 +1,11 @@
 /*
  * dbg — source-level debugger core for AmigaOS 4.1 PPC programs.
  *
- * Runs inside the IDE's own process. It loads the program with LoadSeg, creates its
- * process suspended (Forbid / CreateNewProc / SuspendTask / AddDebugHook / Permit),
- * plants breakpoints as `trap` instructions (making code pages writable with IMMU when
- * needed), and gets control back through the exec debug hook (DBHMT_EXCEPTION), which
- * suspends the task and signals the IDE.
+ * Runs inside the IDE's own process. It loads the program with LoadSeg and starts it in a
+ * small launcher process (created suspended, with an exec debug hook) that runs the seglist
+ * with RunCommand, the way a shell does. Breakpoints are `trap` instructions written into
+ * the program's code (code pages are made writable with IMMU around the store); a trap
+ * enters the debug hook, which suspends the task and bumps a counter the IDE polls.
  *
  * Debug info comes from the program's own ELF file: stabs (-gstabs / -gstabs+) for lines,
  * functions, scopes, locals, parameters, globals and types; .symtab for everything else.
@@ -21,7 +21,10 @@
  * The IDE drives it from its event loop:
  *     Wait(... | dbg_signal_mask(s));
  *     while (dbg_poll(s, &ev)) handle(ev);
- * All dbg_* calls are made from the IDE task. Nothing here blocks for long.
+ * dbg_signal_mask is a timer that ticks while the program runs; dbg_poll can also be
+ * called at any other time. All dbg_* calls are made from the IDE task. Nothing here
+ * blocks for long (a few tens of milliseconds at most). See docs/debugger-notes.md for the
+ * OS behaviour this depends on.
  */
 #ifndef AF_DBG_H
 #define AF_DBG_H
