@@ -71,6 +71,7 @@ void App::hotAfterCompile(bool ok)
         l.kind = kind;
         l.text = text;
         diagnostics.push_back(l);
+        buildLog.detach();
         struct Node *n = buildLog.add({text}, (void *)(intptr_t)diagnostics.size());
         if (n) buildLog.setPens(n, kind == MsgKind::Error ? penError : kind == MsgKind::Warning ? penWarning : penNote);
         buildLog.attach(buildLog.count() - 1);
