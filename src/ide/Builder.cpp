@@ -99,6 +99,24 @@ static int32 builderMain(STRPTR, int32, struct ExecBase *)
         IDOS->SetVar("DISTCC_DIR", "T:distcc", -1, GVF_LOCAL_ONLY);
         char home[8];
         if (IDOS->GetVar("HOME", home, sizeof home, 0) < 0) IDOS->SetVar("HOME", "T:", -1, GVF_LOCAL_ONLY);
+        // distcc starts the local preprocessor as plain "gcc", and gcc then can't work out where
+        // it is installed: it falls back to its built-in /gcc prefix, misses its own include
+        // directory, and every file that includes a system header fails ("stddef.h: No such
+        // file", from newlib's #include_next). GCC_EXEC_PREFIX tells it.
+        char gep[8];
+        if (IDOS->GetVar("GCC_EXEC_PREFIX", gep, sizeof gep, 0) < 0) {
+            static const char *const prefixes[][2] = {
+                { "SDK:gcc/ppc-amigaos/bin/lib/gcc", "/SDK/gcc/ppc-amigaos/bin/lib/gcc/" },   // SDK 54
+                { "SDK:gcc/lib/gcc", "/SDK/gcc/lib/gcc/" },
+            };
+            for (auto &p : prefixes) {
+                BPTR pl = IDOS->Lock(p[0], SHARED_LOCK);
+                if (!pl) continue;
+                IDOS->UnLock(pl);
+                IDOS->SetVar("GCC_EXEC_PREFIX", p[1], -1, GVF_LOCAL_ONLY);
+                break;
+            }
+        }
     }
     BPTR dirLock = IDOS->Lock(j->dir.c_str(), SHARED_LOCK);
     BPTR oldDir = dirLock ? IDOS->SetCurrentDir(dirLock) : 0;
