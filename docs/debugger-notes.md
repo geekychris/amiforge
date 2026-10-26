@@ -72,6 +72,16 @@ may still hold its locks (a breakpoint in the callback has the same problem).
 `dbgtest DIR oscall` covers the console, `Delay()` and `Wait()` cases and checks with a
 `LockIBase` helper process that Intuition stays usable at every stop.
 
+**Open problem, found while testing this (not caused by it): killing a program in `Wait()`.**
+`kill_now` writes the entry context back (`ip = lr`, `r3 = 20`) and restarts the task. For a
+program that sits in `Wait()` (`TS_WAIT`, ip in the kernel), that doesn't unwind it within
+`KILL_WAIT_MS`, with or without a pause pending (`pausetest wait`: 5 of 5 failed, October
+2026). The session then gives up with "left suspended". The task keeps its rewritten context.
+Once the debugger's process is gone, so is the launcher code it would return to: such a
+leftover later died with a DSI in the kernel (Grim Reaper). Probably the restarted task goes
+back to waiting and never runs the new context. Waking it (`Signal(t, t->tc_SigWait)`) after
+the restart is the obvious next experiment; it hasn't been tried on the guest.
+
 ## The traps (each of these hung a program or the whole guest)
 
 1. **Don't start the program as an `NP_Seglist` process.** If one parent creates a newlib
