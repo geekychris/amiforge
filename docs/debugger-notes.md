@@ -43,6 +43,69 @@ The launcher also changed. It hooks itself (`AddDebugHook(FindTask(NULL), ...)`)
 for CTRL-F before calling `RunCommand`, rather than being created suspended and hooked from
 outside. It takes the hook off again before DOS cleans the process up.
 
+## Pausing (never in OS code)
+
+A pause used to `SuspendTask` the debuggee wherever it was. In an OS call that can be while it
+holds an OS lock: a program looping `printf` into a CON: window plus `Delay()`, paused with
+Break, stopped at `0x01812804 in Kickstart/kernel`. Intuition then froze for the whole machine
+(the mouse pointer stopped, `LockIBase` callers hung), and the IDE's own GUI was among the
+blocked tasks, so nothing could resume the program short of a reset.
+
+So the program is now held only for a moment (`SuspendTask`, read the context, restart it).
+If its pc is outside its own code, it gets temporary traps (`TK_PAUSE`) at the places it
+returns to: LR (for a leaf, or a function that hasn't saved it yet) and every return address
+into the program on the back chain (`frame_pause_targets`). It is restarted and stops at the
+first one it reaches. Traps go only in the program's own code, as always. A hit counts only
+if r1 is at or above the r1 seen in the OS call, when that r1 was on the task's stack
+(`frame_pause_hit_ok`). Below it, the hit is a callback the OS makes into the program (a
+hook), which may run with the OS's locks held. As a fallback, every 25 polls (about 250 ms)
+a program that isn't in `TS_WAIT` is sampled again. In its own code it stops there; otherwise
+the traps are planned again from its new context. A program in `Wait()` keeps the pause
+pending at no cost. A second pause, `dbg_continue` or `dbg_kill` cancels it. A pause is
+refused once the program has returned and DOS is cleaning the process up (suspending it there
+hung it; see dbg_poll).
+
+Limits: a program that never comes back from the OS can't be paused, only stopped. If an OS
+call makes a callback into the program (a hook) and the callback makes a further OS call, a
+pause caught in that inner call stops when it returns into the callback, while the outer call
+may still hold its locks (a breakpoint in the callback has the same problem).
+`dbgtest DIR oscall` covers the console, `Delay()` and `Wait()` cases and checks with a
+`LockIBase` helper process that Intuition stays usable at every stop.
+
+## Killing a program that is in an OS call
+
+Kill writes the context the program had at its ELF entry point back into the task (`ip = lr`,
+the return into RunCommand, `r3 = 20`) and restarts it. That works on a context the debug hook
+delivered (a trap or an exception) and on a task interrupted in the program's own code. It
+failed on a program in `Wait()`, with or without a pause pending (`pausetest wait`: 5 of 5
+failed, October 2026). The task's context was the kernel's, inside `Wait()`, and rewritten it
+didn't run within `KILL_WAIT_MS`. The kill then gave up and left it suspended, *with the
+rewritten context*. One such leftover later died with a DSI in the kernel (Grim Reaper). This
+was probably also the crash seen after stopping a GUI program that waits on its window.
+
+`kill_now` therefore never rewrites a context inside an OS call (`frame_kill_plan`):
+- stopped by the hook, or in the program's code: unwind at once, as before;
+- in an OS call: trap the return addresses as a pause does (`frame_pause_targets`,
+  `frame_pause_hit_ok` to skip callbacks), restart it, and unwind at the trap it reaches. If it
+  is waiting, wake it with the signals it waits for, but only the program's own (bits 16-31)
+  and CTRL-C to CTRL-F (`frame_kill_wake_mask`). `Wait()` returns, and the trap right after
+  the call catches the program before it looks at them. A wait inside the OS (`WaitPort()`,
+  `WaitIO()`) just waits again; a busy call usually returns soon. It waits `KILL_RETURN_MS`
+  (1.5 s);
+- nowhere to trap it, or it didn't come back: give up (`abandon`). The process is left
+  suspended with its own context (never a half-done kill), without traps or the hook. Its
+  seglist and any Edit and Continue code stay loaded. Its DeathMessage and death port are
+  handed over to it (the port set to `PA_IGNORE`; the session takes a new one). The Debug log
+  says so. Such a process holds whatever it held in the OS and must not be resumed: reboot.
+  The launcher it would return into is code in the IDE.
+
+A program that has returned (DOS cleaning it up) is left to finish running, with the same
+hand-over, if it is still there after 5 s.
+
+`dbgtest DIR oskill` kills `pausetest` in `Wait()` (with and without a pause pending) and
+while it prints with `Delay()`. It checks the exit code and that no task is left over, and
+stops at the first failure.
+
 ## The traps (each of these hung a program or the whole guest)
 
 1. **Don't start the program as an `NP_Seglist` process.** If one parent creates a newlib

@@ -412,6 +412,7 @@ public:
     void debugLog(const std::string &s, int pen = -1);
     bool debugging() const { return dbg && dbg_get_state(dbg) != DBG_NONE && dbg_get_state(dbg) != DBG_EXITED; }
     bool stopped() const { return dbg && dbg_get_state(dbg) == DBG_STOPPED; }
+    bool pausePending() const { return dbg && dbg_pause_pending(dbg); }   // Pause waits for an OS call to return
 
     // --- debugtools (DebugTools.cpp): Intuition inspector, leak tracker, profiler ---
     enum { BOTTOM_WINDOWS = 7, BOTTOM_LEAKS = 8, BOTTOM_PROFILE = 9 };   // bottom panel pages

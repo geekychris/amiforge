@@ -567,9 +567,10 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
     }
     if (cmd == "PAUSE") {
         if (!debugging() || stopped()) return fail(10, "the program isn't running");
-        debugPause();
+        if (!pausePending()) debugPause();   // pending already (in an OS call): don't cancel it
         return "";
     }
+    if (cmd == "CONTINUE" && pausePending()) { debugContinue(); return ""; }   // cancels the pending pause
     if (cmd == "CONTINUE" || cmd == "STEP" || cmd == "NEXT" || cmd == "STEPOUT" || cmd == "RUNTO") {
         if (!stopped()) return fail(10, debugging() ? "the program is running, not stopped (PAUSE first)" : "not debugging (DEBUGSTART first)");
         mcpStopText.clear();

@@ -752,9 +752,9 @@ void App::updateTitle()
 void App::updateToolbar()
 {
     bool dbgOn = debugging();
-    bool st = stopped();
-    setGadget(GID_TB_DEBUG, GA_Text, (uint32)(st ? "Continue" : "Debug"));
-    setGadget(GID_TB_DEBUG, GA_Disabled, dbgOn && !st);
+    bool st = stopped(), pend = pausePending();
+    setGadget(GID_TB_DEBUG, GA_Text, (uint32)(st || pend ? "Continue" : "Debug"));
+    setGadget(GID_TB_DEBUG, GA_Disabled, dbgOn && !st && !pend);
     setGadget(GID_TB_OVER, GA_Disabled, !st);
     setGadget(GID_TB_INTO, GA_Disabled, !st);
     setGadget(GID_TB_OUT, GA_Disabled, !st);

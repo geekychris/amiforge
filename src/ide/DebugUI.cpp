@@ -152,6 +152,12 @@ static void freeVars(App *a)
 
 void App::debugContinue()
 {
+    if (pausePending()) {              // the program is still in an OS call: just drop the pause
+        dbg_continue(dbg);
+        setStatus("Running...");
+        updateToolbar();
+        return;
+    }
     if (!stopped()) return;
     clearExecutionMarkers();
     if (!dbg_continue(dbg)) debugLog(std::string("Continue failed: ") + dbg_last_error(dbg), penError);
@@ -195,15 +201,31 @@ void App::debugRunToCursor()
     updateToolbar();
 }
 
+// The debugger never stops the program inside an OS call (it could hold a lock the whole GUI
+// needs): if it is in one, the pause stays pending until it returns to its own code. Pausing
+// again cancels it.
 void App::debugPause()
 {
-    if (debugging() && !stopped()) dbg_pause(dbg);
+    if (!debugging() || stopped()) return;
+    bool was = pausePending();
+    if (!dbg_pause(dbg)) {
+        debugLog(std::string("Pause failed: ") + dbg_last_error(dbg), penError);
+        return;
+    }
+    if (pausePending()) setStatus("Pausing... (in AmigaOS call)");
+    else if (was && !stopped()) setStatus("Running...");
+    updateToolbar();
 }
 
 void App::debugStop()
 {
     if (!dbg) return;
-    if (debugging()) dbg_kill(dbg);
+    if (debugging()) {
+        dbg_kill(dbg);
+        dbg_event ev;                  // what the kill reported (dbg_unload drops the queue)
+        while (dbg_poll(dbg, &ev))
+            if (ev.type == DBG_EV_MESSAGE) debugLog(ev.text, penError);
+    }
     dtSessionEnded();                  // --- debugtools ---
     freeVars(this);
     dbg_unload(dbg);
