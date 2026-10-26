@@ -74,7 +74,11 @@ transfer, shell commands and launching.
   - autocomplete list and calltips: small borderless windows;
   - context menu: popupmenu.class, or reported to the host.
 - **Lexers:** LexCPP (C/C++), LexAsm (GNU as, with PPC mnemonics and registers as keywords),
-  LexMake, LexProps, LexDiff.
+  LexMake, LexProps, LexDiff; LexPython, LexLua, LexPerl, LexBash, LexJSON, LexYAML and
+  LexMarkdown (about 250 KB together); and our own LexAmiga.cpp for ARexx and AmigaDOS scripts.
+  `sci/Languages.*` decides a file's language (extension, first line, drawer) and holds each
+  language's comment marks, indent rule and keyword lists; SciView's auto-indent asks it
+  (`AF_SCI_SETLANGUAGE`).
 
 ## Debugger (src/dbg)
 
@@ -205,6 +209,8 @@ The OS-independent logic of each feature lives in a model file that also compile
 | Explanations | `Explain.*` (rules for GCC/ld messages and crash states) | `BuildUI.cpp`, `DebugUI.cpp` | Rules are tested against real GCC 11.5 output |
 | Projects folder and browser | `ProjectIndex.*` (scan two drawers deep, descriptions from `.afp`/README, recent merge, Open Project's start drawer) | `ProjectBrowser.cpp` | Settings in `ENVARC:AmiForge/ProjectsFolder` and `ShowBrowser`; the browser is a normal window handled by the event loop (`browserSignal`/`handleBrowser`) |
 | Modal dialogs, Stop Program | `Robust.*` (run/stop states, what a modal dialog does with other windows' input) | `Modal.cpp`, `RunControl.cpp` | See below |
+| Languages, Python projects | `sci/Languages.*`, `LangSymbols.cpp` (outlines and masking per language), `LangTools.*` (the checker and runner scripts, the traceback parser, finding the interpreter) | `PythonUI.cpp`, `sci/LexAmiga.cpp`, `SciSetup.cpp` | See below |
+| Keys | `KeyBindings.*` (the table of IDE-wide keys) | `MainWindow.cpp` (`handleKey`), `DebugKeys.cpp` | Every binding is unique (a host test checks); a combination with no binding falls back to the key with fewer qualifiers |
 
 **Modal dialogs.** Every modal window runs `beginModal(wo)`, `waitModal(wo)` instead of
 `IExec->Wait(its signal)`, and `endModal()`. While one is open, the IDE's other windows (main,
@@ -225,9 +231,22 @@ again, Ctrl-C/D/E/F, or leaving it. Nothing is ever force-killed. If AmiForge qu
 program runs, the port is set to `PA_IGNORE` and left allocated with the DeathMessages, so the
 late reply is harmless.
 
+**Python projects.** Nothing is compiled. Build writes `LangTools`' checker to
+`T:AmiForge-pycheck.py` and runs it once over all `.py` files (`Builder::startPython`): it
+calls `compile()` on each and prints `file:line:col: error: SyntaxError: msg`, which the GCC
+parser already reads; tracebacks are parsed too. Run writes the runner to `T:AmiForge-pyrun.py`
+and starts `python -u runner STOPFILE TBFILE main.py args` through `runSystem` (so Stop Program
+and the DeathMessage tracking work) with a 2 MB stack. The port doesn't turn Ctrl-C into
+`KeyboardInterrupt`, so Stop Program also creates STOPFILE, which a thread in the runner
+watches (`_thread.interrupt_main()`). When the program ends, TBFILE (the uncaught exception's
+traceback, with the runner's frames dropped) goes into the build log. PYTHONHOME/PYTHONPATH
+are set as local variables, copied into the new process, when they're unset and the
+interpreter's drawer has `lib/os.py`. Debug runs `python -m pdb -c "b file:line" ... -c
+continue`.
+
 Each area keeps its code in shared files (`App.h`, `Commands.*`, `MainWindow.cpp`) inside
 `// --- <area> ---` blocks (`// --- mcp ---` for the MCP commands: App.h, RexxPort.cpp, RexxCmd.cpp,
-Dialogs.cpp, DebugUI.cpp, GitPanel.cpp, main.cpp). Command IDs: robust 1500-, projects 1400-, editor 1300-1359, designer 1200-, integrations
+Dialogs.cpp, DebugUI.cpp, GitPanel.cpp, main.cpp). Command IDs: lang 1700-, robust 1500-, projects 1400-, editor 1300-1359, designer 1200-, integrations
 1000- (macros 1100-1139), debugtools 650-, Edit and Continue 660. The bottom tabs Windows,
 Leaks and Profile are at fixed indices 7-9 (`BOTTOM_*`); Git is found by name.
 

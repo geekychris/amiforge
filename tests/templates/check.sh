@@ -28,6 +28,16 @@ for t in $root/templates/*/; do
   while IFS='=' read -r k v; do
     case $k in cflags) cflags=$v;; cxxflags) cxxflags=$v;; ldflags) ldflags=$v;; libs) libs=$v;; output) output=$v;; esac
   done < $dir/project.txt
+  # --- lang --- a Python template: nothing to compile; the host's python3 checks the syntax
+  if grep -q '^language=python' $dir/project.txt 2>/dev/null; then
+    pys=($(grep '\.py$' $dir/files.txt))
+    if (cd $dir && python3 -c 'import sys; [compile(open(f).read(), f, "exec") for f in sys.argv[1:]]' $pys); then
+      echo "echo 'OK   $id (Python syntax, host python3)'" >> $script
+    else
+      echo "echo 'FAIL $id (Python syntax)'; fail=1" >> $script
+    fi
+    continue
+  fi
   if [ -s $dir/commands.txt ]; then
     echo "echo 'SKIP $id: runs $(head -1 $dir/commands.txt | cut -d" " -f1) when created (checked on OS4)'" >> $script
     continue

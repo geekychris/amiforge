@@ -9,7 +9,8 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
 
 - **Editor**: a port of [Scintilla](https://www.scintilla.org/) to AmigaOS 4.
   - Tabbed, multi-file editing with syntax highlighting for C, C++, PowerPC assembler (GNU `as`),
-    makefiles and diffs.
+    makefiles and diffs, and for Python, ARexx, AmigaDOS scripts, Lua, Perl, shell scripts, JSON,
+    YAML and Markdown, each with its comment toggle, auto-indent and symbol outline.
   - Line numbers, folding, brace matching and auto-indent.
   - Find/replace with regular expressions, Find in Files, go to line, and comment/uncomment.
   - Light and dark themes, a split view and a minimap (toolbar buttons), multiple cursors and
@@ -22,6 +23,11 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
   - `win->` lists the members of `win`'s type, including OS structs from the SDK headers;
   - calltips show the parameters of OS functions, your functions, constructors and methods, with
     the current argument highlighted.
+- **Python 3** (with the [AmigaOS 4 port](https://github.com/geekychris/python-amigaos4)):
+  Python projects where Build checks the syntax (errors clickable in the build log), Run runs
+  the main script and puts a traceback's lines in the build log, Stop Program stops it, and F5
+  offers pdb with the project's breakpoints. Completion of keywords and built-ins, Python
+  snippets, a project template and an example.
 - **Navigation**: Ctrl-click (or F12) opens an `#include`d header or goes to a definition. A
   context menu on the right mouse button has everything that applies to the word under the
   pointer.
@@ -37,8 +43,9 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
     a readme and an install script.
 - **Debugging**: AmiForge has its own debugger, built on the exec debug interface; it doesn't
   use GDB.
-  - Breakpoints, including conditional ones; step over, into and out; run to cursor; instruction
-    stepping.
+  - Breakpoints, including conditional ones; step over, into and out; run to cursor or to a
+    function; set next statement; pause and restart; instruction stepping. The keys are the ones
+    modern IDEs use (F5, F9, F10, F11, Shift-F11, Ctrl-F10, Shift-F9 quick watch...).
   - Locals and watches with expandable structs, arrays and pointers, and changed values in red.
   - Registers, call stack, memory and disassembly views.
   - Crashes are caught and shown at the source line, with an explanation of the likely cause.
@@ -54,8 +61,8 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
   - Change markers in the editor's margin, and blame for each line.
 - **GUI designer**: lay out a ReAction window with a live preview and generate its C code;
   hand-written code is kept when you regenerate.
-- **Templates**: new projects from nine templates (console C and C++, ReAction app, Intuition
-  window with menus, commodity, screen blanker, shared library, device, AHI player).
+- **Templates**: new projects from ten templates (console C and C++, ReAction app, Intuition
+  window with menus, commodity, screen blanker, shared library, device, AHI player, Python script).
 - **Hex, icon and picture editors**: binaries open in a hex editor; `.info` icons and IFF/PNG
   pictures open in their own viewers.
 - **ARexx**: an `AMIFORGE` port to script the IDE, and a Macros menu of your own `.rexx` macros.
@@ -106,6 +113,7 @@ examples, QEMU, troubleshooting, and every key.
 | `dirsize` | C++ Shell tool: `ReadArgs()`, recursive `ExamineDir()`, totals by file type in a `std::map`, sorted output, Ctrl-C |
 | `workers` | C++ and exec multitasking: worker processes from `CreateNewProcTags()` report through message ports; Ctrl-C stops them all |
 | `sketch` | C++ drawing program: an Intuition window with GadTools menus for pen and brush, mouse drawing, an ASL save requester, IFF ILBM written with iffparse.library |
+| `sysinfo-py` | Python: memory, tasks, libraries and free space through the Python port's `_amiga` module |
 
 The examples drawer is the default projects folder: **Project > Browse Projects** (Amiga-U)
 lists every project in it with its description.

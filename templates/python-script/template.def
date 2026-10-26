@@ -1,0 +1,12 @@
+[template]
+name=Python script
+description=A Python 3 script with a main() and command line arguments (argparse). Build checks the syntax, Run runs it with the Python interpreter, Debug offers pdb.
+order=15
+[project]
+language=python
+main=${LOWER}.py
+output=${LOWER}
+args=World
+[files]
+file=main.py -> ${LOWER}.py
+open=${LOWER}.py

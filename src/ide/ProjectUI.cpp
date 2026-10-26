@@ -74,7 +74,8 @@ void App::newProject()
                 if (!EXD_IS_FILE(ed)) continue;
                 std::string n = (const char *)ed->Name;
                 std::string e = extension(n);
-                if (isSourceFile(n) || e == "h" || e == "hpp" || e == "i" || e == "inc")
+                if (isSourceFile(n) || e == "h" || e == "hpp" || e == "i" || e == "inc" ||
+                    lang::isPythonFile(n))   // --- lang --- a drawer of .py files is a Python project
                     project.files.push_back(n);
             }
             IDOS->ReleaseDirContext(ctx);
@@ -93,7 +94,7 @@ void App::newProject()
     refreshProjectList();
     refreshBreakpointList();
     for (auto &f : project.files)
-        if (isSourceFile(f)) { openFile(project.abs(f)); break; }
+        if (isSourceFile(f) || (project.isPython() && f == project.pythonMain())) { openFile(project.abs(f)); break; }   // --- lang ---
     lastDir = project.dir;
     updateTitle();
     addRecent(project.path);
