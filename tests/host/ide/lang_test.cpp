@@ -433,6 +433,10 @@ TEST(lang_runner_script_traceback_and_stop)
     out = run("cd " + d + " && rm -f tb && touch stop && python3 -u run.py stop tb count.py", &rc);
     CHECK_EQ(rc, 0);
     CHECK(out.find("sum 19999900000") != std::string::npos);
+    // the opt-in watcher thread stops a loop that never sleeps
+    put(d + "/busy.py", "n = 0\nwhile True:\n    n += 1\n");
+    out = run("cd " + d + " && rm -f tb stop && (sleep 1; touch stop) & cd " + d + " && AMIFORGE_STOPWATCH=1 python3 -u run.py stop tb busy.py", &rc);
+    CHECK_EQ(rc, 5);
     // a syntax error in the script: its location, not the runner's
     put(d + "/syn.py", "x = 1\nif x\n    pass\n");
     run("cd " + d + " && rm -f tb stop && python3 run.py stop tb syn.py", &rc);

@@ -56,6 +56,18 @@ def _stopping_sleep(seconds):
             return
         _sleep(min(left, 0.25))
 _time.sleep = _stopping_sleep
+# Opt-in (setenv AMIFORGE_STOPWATCH 1): a thread that also stops loops that never sleep.
+if os.environ.get('AMIFORGE_STOPWATCH') == '1':
+    try:
+        import signal, threading, _thread
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        def _watch():
+            while not os.path.exists(_stop):
+                _sleep(0.5)
+            _thread.interrupt_main()
+        threading.Thread(target=_watch, daemon=True).start()
+    except Exception:
+        pass
 import traceback, types, builtins
 # like runpy.run_path, without making the path absolute (the AmigaOS port can't open the
 # volume-name paths abspath() gives)

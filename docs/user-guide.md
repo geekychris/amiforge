@@ -1055,7 +1055,9 @@ script** makes one, and so does **New Project** in a drawer of `.py` files. Noth
   port of Python doesn't react to Ctrl-C, so AmiForge runs scripts through a small runner whose
   `time.sleep()` checks for Stop Program and raises `KeyboardInterrupt` (the console says
   *Stopped*; `try`/`finally` blocks and `with` statements still clean up). A loop that never
-  sleeps can't be stopped this way: give long loops a `time.sleep()` now and then.
+  sleeps can't be stopped this way: give long loops a `time.sleep()` now and then. (`setenv
+  AMIFORGE_STOPWATCH 1` adds a thread that also stops loops that never sleep, but see the
+  port's thread limit below.)
 - **Debug** (F5): the debugger works on compiled programs and can't step through Python. F5
   explains this and offers to run the script under **pdb**, Python's own debugger, in a console
   window, with the project's Python breakpoints (F9 in a `.py` file) set, so it runs to the
