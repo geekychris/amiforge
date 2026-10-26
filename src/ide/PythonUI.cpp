@@ -298,14 +298,16 @@ void App::debugPython()
     harvestBreakpoints(cur);
     std::vector<lang::PyBreakpoint> bps;
     for (auto &b : project.breakpoints)
-        if (b.enabled && lang::isPythonFile(b.file)) bps.push_back({forPython(project.abs(b.file)), b.line, b.cond});
+        if (b.enabled && lang::isPythonFile(b.file)) bps.push_back({b.file, b.line, b.cond});
     std::string con = strprintf("CON:40/60/760/360/%s (pdb)/AUTO/CLOSE/WAIT", project.name.c_str());
     BPTR in = IDOS->Open(con.c_str(), MODE_OLDFILE);
     if (!in) {
         info("Can't open the console " + con);
         return;
     }
-    std::string cmd = lang::pdbCommand(interp, forPython(project.abs(main)), project.args, lang::pdbBreakCommands(bps));
+    // pdb takes the script and the breakpoints relative to the project's drawer (it starts
+    // there): pdb runs them through os.path.realpath, which treats "DH1:x" as a relative name
+    std::string cmd = lang::pdbCommand(interp, main, project.args, lang::pdbBreakCommands(bps));
     BPTR dir = IDOS->Lock(project.dir.c_str(), SHARED_LOCK);
     BPTR old = dir ? IDOS->SetCurrentDir(dir) : 0;
     int32 rc;

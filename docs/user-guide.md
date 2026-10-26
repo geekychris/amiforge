@@ -721,7 +721,11 @@ expression such as `i == 10` or `p->next != 0`; the program only stops there whe
 between: variables keep their values, so skipping a line that initialises one leaves it as it
 was. It only moves within the function the program is stopped in, in the top stack frame.
 
-F11 and F12 are on PC keyboards (and QEMU passes them on); on an Amiga keyboard use the Debug
+Pause stops the program wherever it is, possibly inside an OS call that holds a lock (writing
+to its console, drawing). Don't leave it paused for long: until you continue or stop it, other
+programs that need the same lock (even the Workbench's windows) can wait for it.
+
+F11, F12 and Break are on PC keyboards (and QEMU passes them on); on an Amiga keyboard use the Debug
 and Edit menus, or Help for F1.
 
 ![Stopped at a breakpoint](images/breakpoint.png)
@@ -1063,7 +1067,8 @@ script** makes one, and so does **New Project** in a drawer of `.py` files. Noth
   window, with the project's Python breakpoints (F9 in a `.py` file) set, so it runs to the
   first one. In pdb `n` steps over, `s` into, `r` out of a function, `c` continues, `b 12` sets
   a breakpoint, `p x` prints, `l` lists and `q` quits. A breakpoint condition (Shift-Ctrl-F9)
-  is passed on, as a Python expression.
+  is passed on, as a Python expression. pdb needs a build of the port that opens volume-name
+  paths (`chris:...`); older builds say the script "does not exist".
 
 Python is slow to start in QEMU (about 20 seconds before the first line runs); the status bar
 says so while it starts.
