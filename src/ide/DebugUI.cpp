@@ -220,7 +220,12 @@ void App::debugPause()
 void App::debugStop()
 {
     if (!dbg) return;
-    if (debugging()) dbg_kill(dbg);
+    if (debugging()) {
+        dbg_kill(dbg);
+        dbg_event ev;                  // what the kill reported (dbg_unload drops the queue)
+        while (dbg_poll(dbg, &ev))
+            if (ev.type == DBG_EV_MESSAGE) debugLog(ev.text, penError);
+    }
     dtSessionEnded();                  // --- debugtools ---
     freeVars(this);
     dbg_unload(dbg);

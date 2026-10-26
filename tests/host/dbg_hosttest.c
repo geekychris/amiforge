@@ -698,6 +698,22 @@ static void test_pause(void)
     CHECK(frame_pause_hit_ok(S0, 0x50000000u, 0x50010000u, S0 - 0x60), "pause: OS on another stack: any hit counts");
     CHECK(frame_pause_hit_ok(0, S0 - 0x1000, S0 + 0x1000, 0x1000), "pause: no r1 recorded: any hit counts");
 
+    /* kill: rewrite the context only where that is known to work */
+    CHECK(frame_kill_plan(1, 0, 0, 0) == KILL_NOW, "kill: stopped by the hook (even in OS code, e.g. a crash): at once");
+    CHECK(frame_kill_plan(0, 1, 0, 0) == KILL_NOW, "kill: interrupted in the program's code: at once");
+    CHECK(frame_kill_plan(0, 1, 1, 2) == KILL_NOW, "kill: in the program's code wins over waiting");
+    CHECK(frame_kill_plan(0, 0, 1, 2) == KILL_WAKE_AT_RETURN, "kill: in Wait(): wake it and trap the return");
+    CHECK(frame_kill_plan(0, 0, 0, 2) == KILL_AT_RETURN, "kill: busy in an OS call: trap the return");
+    CHECK(frame_kill_plan(0, 0, 1, 0) == KILL_GIVE_UP, "kill: in the OS with nowhere to trap: give up");
+    CHECK(frame_kill_plan(0, 0, 0, 0) == KILL_GIVE_UP, "kill: busy in the OS, no targets: give up");
+    CHECK(frame_kill_wake_mask(0x00013000u) == 0x00013000u, "kill wake: an allocated signal and CTRL-C/D");
+    CHECK(frame_kill_wake_mask(0x00000110u) == 0, "kill wake: never SIGF_SINGLE or SIGF_DOS");
+    CHECK(frame_kill_wake_mask(0x80000110u) == 0x80000000u, "kill wake: only the program's own of a mixed mask");
+    CHECK(frame_kill_wake_mask(0x0000F000u) == 0x0000F000u, "kill wake: CTRL-C..CTRL-F");
+    /* the targets a kill traps are the pause's: the waiting program's stack from above */
+    n = frame_pause_targets(di, &mem, OS_PC, S0, OS_LR, t, 8);
+    CHECK(frame_kill_plan(0, info_in_program(di, OS_PC), 1, n) == KILL_WAKE_AT_RETURN, "kill: Wait() under main has targets (%d)", n);
+
     for (int i = 0; i < m.n; i++) free(m.r[i].data);
     info_free(di);
 }

@@ -3,7 +3,7 @@
  * AmigaOS 4. Prints PASS/FAIL lines and a summary; every wait has a timeout.
  *   dbgtest [DIR [SECTION|all [trace|-] [LOGFILE]]]
  * DIR holds the targets and src/ with their sources (default DH1:AmiForge). SECTION runs one
- * group (exit, basic, crash, pause, oscall, cplus, asm). "trace" prints the runtime trace. LOGFILE gets
+ * group (exit, basic, crash, pause, oscall, oskill, cplus, asm). "trace" prints the runtime trace. LOGFILE gets
  * a copy of the output, closed after every line (it survives a hang).
  */
 #undef __USE_INLINE__
@@ -526,9 +526,50 @@ static void test_oscall(void)
     signal_program(SIGBREAKF_CTRL_E);                 /* it returns to main and ends: stops on the way */
     if (expect_stop("ending with a pause pending: stops in its code", DBG_STOP_PAUSE, NULL, "pausetest.c", 0)) dbg_continue(S);
     expect_exit("waiting program ends on CTRL-E", 7);
-    /* (Stop with a pause pending isn't tried here: dbg_kill can't unwind a program that is in
-     * Wait() at all, pause or not, and leaves it suspended; see docs/debugger-notes.md.) */
+    /* (Stop with a pause pending: see test_oskill) */
     ok(intuition_ok(2000), "Intuition usable after the test");
+}
+
+/* Stop (dbg_kill) while the program is in AmigaOS calls: in Wait() (with and without a pause
+ * pending) and printing to its console with Delay(). The kill brings it back to its own code
+ * first and unwinds it there; afterwards no pausetest task may be left. Stops at the first
+ * failure (a failed kill leaves a suspended process behind). */
+static int pausetest_left(void)
+{
+    IExec->Forbid();
+    struct Task *t = IExec->FindTask("pausetest");
+    IExec->Permit();
+    return t != NULL;
+}
+
+static void test_oskill(void)
+{
+    printf("== stop a program that is in AmigaOS calls\n");
+    if (pausetest_left()) { ok(0, "a pausetest task is already there (an earlier failed kill): reboot first"); return; }
+    struct { const char *args; int pause; uint32_t after; } runs[] = {
+        { "wait", 0, 400 }, { "wait", 0, 900 }, { "wait", 1, 400 }, { "wait", 1, 700 },
+        { "", 0, 300 }, { "", 0, 650 }, { "", 0, 1000 }, { "", 1, 500 },
+    };
+    for (size_t i = 0; i < sizeof runs / sizeof runs[0]; i++) {
+        if (!dbg_load(S, P("pausetest"), runs[i].args, NULL, NULL)) { ok(0, "load pausetest: %s", dbg_last_error(S)); return; }
+        dbg_run(S, 0);
+        no_event(runs[i].after);
+        if (runs[i].pause) {
+            dbg_pause(S);
+            no_event(50);
+            if (dbg_get_state(S) == DBG_STOPPED) printf("  (the pause stopped it already)\n");
+        }
+        ok(dbg_kill(S), "kill %d (%s%s)", (int)i, runs[i].args[0] ? "in Wait()" : "printing", runs[i].pause ? ", pause pending" : "");
+        int good = expect_exit("killed in an AmigaOS call", 20);
+        dbg_event ev;
+        while (dbg_poll(S, &ev)) if (ev.type == DBG_EV_MESSAGE) printf("  message: %s\n", ev.text);
+        cleanup();
+        no_event(100);
+        int left = pausetest_left();
+        ok(!left, "no pausetest task left after kill %d", (int)i);
+        if (!good || left) return;
+    }
+    ok(intuition_ok(2000), "Intuition usable after the kills");
 }
 
 static void test_cplus(void)
@@ -657,7 +698,7 @@ int main(int argc, char **argv)
     if (argc > 3 && !strcmp(argv[3], "memtrace")) { g_memtrace = 1; dbg_set_trace(S, memtrace_line, NULL); }
 
     struct { const char *name; void (*fn)(void); } tests[] = {
-        { "exit", test_exit }, { "basic", test_basic }, { "crash", test_crash }, { "pause", test_pause }, { "oscall", test_oscall }, { "cplus", test_cplus }, { "asm", test_asm },
+        { "exit", test_exit }, { "basic", test_basic }, { "crash", test_crash }, { "pause", test_pause }, { "oscall", test_oscall }, { "oskill", test_oskill }, { "cplus", test_cplus }, { "asm", test_asm },
     };
     const char *only = argc > 2 && strcmp(argv[2], "all") ? argv[2] : NULL;
     for (size_t i = 0; i < sizeof tests / sizeof tests[0]; i++) {

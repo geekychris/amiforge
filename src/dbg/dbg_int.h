@@ -287,6 +287,11 @@ int frame_walk(const dbg_info *di, const dbg_mem *m, uint32_t pc, uint32_t r1, u
 int frame_pause_targets(const dbg_info *di, const dbg_mem *m, uint32_t pc, uint32_t r1, uint32_t lr,
                         uint32_t *out, int max);
 int frame_pause_hit_ok(uint32_t pause_r1, uint32_t sp_lo, uint32_t sp_hi, uint32_t r1);
+/* Kill (dbg_kill): unwind at once, first trap the program where it returns from its OS call
+ * (waking it if it waits), or give up and leave it suspended. See frame.c. */
+typedef enum { KILL_NOW, KILL_AT_RETURN, KILL_WAKE_AT_RETURN, KILL_GIVE_UP } kill_plan;
+kill_plan frame_kill_plan(int from_hook, int pc_in_program, int waiting, int ntargets);
+uint32_t frame_kill_wake_mask(uint32_t sigwait);   /* signals to wake a waiting program with */
 
 /* ---------- expressions and values (eval.c) ---------- */
 

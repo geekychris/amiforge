@@ -46,6 +46,7 @@
 #define SETTLE_MS      10       /* after a hook suspension, before touching the task */
 #define PAUSE_RESAMPLE 25       /* polls between looks at a program with a pause pending (~250 ms) */
 #define PAUSE_TARGETS  16
+#define KILL_RETURN_MS 1500     /* how long a kill waits for the program to come back from an OS call */
 
 struct KernelDebugMessage { uint32_t type; union { struct ExceptionContext *context; struct Library *library; } message; };
 
@@ -92,7 +93,7 @@ struct dbg_session {
     /* process */
     struct Process *proc;
     struct Hook hook;
-    struct DeathMessage dm;
+    struct DeathMessage *dm;    /* per run: an abandoned process keeps its own (see abandon) */
     int just_exited;            /* a process ended recently: give its cleanup time first */
     struct MsgPort *dport;
     int con_is_file;
@@ -116,6 +117,7 @@ struct dbg_session {
 
     /* current stop */
     struct ExceptionContext ctx;
+    int ctx_hook;               /* ctx came from the debug hook (a trap or exception), not ReadTaskContext */
     dbg_regs regs;
     frame_info frames[MAX_FRAMES];
     int nframes, sel;
@@ -668,7 +670,7 @@ void dbg_destroy(dbg_session *s)
     hp_elf_free(s->hp_exe); s->hp_exe = NULL;
     vec_free(&s->hp_mem); vec_free(&s->hp_funcs);
     for (int i = 0; i < s->nresolved; i++) free(s->resolved[i]);
-    free(s->path); free(s->args); free(s->cwd); free(s->console); free(s->srcpath); free(s->run_args);
+    free(s->path); free(s->args); free(s->cwd); free(s->console); free(s->srcpath); free(s->run_args); free(s->dm);
     reap_timer(s, 1);
     if (s->treq) { IExec->CloseDevice((struct IORequest *)s->treq); IExec->FreeSysObject(ASOT_IOREQUEST, s->treq); }
     if (s->sreq) IExec->FreeSysObject(ASOT_IOREQUEST, s->sreq);
@@ -890,6 +892,7 @@ static void compute_frames(dbg_session *s)
 static void read_context(dbg_session *s)
 {
     memset(&s->ctx, 0, sizeof s->ctx);
+    s->ctx_hook = 0;
     s->idebug->ReadTaskContext((struct Task *)s->proc, &s->ctx, RTCF_INFO | RTCF_SPECIAL | RTCF_STATE | RTCF_GENERAL | RTCF_FPU);
     regs_from_ctx(s);
 }
@@ -945,11 +948,11 @@ static void report_stop(dbg_session *s, dbg_stop_reason reason, int bp_id)
 
 static void report_exit(dbg_session *s)
 {
-    trace(s, "exit code %ld", (long)s->dm.dm_ReturnCode);
+    trace(s, "exit code %ld", (long)s->dm->dm_ReturnCode);
     dbg_event ev;
     memset(&ev, 0, sizeof ev);
     ev.type = DBG_EV_EXITED;
-    ev.exit_code = (int)s->dm.dm_ReturnCode;
+    ev.exit_code = (int)s->dm->dm_ReturnCode;
     snprintf(ev.text, sizeof ev.text, "Program exited with code %d", ev.exit_code);
     s->proc = NULL;
     s->op = OP_NONE;
@@ -1279,6 +1282,7 @@ static void on_exception(dbg_session *s)
     s->seen = s->exc_count;
     wait_suspended(s);
     s->ctx = s->exc;                                 /* the full context at the exception */
+    s->ctx_hook = 1;
     regs_from_ctx(s);
     uint32_t pc = s->ctx.ip;
     trap *t = find_trap(s, pc);
@@ -1539,6 +1543,7 @@ int dbg_run(dbg_session *s, int stop_at_main)
 {
     trace(s, "run %s %s", s->path ? s->path : "", s->args ? s->args : "");
     if (s->state != DBG_LOADED && s->state != DBG_EXITED) return set_err(s, "nothing to run");
+    if (!s->dm && !(s->dm = malloc(sizeof *s->dm))) return set_err(s, "out of memory");
     if (s->ran) {                                     /* fresh data sections for every run */
         int patched = s->hp_count;                    /* --- hotpatch: back to the file's debug info */
         unload_seg(s);
@@ -1572,9 +1577,9 @@ int dbg_run(dbg_session *s, int stop_at_main)
     memcpy(s->run_args, s->args, al);
     s->run_args[al] = '\n'; s->run_args[al + 1] = 0;
     s->run_arglen = (int32_t)al + 1;
-    memset(&s->dm, 0, sizeof s->dm);
-    s->dm.dm_Msg.mn_ReplyPort = s->dport;
-    s->dm.dm_Msg.mn_Length = sizeof s->dm;
+    memset(s->dm, 0, sizeof *s->dm);
+    s->dm->dm_Msg.mn_ReplyPort = s->dport;
+    s->dm->dm_Msg.mn_Length = sizeof *s->dm;
     while (IExec->GetMsg(s->dport)) {}
     const char *name = path_base(s->path);
 
@@ -1597,7 +1602,7 @@ int dbg_run(dbg_session *s, int stop_at_main)
         NP_Entry, launcher, NP_UserData, s,
         NP_Name, name, NP_CommandName, name, NP_Cli, TRUE,
         NP_Input, in, NP_CloseInput, close_in, NP_Output, out, NP_CloseOutput, TRUE,
-        NP_NotifyOnDeathMessage, &s->dm,
+        NP_NotifyOnDeathMessage, s->dm,
         TAG_DONE);
     if (!s->proc) {
         if (close_in) IDOS->Close(in);
@@ -1687,23 +1692,141 @@ static void wait_death(dbg_session *s, uint32_t ms)
     }
 }
 
+/* The kill couldn't finish: the process stays, so nothing it may still use may go away. It is
+ * left suspended with the context it had (never a half-done kill) and without traps or the
+ * hook; its seglist (and Edit and Continue code) stays loaded, and its death message and the
+ * port it replies to are handed over to it (the port ignores the reply). keep_running: leave
+ * it running instead (it has returned and DOS is cleaning it up). */
+static void abandon(dbg_session *s, int keep_running, const char *why)
+{
+    struct Task *t = (struct Task *)s->proc;
+    trace(s, "kill: abandoning the process (%s)", keep_running ? "running" : "suspended");
+    if (!keep_running) IExec->SuspendTask(t, 0);
+    if (!keep_running && s->exc_count != s->seen) { s->seen = s->exc_count; wait_suspended(s); }
+    remove_all_traps(s);                               /* its code as it was, should it ever run */
+    if (!keep_running) s->idebug->AddDebugHook(t, NULL);
+    s->seg = 0;                                        /* still in use: never unloaded */
+    s->hp_mem.n = 0;                                   /* --- hotpatch: patch code stays too */
+    struct MsgPort *np = IExec->AllocSysObjectTags(ASOT_PORT, TAG_DONE);
+    if (np) {
+        s->dport->mp_Flags = PA_IGNORE;                /* the process's DeathMessage goes here */
+        s->dport = np;
+        s->dm = NULL;                                  /* and stays its own (a new one for the next run) */
+    }
+    message(s, "The program couldn't be stopped: %s. It was left %s, and its code stays in memory. "
+               "Reboot when convenient to get rid of it.", why, keep_running ? "to finish on its own" : "suspended where it was");
+    s->proc = NULL;
+    s->pause_pending = 0;
+    s->state = DBG_EXITED;
+    s->nframes = 0;
+    s->generation++;
+}
+
+/* A hit while kill_now waits for the program to get back to its own code. Returns 1 if the
+ * context (now the hook's) is a place to kill it: an exception, or one of our traps reached by
+ * returning from the OS call rather than in a callback the OS makes into the program. */
+static int kill_hit(dbg_session *s)
+{
+    s->seen = s->exc_count;
+    wait_suspended(s);
+    s->ctx = s->exc;
+    s->ctx_hook = 1;
+    regs_from_ctx(s);
+    trap *t = find_trap(s, s->ctx.ip);
+    if (s->stepping_off) {
+        trap *o = find_trap(s, s->stepoff_pc);
+        if (o) o->suppressed = 0;
+        clear_kinds(s, TK_STEPOFF);
+        s->stepping_off = 0;
+    }
+    int ours = s->ctx.Traptype == 0x700 && t && t->inserted;
+    int ok = !ours || frame_pause_hit_ok(s->pause_r1, s->pause_sp_lo, s->pause_sp_hi, s->ctx.gpr[1]);
+    trace(s, "kill: hit at %08lx (%s): %s", (unsigned long)s->ctx.ip, ours ? "return trap" : "exception", ok ? "kill here" : "a callback, go on");
+    return ok;
+}
+
+/* Gets the held program (s->ctx) to a place where its context can be rewritten (see
+ * frame_kill_plan). Returns 1 when it is there (s->ctx is that place) or has ended, 0 if it
+ * couldn't be brought there. */
+static int kill_reach_program(dbg_session *s, int was_waiting)
+{
+    struct Task *t = (struct Task *)s->proc;
+    int in_program = info_in_program(s->di, s->ctx.ip);
+    uint32_t tg[PAUSE_TARGETS];
+    int n = 0;
+    if (!s->ctx_hook && !in_program) {
+        dbg_mem m = session_mem(s);
+        n = frame_pause_targets(s->di, &m, s->ctx.ip, s->ctx.gpr[1], s->ctx.lr, tg, PAUSE_TARGETS);
+    }
+    kill_plan plan = frame_kill_plan(s->ctx_hook, in_program, was_waiting, n);
+    trace(s, "kill: pc %08lx hook %d in program %d waiting %d targets %d: plan %d", (unsigned long)s->ctx.ip, s->ctx_hook, in_program, was_waiting, n, plan);
+    if (plan == KILL_NOW) return 1;
+    if (plan == KILL_GIVE_UP) return 0;
+    clear_kinds(s, ~(uint32_t)0);
+    for (int i = 0; i < n; i++) add_kind(s, tg[i], TK_PAUSE);
+    s->pause_r1 = s->ctx.gpr[1];
+    s->pause_sp_lo = (uint32_t)t->tc_SPLower;
+    s->pause_sp_hi = (uint32_t)t->tc_SPUpper;
+    s->op = OP_CONT;
+    s->stepping_off = 0;
+    sync_traps(s);
+    restart_checked(s, s->ctx.ip);
+    uint32_t wake = frame_kill_wake_mask(t->tc_SigWait);
+    if (plan == KILL_WAKE_AT_RETURN && s->exc_count == s->seen && t->tc_State == TS_WAIT && wake) {
+        /* Wait() returns with these; the trap at its return catches the program before it
+         * looks at them. (A wait inside the OS, WaitPort() or WaitIO() say, waits again.) */
+        trace(s, "kill: waking it (signals %08lx of %08lx)", (unsigned long)wake, (unsigned long)t->tc_SigWait);
+        IExec->Signal(t, wake);
+    }
+    for (uint32_t ms = 0; ms < KILL_RETURN_MS; ms += 5) {
+        if (IExec->GetMsg(s->dport)) { report_exit(s); return 1; }
+        if (s->exc_count != s->seen) {
+            if (kill_hit(s)) return 1;
+            resume(s);                                 /* steps off the trap */
+            continue;
+        }
+        delay_ms(s, 5);
+    }
+    IExec->SuspendTask(t, 0);
+    if (s->exc_count != s->seen && kill_hit(s)) return 1;
+    check_death(s);
+    if (!s->proc) return 1;
+    read_context(s);
+    trace(s, "kill: it didn't come back from the OS (pc %08lx)", (unsigned long)s->ctx.ip);
+    return 0;
+}
+
 /* Makes the program return from its entry point with EXIT_KILLED. */
 static void kill_now(dbg_session *s)
 {
     if (!s->proc) return;
-    trace(s, "kill: state %d have_entry %d", s->state, s->have_entry);
+    struct Task *t = (struct Task *)s->proc;
+    trace(s, "kill: state %d task state %d have_entry %d", s->state, t->tc_State, s->have_entry);
     s->pause_pending = 0;                            /* its traps go with all the others below */
     if (s->returned) {
         /* (debugtools) the program has already returned and DOS is cleaning the process up:
          * the entry context means nothing any more (restoring it crashed the process). Let it
          * finish, at a normal priority. */
-        IExec->SetTaskPri((struct Task *)s->proc, 0);
+        IExec->SetTaskPri(t, 0);
         wait_death(s, 5000);
-        if (!s->proc) return;
+        if (s->proc) abandon(s, 1, "it has returned, but DOS hasn't finished cleaning it up");
+        return;
     }
+    int was_waiting = 0;
     if (s->state == DBG_RUNNING) {
-        IExec->SuspendTask((struct Task *)s->proc, 0);
-        if (s->exc_count != s->seen) { s->seen = s->exc_count; wait_suspended(s); }
+        was_waiting = t->tc_State == TS_WAIT;
+        IExec->SuspendTask(t, 0);
+        if (s->exc_count != s->seen) {               /* stopped by the hook meanwhile */
+            s->seen = s->exc_count;
+            wait_suspended(s);
+            s->ctx = s->exc;
+            s->ctx_hook = 1;
+            regs_from_ctx(s);
+        } else {
+            check_death(s);
+            if (!s->proc) return;
+            read_context(s);
+        }
         check_death(s);
         if (!s->proc) return;
     }
@@ -1711,30 +1834,32 @@ static void kill_now(dbg_session *s)
         /* not at the entry point yet: let it get there (the entry trap is always planted) */
         clear_kinds(s, ~(uint32_t)TK_PENTRY);
         sync_traps(s);
-        IExec->RestartTask((struct Task *)s->proc, 0);
+        IExec->RestartTask(t, 0);
         for (int i = 0; i < 200 && s->exc_count == s->seen; i++) delay_ms(s, 5);
-        if (s->exc_count == s->seen) { IExec->SuspendTask((struct Task *)s->proc, 0); }
-        else { s->seen = s->exc_count; wait_suspended(s); s->entry_ctx = s->exc; s->have_entry = 1; }
+        if (s->exc_count == s->seen) { IExec->SuspendTask(t, 0); }
+        else {
+            s->seen = s->exc_count; wait_suspended(s);
+            s->entry_ctx = s->exc; s->have_entry = 1;
+            s->ctx = s->exc; s->ctx_hook = 1;
+        }
+        if (!s->have_entry) { abandon(s, 0, "it never reached its entry point"); return; }
     }
+    /* never rewrite a context inside an OS call (see frame_kill_plan) */
+    if (!kill_reach_program(s, was_waiting)) {
+        abandon(s, 0, "it is in an AmigaOS call that didn't return");
+        return;
+    }
+    if (!s->proc) return;                            /* it ended meanwhile */
+    t = (struct Task *)s->proc;
     remove_all_traps(s);
-    if (s->have_entry) {
-        struct ExceptionContext c = s->entry_ctx;
-        c.ip = c.lr;
-        c.gpr[3] = EXIT_KILLED;
-        s->idebug->WriteTaskContext((struct Task *)s->proc, &c, RTCF_STATE | RTCF_GENERAL | RTCF_SPECIAL);
-        IExec->RestartTask((struct Task *)s->proc, 0);
-        wait_death(s, KILL_WAIT_MS);
-    }
-    if (s->proc) {
-        /* couldn't unwind it: leave it suspended rather than letting it run without us */
-        IExec->SuspendTask((struct Task *)s->proc, 0);
-        s->idebug->AddDebugHook((struct Task *)s->proc, NULL);
-        message(s, "the program could not be stopped cleanly; it was left suspended");
-        s->proc = NULL;
-        s->seg = 0;                                   /* still in use by the suspended process */
-        s->state = DBG_EXITED;
-        s->nframes = 0;
-    }
+    struct ExceptionContext c = s->entry_ctx;
+    c.ip = c.lr;
+    c.gpr[3] = EXIT_KILLED;
+    trace(s, "kill: unwinding from %08lx", (unsigned long)s->ctx.ip);
+    s->idebug->WriteTaskContext(t, &c, RTCF_STATE | RTCF_GENERAL | RTCF_SPECIAL);
+    IExec->RestartTask(t, 0);
+    wait_death(s, KILL_WAIT_MS);
+    if (s->proc) abandon(s, 0, "it didn't end after being unwound");
 }
 
 int dbg_kill(dbg_session *s)

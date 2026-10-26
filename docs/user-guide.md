@@ -1642,6 +1642,7 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | A breakpoint shows a hollow circle | It's disabled, or the line has no code; check the Breakpoints tab |
 | Locals are empty or say `<unreadable>` | Build with `-gstabs` / `-gstabs+` and without optimisation (`-O0`) |
 | The debugger stopped "in Kickstart" | The program crashed in OS code, often from a bad pointer it passed in; the call stack shows the program's frame that made the call. (Pause never stops in OS code: see Debugging) |
+| Debug log: "The program couldn't be stopped" | Stop waits up to a second and a half for the program to come back from an AmigaOS call; one that never does is left suspended, with its code in memory, rather than risking a crash. It does no harm meanwhile, but don't start it again by other means; reboot when convenient to get rid of it |
 | "Pausing... (in AmigaOS call)" doesn't end | The program is waiting in the OS (for a window event, a signal, a timer). Give it the input it waits for, or press Pause again to cancel |
 | F1 says the SDK isn't installed | The AutoDocs come from `SDK:Documentation/AutoDocs` |
 | Clone fails with "target OID ... doesn't exist" | The drawer is on a disk with 30-character names; use one with long names |
