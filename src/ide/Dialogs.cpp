@@ -385,7 +385,8 @@ void App::handleFindWindow()
 bool App::editProjectSettings()
 {
     enum { PS_NAME = 1, PS_OUTPUT, PS_CC, PS_CXX, PS_CFLAGS, PS_CXXFLAGS, PS_ASFLAGS, PS_LDFLAGS, PS_LIBS,
-           PS_ARGS, PS_CONSOLE, PS_STOPMAIN, PS_OK, PS_CANCEL, PS_TRACKLEAKS /* debugtools */, PS_RUNCMD /* designer */, PS_N };
+           PS_ARGS, PS_CONSOLE, PS_STOPMAIN, PS_OK, PS_CANCEL, PS_TRACKLEAKS /* debugtools */, PS_RUNCMD /* designer */,
+           PS_PYTHON, PS_INTERP, PS_MAIN /* --- lang --- */, PS_N };
     Object *g[PS_N] = {};
     Class *string = IString->STRING_GetClass();
     Class *layout = ILayout->LAYOUT_GetClass();
@@ -421,6 +422,13 @@ bool App::editProjectSettings()
             // --- debugtools ---
             LAYOUT_AddChild, g[PS_TRACKLEAKS] = IIntuition->NewObject(ICheckBox->CHECKBOX_GetClass(), nullptr,
                 GA_ID, PS_TRACKLEAKS, GA_Text, (uint32)"Track leaks when debugging", GA_Selected, project.trackLeaks, TAG_DONE),
+            // --- lang --- Python projects
+            LAYOUT_AddChild, g[PS_PYTHON] = IIntuition->NewObject(ICheckBox->CHECKBOX_GetClass(), nullptr,
+                GA_ID, PS_PYTHON, GA_Text, (uint32)"Python project (Build checks the syntax, Run runs the main script)",
+                GA_Selected, project.isPython(), TAG_DONE),
+            LAYOUT_AddChild, field(PS_MAIN, project.mainScript), CHILD_Label, label("Main script (empty: main.py)"),
+            LAYOUT_AddChild, field(PS_INTERP, project.interpreter), CHILD_Label, label("Python interpreter (empty: find it)"),
+            // --- end lang ---
             LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr, LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
                 LAYOUT_EvenSize, TRUE,
                 LAYOUT_AddChild, g[PS_OK] = IIntuition->NewObject(IButton->BUTTON_GetClass(), nullptr,
@@ -475,6 +483,13 @@ bool App::editProjectSettings()
         project.stopAtMain = v;
         IIntuition->GetAttr(GA_Selected, g[PS_TRACKLEAKS], &v);   // --- debugtools ---
         project.trackLeaks = v;
+        // --- lang ---
+        IIntuition->GetAttr(GA_Selected, g[PS_PYTHON], &v);
+        bool wasPython = project.isPython();
+        if ((bool)v != wasPython || !project.language.empty()) project.language = v ? "python" : "c";
+        project.mainScript = get(PS_MAIN);
+        project.interpreter = get(PS_INTERP);
+        // --- end lang ---
         rebuildMenus();
         if (project.output.empty()) project.output = project.name.empty() ? "program" : project.name;
     }

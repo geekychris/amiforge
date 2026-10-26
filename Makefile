@@ -37,7 +37,10 @@ O = $(B)/obj
 SCI_SRC   = $(wildcard third_party/scintilla/src/*.cxx)
 LEXLIB    = $(wildcard third_party/lexilla/lexlib/*.cxx)
 LEXERS    = $(addprefix third_party/lexilla/lexers/,LexCPP.cxx LexAsm.cxx LexMake.cxx \
-            LexProps.cxx LexDiff.cxx LexA68k.cxx LexNull.cxx)
+            LexProps.cxx LexDiff.cxx LexA68k.cxx LexNull.cxx \
+            LexPython.cxx LexLua.cxx LexPerl.cxx LexBash.cxx LexJSON.cxx LexYAML.cxx LexMarkdown.cxx)
+# --- lang --- Python, Lua, Perl, shell, JSON, YAML and Markdown add about 250 KB; ARexx and
+# AmigaDOS scripts are our own (src/sci/LexAmiga.cpp)
 SCI_OS4   = $(wildcard src/sci/*.cpp)
 SCI_OBJS  = $(patsubst %,$(O)/%.o,$(SCI_SRC) $(LEXLIB) $(LEXERS)) $(patsubst %,$(O)/%.o,$(SCI_OS4))
 

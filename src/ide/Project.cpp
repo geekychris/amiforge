@@ -12,6 +12,7 @@
 //   [watches]
 //   watch=p->next
 #include "App.h"
+#include "LangTools.h"   // --- lang ---
 
 #include <stdlib.h>
 #include <strings.h>
@@ -88,6 +89,11 @@ bool Project::load(const std::string &afp, std::string &err)
             // --- end designer ---
             else if (k == "distcc") distcc = v == "1";          // --- integrations ---
             else if (k == "distcchosts") distccHosts = v;       // --- integrations ---
+            // --- lang ---
+            else if (k == "language") language = v;
+            else if (k == "interpreter") interpreter = v;
+            else if (k == "main") mainScript = v;
+            // --- end lang ---
         } else if (section == "files" && k == "file") {
             files.push_back(v);
         } else if (section == "watches" && k == "watch") {
@@ -140,6 +146,11 @@ bool Project::save(std::string &err)
     // --- end designer ---
     // --- integrations ---
     if (distcc || !distccHosts.empty()) s += std::string("distcc=") + (distcc ? "1" : "0") + "\ndistcchosts=" + distccHosts + "\n";
+    // --- lang ---
+    if (!language.empty()) s += "language=" + language + "\n";
+    if (!interpreter.empty()) s += "interpreter=" + interpreter + "\n";
+    if (!mainScript.empty()) s += "main=" + mainScript + "\n";
+    // --- end lang ---
     s += "\n[files]\n";
     for (auto &f : files) s += "file=" + f + "\n";
     if (!breakpoints.empty()) {
@@ -162,6 +173,30 @@ bool Project::usesCpp() const
         if (isCppFile(f)) return true;
     return false;
 }
+
+// --- lang ---
+bool Project::isPython() const
+{
+    if (language == "python") return true;
+    if (!language.empty()) return false;
+    bool py = false;
+    for (auto &f : files) {
+        if (isSourceFile(f)) return false;
+        if (lang::isPythonFile(f)) py = true;
+    }
+    return py;
+}
+
+std::string Project::pythonMain() const
+{
+    if (!mainScript.empty()) return mainScript;
+    for (auto &f : files)
+        if (f == "main.py") return f;
+    for (auto &f : files)
+        if (lang::isPythonFile(f)) return f;
+    return "";
+}
+// --- end lang ---
 
 bool Project::contains(const std::string &absPath) const
 {

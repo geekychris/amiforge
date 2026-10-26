@@ -28,6 +28,10 @@ struct RunCtl {
     std::vector<struct DeathMessage *> procs;   // one per running program
     robust::RunModel model;
     bool offerPending = false;                  // show the "it won't stop" requester when idle
+    // --- lang --- Python runs: Stop Program creates the stop file (the runner turns it into a
+    // KeyboardInterrupt); when the program ends its traceback file goes into the build log
+    struct PyRun { struct DeathMessage *dm; std::string stopFile, tracebackFile; };
+    std::vector<PyRun> py;
 };
 
 // Milliseconds, for the model (it only uses differences, which survive wrapping)
@@ -108,6 +112,7 @@ static void act(App *app, RunCtl *rc, int bits)
         uint32 sigs = SIGBREAKF_CTRL_C;
         if (rc->model.alsoDEF()) sigs |= SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_E | SIGBREAKF_CTRL_F;
         signalPrograms(rc, sigs);
+        for (auto &p : rc->py) writeFile(p.stopFile, "stop\n");   // --- lang ---
     }
     if (bits & robust::RA_ARM_TIMER) armTimer(rc, 3100);
     if (bits & robust::RA_OFFER_MORE) rc->offerPending = true;   // runIdle shows it (not under a dialog)
@@ -125,6 +130,7 @@ int32_t App::runSystem(const std::string &cmd, int32_t input, const std::string 
     }
     int32 r = IDOS->SystemTags(cmd.c_str(), SYS_Input, input, SYS_Output, 0, SYS_Asynch, TRUE,
                                NP_Name, (uint32)name.c_str(),
+                               runStack ? SYS_StackSize : TAG_IGNORE, runStack,   // --- lang ---
                                dm ? NP_NotifyOnDeathMessage : TAG_IGNORE, (uint32)dm, TAG_END);
     if (r == -1 || !dm) {
         if (dm) IExec->FreeVec(dm);
@@ -161,6 +167,16 @@ void App::runHandle()
                 rc->procs.erase(rc->procs.begin() + i);
                 break;
             }
+        // --- lang ---
+        std::string pyTraceback;
+        for (size_t i = 0; i < rc->py.size(); i++)
+            if (rc->py[i].dm == dm) {
+                IDOS->Delete(rc->py[i].stopFile.c_str());
+                pyTraceback = rc->py[i].tracebackFile;
+                rc->py.erase(rc->py.begin() + i);
+                break;
+            }
+        // --- end lang ---
         int left = rc->model.exited(dm->dm_ReturnCode);
         IExec->FreeVec(dm);
         changed = true;
@@ -171,9 +187,17 @@ void App::runHandle()
         } else {
             setStatus(rc->model.status());
         }
+        if (!pyTraceback.empty()) pythonRunEnded(pyTraceback);   // --- lang ---
     }
     if (changed) updateToolbar();
 }
+
+// --- lang ---
+void App::runTrackPython(const std::string &stopFile, const std::string &tracebackFile)
+{
+    if (runCtl && !runCtl->procs.empty()) runCtl->py.push_back({runCtl->procs.back(), stopFile, tracebackFile});
+}
+// --- end lang ---
 
 void App::runIdle()
 {

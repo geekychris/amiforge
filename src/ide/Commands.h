@@ -49,6 +49,10 @@ enum Command {
     // --- robust ---
     CMD_STOP_PROGRAM = 1500,
     // --- end robust ---
+    // --- lang --- debugger keys (KeyBindings.h)
+    CMD_DEBUG_RESTART = 1700, CMD_QUICK_WATCH, CMD_BP_TOGGLE_ENABLED, CMD_BP_CONDITION, CMD_SET_NEXT_STATEMENT,
+    CMD_RUN_TO_FUNCTION,
+    // --- end lang ---
 };
 
 } // namespace af

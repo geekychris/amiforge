@@ -463,30 +463,67 @@ int App::replaceAll()
 void App::toggleComment()
 {
     if (!cur) return;
-    bool asmFile = isAsmFile(cur->path) || extension(cur->path) == "i";
-    const char *mark = asmFile ? "# " : "// ";
-    size_t ml = strlen(mark);
+    // --- lang --- each language's comment marks (sci/Languages.h): a line comment ("//", "#",
+    // "--", ";"), or for ARexx and Markdown a block comment around each line
+    std::string first;
+    {
+        intptr_t len = S(editor, SCI_LINELENGTH, 0);
+        if (len > 0 && len < 400) {
+            first.assign((size_t)len + 1, '\0');
+            S(editor, SCI_GETLINE, 0, (intptr_t)&first[0]);
+            first.resize((size_t)len);
+        }
+    }
+    const CommentStyle cs = commentStyle(languageFor(cur->path.empty() ? std::string("untitled.c") : cur->path, first));
+    if (!cs.line && !cs.blockStart) {
+        setStatus("This kind of file has no comments");
+        return;
+    }
+    const std::string open = cs.line ? std::string(cs.line) : std::string(cs.blockStart);
+    const std::string close = cs.line ? std::string() : std::string(cs.blockEnd);
+    auto textAt = [&](intptr_t a, intptr_t b) {
+        std::string t;
+        for (intptr_t p = a; p < b; p++) t.push_back((char)S(editor, SCI_GETCHARAT, p));
+        return t;
+    };
     intptr_t a = S(editor, SCI_GETSELECTIONSTART), b = S(editor, SCI_GETSELECTIONEND);
     intptr_t l0 = S(editor, SCI_LINEFROMPOSITION, a), l1 = S(editor, SCI_LINEFROMPOSITION, b);
     if (l1 > l0 && S(editor, SCI_POSITIONFROMLINE, l1) == b) l1--;
     // all lines commented already? then uncomment
     bool all = true;
     for (intptr_t l = l0; l <= l1 && all; l++) {
-        intptr_t p = S(editor, SCI_GETLINEINDENTPOSITION, l);
-        if (p == S(editor, SCI_GETLINEENDPOSITION, l)) continue;   // blank
-        char c0 = (char)S(editor, SCI_GETCHARAT, p), c1 = (char)S(editor, SCI_GETCHARAT, p + 1);
-        all = asmFile ? c0 == '#' : (c0 == '/' && c1 == '/');
+        intptr_t p = S(editor, SCI_GETLINEINDENTPOSITION, l), e = S(editor, SCI_GETLINEENDPOSITION, l);
+        if (p == e) continue;   // blank
+        std::string t = textAt(p, e);
+        while (!t.empty() && (t.back() == ' ' || t.back() == '\t')) t.pop_back();
+        all = t.compare(0, open.size(), open) == 0 &&
+              (close.empty() || (t.size() >= open.size() + close.size() && t.compare(t.size() - close.size(), close.size(), close) == 0));
     }
     S(editor, SCI_BEGINUNDOACTION);
     for (intptr_t l = l0; l <= l1; l++) {
-        intptr_t p = S(editor, SCI_GETLINEINDENTPOSITION, l);
-        if (p == S(editor, SCI_GETLINEENDPOSITION, l)) continue;
+        intptr_t p = S(editor, SCI_GETLINEINDENTPOSITION, l), e = S(editor, SCI_GETLINEENDPOSITION, l);
+        if (p == e) continue;
         if (all) {
-            intptr_t n = asmFile ? 1 : 2;
+            if (!close.empty()) {
+                std::string t = textAt(p, e);
+                size_t end = t.find_last_not_of(" \t") + 1;
+                intptr_t cp = p + (intptr_t)(end - close.size());
+                intptr_t cn = (intptr_t)close.size();
+                if (cp > p && (char)S(editor, SCI_GETCHARAT, cp - 1) == ' ') { cp--; cn++; }
+                S(editor, SCI_DELETERANGE, cp, cn);
+            }
+            intptr_t n = (intptr_t)open.size();
             if ((char)S(editor, SCI_GETCHARAT, p + n) == ' ') n++;
             S(editor, SCI_DELETERANGE, p, n);
         } else {
-            S(editor, SCI_INSERTTEXT, p, (intptr_t)mark);
+            if (!close.empty()) {
+                std::string t = textAt(p, e);
+                size_t end = t.find_last_not_of(" \t") + 1;
+                std::string tail = " " + close;
+                S(editor, SCI_INSERTTEXT, p + (intptr_t)end, (intptr_t)tail.c_str());
+            }
+            std::string head = open + " ";
+            S(editor, SCI_INSERTTEXT, p, (intptr_t)head.c_str());
         }
     }
     S(editor, SCI_ENDUNDOACTION);
@@ -496,7 +533,6 @@ void App::toggleComment()
         intptr_t end = l1 + 1 < lines ? S(editor, SCI_POSITIONFROMLINE, l1 + 1) : S(editor, SCI_GETLINEENDPOSITION, l1);
         S(editor, SCI_SETSEL, S(editor, SCI_POSITIONFROMLINE, l0), end);
     }
-    (void)ml;
 }
 
 // After a newline: keep the previous line's indentation, one level more after '{'.

@@ -44,6 +44,16 @@ struct Theme {
     uint32_t occurrence;        // Find All References highlight
     // AutoDocs viewer
     uint32_t docHeading, docLink, docTitle;
+    // --- lang --- other languages (Python, Lua, Perl, shell, ARexx, AmigaDOS, JSON, YAML, Markdown)
+    uint32_t funcName;          // the name after def/class/function/sub, ARexx and AmigaDOS labels
+    uint32_t decorator;         // Python @decorators, Lua labels
+    uint32_t builtin;           // built-in functions (print, len, LEFT(), WORDS()...)
+    uint32_t variable;          // $variables (shell, Perl, AmigaDOS), Markdown links
+    uint32_t heading;           // Markdown headings, JSON/YAML keys
+    uint32_t emphasis;          // Markdown emphasis, here-documents
+    uint32_t codeBack;          // background of Markdown code and Perl POD
+    uint32_t lexError;          // what a lexer marks as an error (JSON, YAML, shell)
+    // --- end lang ---
 };
 
 const std::vector<Theme> &themes();                 // the built-in themes, Light first

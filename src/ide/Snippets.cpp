@@ -125,27 +125,125 @@ static const std::vector<Snippet> builtins = {
       "\t${0}\n"
       "private:\n"
       "};" },
+    // --- lang --- Python
+    { "main", "a main() function and the __main__ guard",
+      "def main():\n"
+      "\t${0:pass}\n"
+      "\n"
+      "\n"
+      "if __name__ == \"__main__\":\n"
+      "\tmain()\n", "python" },
+    { "ifmain", "if __name__ == \"__main__\":",
+      "if __name__ == \"__main__\":\n"
+      "\t${0:main()}", "python" },
+    { "def", "a function",
+      "def ${1:name}(${2}):\n"
+      "\t${0:pass}", "python" },
+    { "class", "a class with __init__",
+      "class ${1:Name}:\n"
+      "\tdef __init__(self${2}):\n"
+      "\t\t${0:pass}", "python" },
+    { "for", "a for loop",
+      "for ${1:item} in ${2:items}:\n"
+      "\t${0:pass}", "python" },
+    { "fori", "a counting loop",
+      "for ${1:i} in range(${2:10}):\n"
+      "\t${0:pass}", "python" },
+    { "while", "a while loop",
+      "while ${1:True}:\n"
+      "\t${0:pass}", "python" },
+    { "if", "an if statement",
+      "if ${1:condition}:\n"
+      "\t${0:pass}", "python" },
+    { "with", "with open(...) as f",
+      "with open(${1:\"file.txt\"}, \"${2:r}\") as ${3:f}:\n"
+      "\tdata = ${3}.read()${0}", "python" },
+    { "try", "try / except",
+      "try:\n"
+      "\t${1:pass}\n"
+      "except ${2:Exception} as ${3:e}:\n"
+      "\tprint(${3})${0}", "python" },
+    { "argparse", "command line arguments with argparse",
+      "import argparse\n"
+      "\n"
+      "parser = argparse.ArgumentParser(description=\"${1:What this script does}\")\n"
+      "parser.add_argument(\"${2:file}\", help=\"${3:the file to read}\")\n"
+      "parser.add_argument(\"-v\", \"--verbose\", action=\"store_true\", help=\"say more\")\n"
+      "args = parser.parse_args()\n"
+      "${0}", "python" },
+    { "print", "print with an f-string",
+      "print(f\"${1:value} = {${1}}\")", "python" },
+    { "lambda", "a lambda", "lambda ${1:x}: ${0:x}", "python" },
+    // --- lang --- ARexx
+    { "rexx", "an ARexx program: the comment line, options, a command to the host",
+      "/* ${1:what this macro does} */\n"
+      "OPTIONS RESULTS\n"
+      "ADDRESS ${2:AMIFORGE}\n"
+      "${0}\n"
+      "EXIT 0", "arexx" },
+    { "do", "DO ... END", "DO ${1:i = 1 TO 10}\n\t${0}\nEND", "arexx" },
+    { "if", "IF ... THEN DO ... END", "IF ${1:condition} THEN DO\n\t${0}\nEND", "arexx" },
+    { "select", "SELECT / WHEN / OTHERWISE",
+      "SELECT\n"
+      "\tWHEN ${1:condition} THEN ${2:NOP}\n"
+      "\tOTHERWISE ${0:NOP}\n"
+      "END", "arexx" },
+    { "proc", "an internal function", "${1:name}: PROCEDURE\n\tPARSE ARG ${2:args}\n\t${0}\n\tRETURN", "arexx" },
+    // --- lang --- Lua
+    { "function", "a function", "function ${1:name}(${2})\n\t${0}\nend", "lua" },
+    { "for", "a numeric for loop", "for ${1:i} = ${2:1}, ${3:10} do\n\t${0}\nend", "lua" },
+    { "forp", "for k, v in pairs()", "for ${1:k}, ${2:v} in pairs(${3:t}) do\n\t${0}\nend", "lua" },
+    { "if", "if ... then ... end", "if ${1:condition} then\n\t${0}\nend", "lua" },
+    // --- end lang ---
 };
 
 const std::vector<Snippet> &builtinSnippets() { return builtins; }
+
+// --- lang ---
+bool snippetForLanguage(const Snippet &s, const std::string &langId)
+{
+    bool cFamily = langId.empty() || langId == "c";
+    if (cFamily) return s.lang.empty() || s.lang == "c";
+    return s.lang == langId;
+}
+
+const Snippet *findSnippet(const std::vector<Snippet> &list, const std::string &name, const std::string &langId)
+{
+    for (auto &s : list)
+        if (s.name == name && snippetForLanguage(s, langId)) return &s;
+    return nullptr;
+}
+// --- end lang ---
 
 std::vector<Snippet> parseSnippets(const std::string &text)
 {
     std::vector<Snippet> out;
     Snippet *cur = nullptr;
     bool firstBodyLine = true;
+    std::string lang;   // --- lang --- "language python" applies to the snippets after it
     size_t pos = 0;
     while (pos <= text.size()) {
         size_t nl = text.find('\n', pos);
         std::string line = text.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos);
         pos = nl == std::string::npos ? text.size() + 1 : nl + 1;
         if (!line.empty() && line.back() == '\r') line.pop_back();
+        // --- lang ---
+        if (line.compare(0, 9, "language ") == 0) {
+            lang = line.substr(9);
+            size_t a = lang.find_first_not_of(" \t"), b = lang.find_last_not_of(" \t");
+            lang = a == std::string::npos ? "" : lang.substr(a, b - a + 1);
+            for (auto &ch : lang) ch = (char)tolower((unsigned char)ch);
+            if (lang == "c" || lang == "cpp" || lang == "c++") lang.clear();
+            cur = nullptr;
+            continue;
+        }
         if (line.compare(0, 8, "snippet ") == 0 || line == "snippet") {
             std::string rest = line.size() > 8 ? line.substr(8) : "";
             size_t a = rest.find_first_not_of(" \t");
             rest = a == std::string::npos ? "" : rest.substr(a);
             size_t sp = rest.find_first_of(" \t");
             Snippet s;
+            s.lang = lang;   // --- lang ---
             s.name = rest.substr(0, sp);
             if (sp != std::string::npos) {
                 size_t d = rest.find_first_not_of(" \t", sp);
@@ -190,7 +288,7 @@ std::vector<Snippet> mergeSnippets(const std::vector<Snippet> &base, const std::
     for (auto &u : user) {
         bool replaced = false;
         for (auto &b : out)
-            if (b.name == u.name) { b = u; replaced = true; break; }
+            if (b.name == u.name && b.lang == u.lang) { b = u; replaced = true; break; }   // --- lang ---
         if (!replaced) out.push_back(u);
     }
     return out;

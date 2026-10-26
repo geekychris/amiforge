@@ -18,6 +18,7 @@
 #include <dos/var.h>
 
 #include "DistccCmd.h"      // --- integrations ---
+#include "LangTools.h"      // --- lang ---
 #include "Integrations.h"
 
 namespace af {
@@ -35,6 +36,10 @@ struct Builder::Job {
     std::string dir;
     std::string distccHosts;   // --- integrations --- DISTCC_HOSTS for distcc compiles
     int okRc = 0;              // return codes up to this one count as success (startCommands)
+    // --- lang --- Python projects
+    bool python = false;
+    lang::TracebackParser traceback;
+    std::vector<std::pair<std::string, std::string>> env;   // local variables for the commands
     APTR mutex = nullptr;
     struct MinList out;
     struct Task *owner = nullptr;
@@ -89,6 +94,8 @@ static int32 builderMain(STRPTR, int32, struct ExecBase *)
 {
     Builder::Job *j = gJob;
     addSdkToPath();
+    // --- lang --- (PYTHONHOME...) inherited by the commands SystemTags runs
+    for (auto &v : j->env) IDOS->SetVar(v.first.c_str(), v.second.c_str(), v.second.size(), GVF_LOCAL_ONLY);
     // --- integrations --- distcc reads its hosts from the environment (a local variable here
     // is inherited by the commands SystemTags runs)
     if (!j->distccHosts.empty()) {
@@ -376,6 +383,8 @@ bool Builder::startCommands(const std::string &dir, const std::vector<std::pair<
     j->mutex = IExec->AllocSysObjectTags(ASOT_MUTEX, TAG_END);
     IExec->NewList((struct List *)&j->out);
     for (auto &c : cmds) j->cmds.push_back({c.first, c.second});
+    j->python = nextPython;   // --- lang ---
+    j->env = nextEnv;
     gJob = j;
     j->proc = IDOS->CreateNewProcTags(NP_Entry, builderMain, NP_Name, "AmiForge commands",
                                       NP_Child, TRUE, NP_StackSize, 64 * 1024,
@@ -389,6 +398,19 @@ bool Builder::startCommands(const std::string &dir, const std::vector<std::pair<
     running = true;
     return true;
 }
+
+// --- lang ---
+bool Builder::startPython(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds,
+                          const std::vector<std::pair<std::string, std::string>> &env)
+{
+    nextPython = true;     // startCommands puts these into the job before the process starts
+    nextEnv = env;
+    bool ok = startCommands(dir, cmds);
+    nextPython = false;
+    nextEnv.clear();
+    return ok;
+}
+// --- end lang ---
 
 bool Builder::poll(BuildLine &out)
 {
@@ -405,6 +427,17 @@ bool Builder::poll(BuildLine &out)
         if (parseDiagnostic(out.text, job->dir, out)) {
             if (out.kind == MsgKind::Error) errors++;
             else if (out.kind == MsgKind::Warning) warnings++;
+        } else if (job->python) {
+            // --- lang --- tracebacks and Python's own error lines
+            lang::Diag d = job->traceback.feed(out.text);
+            if (d.kind == lang::DiagKind::Location || d.kind == lang::DiagKind::Error || d.kind == lang::DiagKind::Warning) {
+                if (!d.file.empty()) out.file = joinPath(job->dir, d.file);
+                out.line = d.line;
+                out.kind = d.kind == lang::DiagKind::Location ? MsgKind::Note
+                         : d.kind == lang::DiagKind::Error ? MsgKind::Error : MsgKind::Warning;
+                if (out.kind == MsgKind::Error) errors++;
+                else if (out.kind == MsgKind::Warning) warnings++;
+            }
         }
     } else if (out.kind == MsgKind::Error) {
         stepFailures++;     // "Failed (return code n)": counted only if no diagnostic explains it

@@ -14,6 +14,8 @@
 //   <tab>body line            (a tab, or up to four spaces, starts each body line)
 //   <tab>body line
 // A user snippet with a built-in snippet's name replaces it.
+// --- lang --- A line "language python" (or arexx, lua...; "language c" goes back to C/C++) makes
+// the snippets after it belong to that language; snippets only expand in files of their language.
 #pragma once
 
 #include <string>
@@ -26,6 +28,7 @@ struct Snippet {
     std::string name;
     std::string description;
     std::string body;
+    std::string lang;    // --- lang --- "" C/C++ (and assembler), else a languageId(): "python", "arexx", "lua"
 };
 
 struct SnippetField {
@@ -46,6 +49,9 @@ std::vector<Snippet> parseSnippets(const std::string &fileText);
 // builtins with user snippets added (a user snippet with the same name replaces the builtin)
 std::vector<Snippet> mergeSnippets(const std::vector<Snippet> &base, const std::vector<Snippet> &user);
 const Snippet *findSnippet(const std::vector<Snippet> &list, const std::string &name);
+// --- lang --- langId: languageId() of the document ("c" and "" are C/C++)
+bool snippetForLanguage(const Snippet &s, const std::string &langId);
+const Snippet *findSnippet(const std::vector<Snippet> &list, const std::string &name, const std::string &langId);
 
 SnippetExpansion expandSnippet(const std::string &body, const std::string &lineIndent,
                                const std::string &indentUnit = "    ");

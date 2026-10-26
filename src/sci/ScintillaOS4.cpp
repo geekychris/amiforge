@@ -60,6 +60,7 @@
 
 #include "sci/PlatOS4.h"
 #include "sci/SciView.h"
+#include "sci/Languages.h"   // --- lang ---
 
 #include <proto/exec.h>
 #include <proto/graphics.h>
@@ -176,6 +177,7 @@ private:
     ULONG timeBase = 0;              // IntuiMessage seconds at creation
     bool braceMatch = false;
     bool autoIndent = false;
+    int language = 1;                // --- lang --- af::Language, for the auto-indent rules
     int lastScroll[2][3] = { { -1, -1, -1 }, { -1, -1, -1 } };
 
     struct Ticker { bool running = false; int period = 0; unsigned int due = 0; };
@@ -696,7 +698,7 @@ void ScintillaOS4::NotifyParent(NotificationData scn) {
     if (scn.nmhdr.code == Notification::CharAdded && autoIndent) {
         if (scn.ch == '\n' || (scn.ch == '\r' && pdoc->eolMode == EndOfLine::Cr))
             IndentNewLine();
-        else if (scn.ch == '}')
+        else if (scn.ch == '}' && af::indentRule(static_cast<af::Language>(language)) == af::IndentRule::Braces)
             OutdentCloseBrace();
     }
     if (host)
@@ -727,13 +729,26 @@ void ScintillaOS4::IndentNewLine() {
     if (line <= 0 || !sel.Empty())
         return;
     int indent = pdoc->GetLineIndentation(line - 1);
-    // One level more after a line ending in '{'.
     Sci::Position p = pdoc->LineEnd(line - 1);
     const Sci::Position start = pdoc->LineStart(line - 1);
-    while (p > start && (pdoc->CharAt(p - 1) == ' ' || pdoc->CharAt(p - 1) == '\t'))
-        p--;
-    if (p > start && pdoc->CharAt(p - 1) == '{')
-        indent += pdoc->IndentSize();
+    // --- lang --- the rule depends on the language (af::indentRule)
+    const af::Language lang = static_cast<af::Language>(language);
+    const af::IndentRule rule = af::indentRule(lang);
+    if (rule == af::IndentRule::Colon || rule == af::IndentRule::Keywords) {
+        std::string text;
+        for (Sci::Position q = start; q < p; q++)
+            text.push_back(pdoc->CharAt(q));
+        indent += af::indentChangeAfter(lang, text) * pdoc->IndentSize();
+        if (indent < 0)
+            indent = 0;
+    } else if (rule == af::IndentRule::Braces) {
+        // One level more after a line ending in '{'.
+        while (p > start && (pdoc->CharAt(p - 1) == ' ' || pdoc->CharAt(p - 1) == '\t'))
+            p--;
+        if (p > start && pdoc->CharAt(p - 1) == '{')
+            indent += pdoc->IndentSize();
+    }
+    // --- end lang ---
     if (indent > 0) {
         Call(SCI_SETLINEINDENTATION, line, indent);
         Call(SCI_GOTOPOS, Call(SCI_GETLINEINDENTPOSITION, line));
@@ -763,6 +778,9 @@ sptr_t ScintillaOS4::WndProc(Message iMessage, uptr_t wParam, sptr_t lParam) {
         return 0;
     case AF_SCI_SETAUTOINDENT:
         autoIndent = wParam != 0;
+        return 0;
+    case AF_SCI_SETLANGUAGE:         // --- lang ---
+        language = static_cast<int>(wParam);
         return 0;
     case SCI_GRABFOCUS:
         if (host)

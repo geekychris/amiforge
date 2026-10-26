@@ -40,6 +40,8 @@ static const std::vector<Theme> builtIn = {
         0xC8D8F0, 0x6090E0, 0xFFC040,
         // AutoDocs
         0x204080, 0x0050C0, 0x202020,
+        // --- lang --- function names, decorators, builtins, variables, headings, emphasis, code, errors
+        0x795E26, 0x6F42C1, 0x1F6F8B, 0x0060A8, 0x1F4E9A, 0x7A3E9D, 0xF2F2F2, 0xC00000,
     },
     {
         "Dark", true,
@@ -74,6 +76,8 @@ static const std::vector<Theme> builtIn = {
         0x3A4660, 0x4A7AC0, 0xB08020,
         // AutoDocs
         0x8CB4E6, 0x6CB6FF, 0xE8E8E8,
+        // --- lang ---
+        0xDCDCAA, 0xB8A1F0, 0x4FC1FF, 0x9CDCFE, 0x7CC4FF, 0xD7BA7D, 0x2A2D32, 0xFF6A6A,
     },
 };
 

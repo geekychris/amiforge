@@ -140,6 +140,14 @@ void App::handleMenu(uint32_t cmd)
     case CMD_STEP_INSN: debugStep(3); break;
     case CMD_RUN_TO_CURSOR: debugRunToCursor(); break;
     case CMD_APPLY_CHANGES: applyChanges(); break;   // --- hotpatch
+    // --- lang --- the new debugger keys
+    case CMD_DEBUG_RESTART: debugRestart(); break;
+    case CMD_QUICK_WATCH: quickWatch(); break;
+    case CMD_BP_TOGGLE_ENABLED: toggleBreakpointEnabledAtCaret(); break;
+    case CMD_BP_CONDITION: editBreakpointCondition(); break;
+    case CMD_SET_NEXT_STATEMENT: setNextStatement(); break;
+    case CMD_RUN_TO_FUNCTION: runToFunction(); break;
+    // --- end lang ---
     case CMD_TOGGLE_BP: toggleBreakpointAtCaret(); break;
     case CMD_CLEAR_BPS:
         if (!project.breakpoints.empty() && ask("Breakpoints", "Delete all breakpoints?", "_Delete|_Cancel") == 1) {

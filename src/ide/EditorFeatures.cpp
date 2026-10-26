@@ -67,9 +67,11 @@ static std::string wholeText(SciView *v)
     return std::string(buf.data(), len);
 }
 
-static bool asmSource(const std::string &path)
+// --- lang --- the language of a source file, for the outline, references and renaming
+static Language srcLang(const std::string &path, const std::string &text = "")
 {
-    return isAsmFile(path) || extension(path) == "i";
+    std::string first = text.substr(0, std::min<size_t>(text.find('\n'), 400));
+    return languageFor(path.empty() ? std::string("untitled.c") : path, first);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -505,9 +507,15 @@ static const char *const snippetFileHelp =
     "# A tab at the start of a body line is one indent step. \\$ is a dollar sign.\n"
     "# A snippet with a built-in snippet's name (main, openlib, window, timer, rexx, tags,\n"
     "# for, while, if, switch, struct, class) replaces it.\n"
+    "# A line \"language python\" (or arexx, lua; \"language c\" goes back) makes the snippets\n"
+    "# after it expand only in files of that language.\n"
     "\n"
     "snippet hello  print a line\n"
-    "\tIDOS->Printf(\"${1:Hello, world}\\n\");${0}\n";
+    "\tIDOS->Printf(\"${1:Hello, world}\\n\");${0}\n"
+    "\n"
+    "language python\n"
+    "snippet hello  print a line\n"
+    "\tprint(\"${1:Hello, world}\")${0}\n";
 
 void App::loadSnippets()
 {
@@ -531,10 +539,27 @@ void App::editSnippets()
     setStatus("Your snippets: they're read again when you save this file");
 }
 
+// --- lang --- the languageId() of the current document: snippets belong to a language
+static std::string docLangId(SciView *v, Document *d)
+{
+    if (!d || !v) return "c";
+    std::string first;
+    intptr_t len = S(v, SCI_LINELENGTH, 0);
+    if (len > 0 && len < 400) {
+        first.assign((size_t)len + 1, '\0');
+        S(v, SCI_GETLINE, 0, (intptr_t)&first[0]);
+        first.resize((size_t)len);
+    }
+    Language l = srcLang(d->path, first);
+    return l == Language::Asm ? "c" : languageId(l);
+}
+
 void App::addSnippetWords(const std::string &prefix, std::set<std::string> &words)
 {
+    std::string lang = docLangId(editor, cur);   // --- lang ---
     for (auto &s : snippets)
-        if (prefix.empty() || strncasecmp(s.name.c_str(), prefix.c_str(), prefix.size()) == 0)
+        if (!snippetForLanguage(s, lang)) continue;
+        else if (prefix.empty() || strncasecmp(s.name.c_str(), prefix.c_str(), prefix.size()) == 0)
             words.insert(s.name + snippetMark);
 }
 
@@ -558,7 +583,7 @@ bool App::snippetCompletion(const char *text, intptr_t wordStart)
     size_t n = text ? strlen(text) : 0;
     if (n < 2 || text[n - 1] != snippetMark) return false;
     std::string name(text, n - 1);
-    const Snippet *s = findSnippet(snippets, name);
+    const Snippet *s = findSnippet(snippets, name, docLangId(editor, cur));   // --- lang ---
     if (!s) return false;
     S(editor, SCI_AUTOCCANCEL);
     insertSnippet(*s, wordStart, S(editor, SCI_GETCURRENTPOS));
@@ -590,7 +615,7 @@ bool App::snippetTab(bool backwards)
     if (start >= caret) return false;
     char next = (char)S(editor, SCI_GETCHARAT, caret);
     if (isalnum((unsigned char)next) || next == '_') return false;
-    const Snippet *s = findSnippet(snippets, textRange(editor, start, caret));
+    const Snippet *s = findSnippet(snippets, textRange(editor, start, caret), docLangId(editor, cur));   // --- lang ---
     if (!s) return false;
     insertSnippet(*s, start, caret);
     return true;
@@ -721,11 +746,10 @@ void App::refreshOutline()
     outlineDelay = 0;
     outline.clear();
     if (cur && mainView) {
-        std::string path = cur->path.empty() ? std::string("untitled.c") : cur->path;
-        std::string ext = extension(path);
-        bool code = ext == "c" || ext == "h" || isCppFile(path) || ext == "hpp" || ext == "hh" || ext == "hxx" ||
-                    asmSource(path) || cur->path.empty();
-        if (code) outline = outlineSymbols(wholeText(mainView), asmSource(path));
+        // --- lang --- every language with an outline (Symbols.h)
+        std::string text = wholeText(mainView);
+        Language lang = srcLang(cur->path, text);
+        if (hasOutline(lang)) outline = outlineSymbols(text, lang);
     }
     symbolList.clear();
     symbolList.detach();
@@ -833,7 +857,7 @@ void App::findReferences()
         std::string text;
         if (d) text = documentText(d);
         else if (!readFile(path, text)) return;
-        std::vector<size_t> hits = findIdentifier(text, word, asmSource(path));
+        std::vector<size_t> hits = findIdentifier(text, word, srcLang(path));
         if (hits.empty()) return;
         nfiles++;
         for (size_t h : hits) {
@@ -872,7 +896,8 @@ void App::renameSymbol()
 {
     if (!editor || !cur) return;
     std::string word = wordAt(S(editor, SCI_GETCURRENTPOS));
-    if (!isIdentifierName(word) || isReservedWord(word)) {
+    const Language lang = srcLang(cur->path, documentText(cur));   // --- lang ---
+    if (!isIdentifierName(word) || isReservedWord(word, lang)) {
         setStatus("Put the cursor on a name to rename first");
         return;
     }
@@ -880,8 +905,8 @@ void App::renameSymbol()
     if (!askString("Rename Symbol", "Rename " + word + " everywhere in the project to:", newName)) return;
     newName = trim(newName);
     if (newName == word) return;
-    if (!isIdentifierName(newName) || isReservedWord(newName)) {
-        info("\"" + newName + "\" isn't a name that can be used in C or C++.");
+    if (!isIdentifierName(newName) || isReservedWord(newName, lang)) {
+        info("\"" + newName + "\" isn't a name that can be used in " + languageName(lang) + ".");
         return;
     }
     // count first, so the requester can say what will change
@@ -891,8 +916,8 @@ void App::renameSymbol()
     auto consider = [&](const std::string &path, const std::string &label, Document *d) {
         std::string text = d ? documentText(d) : "";
         if (!d && !readFile(path, text)) return;
-        int n = (int)findIdentifier(text, word, asmSource(path)).size();
-        clashes += (int)findIdentifier(text, newName, asmSource(path)).size();
+        int n = (int)findIdentifier(text, word, srcLang(path)).size();
+        clashes += (int)findIdentifier(text, newName, srcLang(path)).size();
         if (n) { targets.push_back({path, label, d, n}); total += n; }
     };
     if (cur->path.empty()) consider("", cur->title, cur);
@@ -916,7 +941,7 @@ void App::renameSymbol()
         if (t.doc) {
             withDocument(t.doc, [&] {
                 std::string text = wholeText(mainView);
-                std::vector<size_t> hits = findIdentifier(text, word, asmSource(t.path));
+                std::vector<size_t> hits = findIdentifier(text, word, srcLang(t.path));
                 S(mainView, SCI_BEGINUNDOACTION);
                 for (size_t k = hits.size(); k-- > 0;) {
                     S(mainView, SCI_SETTARGETRANGE, hits[k], hits[k] + word.size());
@@ -929,7 +954,7 @@ void App::renameSymbol()
         } else {
             std::string text;
             int n = 0;
-            if (readFile(t.path, text) && writeFile(t.path, replaceIdentifier(text, word, newName, asmSource(t.path), &n)))
+            if (readFile(t.path, text) && writeFile(t.path, replaceIdentifier(text, word, newName, srcLang(t.path), &n)))
                 done += n;
             else
                 failed++;

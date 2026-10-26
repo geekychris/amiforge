@@ -691,7 +691,7 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
             t = documentText(cur);
         }
         std::string s;
-        for (auto &sym : outlineSymbols(t, isAsmFile(p)))
+        for (auto &sym : outlineSymbols(t, languageFor(p.empty() ? std::string("untitled.c") : p, t.substr(0, t.find('\n')))))   // --- lang ---
             s += mcp::record({ symKindName(sym.kind), sym.name, std::to_string(sym.line), sym.detail }) + "\n";
         return s;
     }
@@ -705,7 +705,7 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
             std::string t;
             if (d && !d->hex) t = documentText(d);
             else if (!readFile(f, t)) continue;
-            for (size_t off : findIdentifier(t, name, isAsmFile(f))) {
+            for (size_t off : findIdentifier(t, name, languageFor(f))) {   // --- lang ---
                 int line, col;
                 lineColumn(t, off, line, col);
                 s += mcp::record({ f, std::to_string(line), std::to_string(col), trim(mcp::lines(t, line, line)) }) + "\n";
