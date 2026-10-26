@@ -74,7 +74,10 @@ void App::buildPython(const std::string &what)
         std::string cache = project.abs("__pycache__");
         if (existsQuietly(cache)) cmds.push_back({"Cleaning", "Delete __pycache__ ALL QUIET FORCE"});
         if (what == "clean") {
-            if (cmds.empty()) cmds.push_back({"Nothing to clean: a Python project isn't compiled.", "Echo >NIL: \"\""});
+            if (cmds.empty()) {
+                setStatus("Nothing to clean: a Python project isn't compiled");
+                return;
+            }
             builder.startCommands(project.dir, cmds);
             setStatus("Cleaning...");
             updateToolbar();

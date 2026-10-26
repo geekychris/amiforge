@@ -473,6 +473,12 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
     if (cmd == "RUNPROGRAM") {
         if (project.path.empty()) return fail(10, "no project is open");
         if (builder.busy()) return fail(10, "a build is running");
+        // --- lang --- a Python project has no program file: Run starts its main script
+        if (project.isPython()) {
+            if (a.has("CAPTURE")) return fail(10, "CAPTURE isn't available for Python projects; RUNPROGRAM runs the script in a console");
+            runPython();
+            return mcpMessages.empty() ? "" : fail(10, trim(mcpMessages));
+        }
         if (project.runcmd.empty() && !fileExists(project.outputPath()))
             return fail(10, "the program isn't built: " + project.outputPath());
         if (!a.has("CAPTURE")) {
