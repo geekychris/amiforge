@@ -631,6 +631,77 @@ static void test_asm(void)
     info_free(di);
 }
 
+/* Pause in OS code (dbg_pause): where the program can be stopped instead, and when a hit
+ * there counts. The OS is a fake address range outside the program; the stack is built by
+ * hand: OS frame -> user frame (returns into main) -> OS frame (newlib calling main) ->
+ * user frame (returns into the program's startup code) -> end of the chain. */
+static void test_pause(void)
+{
+    char err[128], file[512];
+    snprintf(file, sizeof file, "%s", path(g_targets, "basic", ""));
+    dbg_info *di = info_load(file, err, sizeof err);
+    CHECK(di != NULL, "pause: info_load basic: %s", err);
+    if (!di) return;
+    const dfunc *fmain = info_func_named(di, "main");
+    uint32_t start = info_symbol_addr(di, "_start");
+    CHECK(fmain && start, "pause: main and _start");
+    if (!fmain || !start) { info_free(di); return; }
+    const uint32_t OS_PC = 0x01812804u, OS_RET = 0x01900040u, OS_LR = 0x01812700u;
+    const uint32_t R_MAIN = fmain->body + 8, R_START = start + 8, R_LEAF = fmain->body + 16;
+
+    /* is this pc in the program's code? */
+    CHECK(info_in_program(di, fmain->lo) && info_in_program(di, R_MAIN), "pause: main is user code");
+    CHECK(!info_in_program(di, OS_PC) && !info_in_program(di, OS_RET), "pause: kernel addresses are not user code");
+    const dvar *gv = info_global_named(di, "g_counter", -1);
+    if (gv) CHECK(!info_in_program(di, info_var_addr(di, gv)), "pause: data is not user code");
+
+    fakemem m;
+    memset(&m, 0, sizeof m);
+    load_sections(&m, di, file);
+    const uint32_t S0 = 0x60000000u, S1 = S0 + 0x40, S2 = S1 + 0x80, S3 = S2 + 0x40;
+    add_region(&m, S0, 0x400);
+    w32(&m, S0, S1);                              /* OS function's frame */
+    w32(&m, S1, S2); w32(&m, S1 + 4, R_MAIN);     /* its return address, saved in the caller's frame */
+    w32(&m, S2, S3); w32(&m, S2 + 4, OS_RET);     /* main was called from the OS (newlib) */
+    w32(&m, S3, 0);  w32(&m, S3 + 4, R_START);    /* ... from the startup code; end of the chain */
+    dbg_mem mem = { &m, fm_read, fm_write, fm_set_reg };
+
+    uint32_t t[8];
+    int n = frame_pause_targets(di, &mem, OS_PC, S0, OS_LR, t, 8);
+    CHECK(n == 2 && t[0] == R_MAIN && t[1] == R_START, "pause: return addresses from the back chain (%d: %08lx %08lx)",
+          n, n > 0 ? (unsigned long)t[0] : 0UL, n > 1 ? (unsigned long)t[1] : 0UL);
+    /* a leaf OS function (or one that hasn't saved LR yet) returns through LR, which comes first */
+    n = frame_pause_targets(di, &mem, OS_PC, S0, R_LEAF, t, 8);
+    CHECK(n == 3 && t[0] == R_LEAF && t[1] == R_MAIN && t[2] == R_START, "pause: LR first when it is in the program (%d)", n);
+    /* LR equal to a back chain address: listed once */
+    n = frame_pause_targets(di, &mem, OS_PC, S0, R_MAIN, t, 8);
+    CHECK(n == 2 && t[0] == R_MAIN && t[1] == R_START, "pause: no duplicates (%d)", n);
+    /* the room given is respected */
+    n = frame_pause_targets(di, &mem, OS_PC, S0, R_LEAF, t, 1);
+    CHECK(n == 1 && t[0] == R_LEAF, "pause: max respected (%d)", n);
+    /* in the program already: nothing to defer */
+    n = frame_pause_targets(di, &mem, R_MAIN, S1, OS_LR, t, 8);
+    CHECK(n == 0, "pause: no targets for a pc in user code (%d)", n);
+    /* broken back chain (unreadable stack): only LR, if usable */
+    n = frame_pause_targets(di, &mem, OS_PC, 0x70000000u, OS_LR, t, 8);
+    CHECK(n == 0, "pause: unreadable stack, no targets (%d)", n);
+    n = frame_pause_targets(di, &mem, OS_PC, 0x70000000u, R_LEAF, t, 8);
+    CHECK(n == 1 && t[0] == R_LEAF, "pause: unreadable stack, LR only (%d)", n);
+    /* a misaligned LR is never a target */
+    n = frame_pause_targets(di, &mem, OS_PC, 0x70000000u, R_LEAF + 2, t, 8);
+    CHECK(n == 0, "pause: misaligned LR ignored (%d)", n);
+
+    /* does a hit count? returns leave r1 at or above the pause's; callbacks run below it */
+    CHECK(frame_pause_hit_ok(S0, S0 - 0x1000, S0 + 0x1000, S1), "pause: return to an outer frame counts");
+    CHECK(frame_pause_hit_ok(S0, S0 - 0x1000, S0 + 0x1000, S0), "pause: return through LR (same r1) counts");
+    CHECK(!frame_pause_hit_ok(S0, S0 - 0x1000, S0 + 0x1000, S0 - 0x60), "pause: a callback from the OS doesn't count");
+    CHECK(frame_pause_hit_ok(S0, 0x50000000u, 0x50010000u, S0 - 0x60), "pause: OS on another stack: any hit counts");
+    CHECK(frame_pause_hit_ok(0, S0 - 0x1000, S0 + 0x1000, 0x1000), "pause: no r1 recorded: any hit counts");
+
+    for (int i = 0; i < m.n; i++) free(m.r[i].data);
+    info_free(di);
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 4) { fprintf(stderr, "usage: dbg_hosttest TARGETS DUMPS SOURCES\n"); return 2; }
@@ -641,6 +712,7 @@ int main(int argc, char **argv)
     test_basic();
     test_cplus();
     test_asm();
+    test_pause();
     printf("%d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

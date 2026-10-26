@@ -123,7 +123,7 @@ void App::handleMenu(uint32_t cmd)
     // debug
     case CMD_DEBUG_START:
         profileNext = false;   // --- debugtools ---
-        if (stopped()) debugContinue();
+        if (stopped() || pausePending()) debugContinue();   // Continue also cancels a pending pause
         else if (!debugging()) buildBeforeRun(2);
         break;
     case CMD_DEBUG_STOP: debugStop(); break;

@@ -61,7 +61,10 @@ the guest. Set `M1=user@host` for a remote Mac or Linux box, or `M1=local` for t
 
 Run the debugger's tests on the guest with
 `dbgtest DH1:AmiForge all memtrace DH1:AmiForge/dbgtest.log`. It needs the `tests/targets`
-programs in `DH1:AmiForge` and their sources in `DH1:AmiForge/src`.
+programs in `DH1:AmiForge` and their sources in `DH1:AmiForge/src`. Its `oscall` section
+(`tests/targets/pausetest.c`) pauses a program that prints to a console window and one that
+sits in `Wait()`, and checks that every stop is in the program's code and that `LockIBase`
+still returns.
 
 ## Testing the features
 

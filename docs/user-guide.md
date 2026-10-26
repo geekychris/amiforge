@@ -721,9 +721,14 @@ expression such as `i == 10` or `p->next != 0`; the program only stops there whe
 between: variables keep their values, so skipping a line that initialises one leaves it as it
 was. It only moves within the function the program is stopped in, in the top stack frame.
 
-Pause stops the program wherever it is, possibly inside an OS call that holds a lock (writing
-to its console, drawing). Don't leave it paused for long: until you continue or stop it, other
-programs that need the same lock (even the Workbench's windows) can wait for it.
+Pause stops the program in its own code, never inside an AmigaOS call. A call can hold a
+lock that the rest of the system needs (writing to the program's console, drawing, Intuition),
+and a program stopped there would freeze every window. So if the program is in a call when
+you pause, it carries on until the call returns to the program's code and stops there. The
+status bar says **Pausing... (in AmigaOS call)** meanwhile, and the Debug log names the call.
+That is usually immediate. A program waiting for input (in `Wait()` on its window, say)
+only stops once something wakes it up. Until then the pause stays pending and everything else
+keeps working. Pause again, Continue (F5) or Stop cancels a pending pause.
 
 F11, F12 and Break are on PC keyboards (and QEMU passes them on); on an Amiga keyboard use the Debug
 and Edit menus, or Help for F1.
@@ -1636,7 +1641,8 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | C++ builds fail with strange errors in standard headers (QEMU) | Run `C:QEMUCopyFix` (see above) |
 | A breakpoint shows a hollow circle | It's disabled, or the line has no code; check the Breakpoints tab |
 | Locals are empty or say `<unreadable>` | Build with `-gstabs` / `-gstabs+` and without optimisation (`-O0`) |
-| The debugger stopped "in Kickstart" | You paused in OS code; use Step Out or Continue |
+| The debugger stopped "in Kickstart" | The program crashed in OS code, often from a bad pointer it passed in; the call stack shows the program's frame that made the call. (Pause never stops in OS code: see Debugging) |
+| "Pausing... (in AmigaOS call)" doesn't end | The program is waiting in the OS (for a window event, a signal, a timer). Give it the input it waits for, or press Pause again to cancel |
 | F1 says the SDK isn't installed | The AutoDocs come from `SDK:Documentation/AutoDocs` |
 | Clone fails with "target OID ... doesn't exist" | The drawer is on a disk with 30-character names; use one with long names |
 | Clone fails with "failed to connect" | No route to the internet: check `ShowNetStatus` for a default gateway |

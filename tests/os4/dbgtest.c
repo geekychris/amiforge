@@ -3,13 +3,14 @@
  * AmigaOS 4. Prints PASS/FAIL lines and a summary; every wait has a timeout.
  *   dbgtest [DIR [SECTION|all [trace|-] [LOGFILE]]]
  * DIR holds the targets and src/ with their sources (default DH1:AmiForge). SECTION runs one
- * group (basic, crash, pause, cplus, asm). "trace" prints the runtime trace. LOGFILE gets
+ * group (exit, basic, crash, pause, oscall, cplus, asm). "trace" prints the runtime trace. LOGFILE gets
  * a copy of the output, closed after every line (it survives a hang).
  */
 #undef __USE_INLINE__
 #include <exec/execbase.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
+#include <proto/intuition.h>
 #include <devices/timer.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -416,6 +417,127 @@ static void test_pause(void)
     expect_exit("killed while running", 20);
 }
 
+/* ------------------------------------------------------------------ pausetest.c */
+
+/* Is Intuition usable? A helper process takes LockIBase and lets go; if the program being
+ * debugged holds an Intuition (or console/layers) lock while it is stopped, the helper
+ * blocks. Waits up to timeout_ms; on a timeout the program is continued (to let the helper
+ * finish) and 0 is returned. */
+static volatile int g_ibase_done;
+static void ibase_probe(void)
+{
+    uint32 l = IIntuition->LockIBase(0);
+    IIntuition->UnlockIBase(l);
+    g_ibase_done = 1;
+}
+
+static int intuition_ok(uint32_t timeout_ms)
+{
+    g_ibase_done = 0;
+    struct Process *p = IDOS->CreateNewProcTags(NP_Entry, ibase_probe, NP_Name, "dbgtest LockIBase probe",
+                                                NP_Output, 0, NP_Input, 0, NP_Error, 0, TAG_DONE);
+    if (!p) { printf("  (can't start the LockIBase probe)\n"); return 0; }
+    uint32_t start = now_ms();
+    while (!g_ibase_done && now_ms() - start < timeout_ms) IDOS->Delay(1);
+    if (g_ibase_done) { IDOS->Delay(2); return 1; }     /* give the helper time to end */
+    printf("  LockIBase blocked: continuing the program to release Intuition\n");
+    if (dbg_get_state(S) == DBG_STOPPED) dbg_continue(S);
+    while (!g_ibase_done) IDOS->Delay(5);
+    IDOS->Delay(2);
+    return 0;
+}
+
+static int in_user_code(const dbg_event *ev)
+{
+    return ev->type == DBG_EV_STOPPED && dbg_addr_in_program(S, ev->pc) && ev->file && strstr(ev->file, "pausetest.c");
+}
+
+/* the next STOPPED/EXITED event, or none within ms */
+static int no_event(uint32_t ms) { dbg_event ev; return !wait_event(&ev, ms); }
+
+static void signal_program(uint32_t sig)
+{
+    struct Task *t = dbg_task(S);
+    if (t) IExec->Signal(t, sig);
+}
+
+static void test_oscall(void)
+{
+    printf("== pause while the program is in AmigaOS calls (console output, Delay, Wait)\n");
+    ok(intuition_ok(2000), "Intuition is usable before the test");
+    /* printf into a CON: window + Delay(), in a loop */
+    if (!dbg_load(S, P("pausetest"), "", NULL, NULL)) { ok(0, "load pausetest: %s", dbg_last_error(S)); return; }
+    dbg_set_source_path(S, P("src"));
+    dbg_run(S, 0);
+    ok(no_event(500), "printing program runs");
+    int good = 0, deferred = 0, ibase = 0;
+    const int ROUNDS = 12;
+    for (int i = 0; i < ROUNDS; i++) {
+        dbg_event ev;
+        if (!dbg_pause(S)) { ok(0, "pause %d: %s", i, dbg_last_error(S)); break; }
+        if (!wait_event(&ev, 3000)) {
+            ok(0, "pause %d: no stop within 3 s (pending %d)", i, dbg_pause_pending(S));
+            break;
+        }
+        if (in_user_code(&ev) && ev.reason == DBG_STOP_PAUSE) good++;
+        else printf("  pause %d stopped outside the program: %08lx %s\n", i, (unsigned long)ev.pc, ev.text);
+        if (strstr(ev.text, "AmigaOS call returned")) deferred++;
+        if (intuition_ok(3000)) ibase++;
+        else print_stack();
+        if (dbg_get_state(S) == DBG_STOPPED) dbg_continue(S);
+        no_event(100 + 37 * (uint32_t)i);
+    }
+    ok(good == ROUNDS, "printing program: %d of %d pauses stopped in its own code", good, ROUNDS);
+    ok(ibase == ROUNDS, "printing program: Intuition usable at %d of %d pauses", ibase, ROUNDS);
+    printf("  (%d of the pauses waited for an AmigaOS call to return)\n", deferred);
+    ok(deferred > 0, "some pauses landed in AmigaOS calls (%d)", deferred);
+    signal_program(SIGBREAKF_CTRL_E);
+    expect_exit("printing program ends on CTRL-E", 7);
+    cleanup();
+
+    /* Wait() on signals: the pause stays pending */
+    if (!dbg_load(S, P("pausetest"), "wait", NULL, NULL)) { ok(0, "load pausetest wait: %s", dbg_last_error(S)); return; }
+    dbg_set_source_path(S, P("src"));
+    dbg_run(S, 0);
+    ok(no_event(500), "waiting program runs");
+    ok(dbg_pause(S) && no_event(1000), "pause in Wait(): no stop");
+    ok(dbg_pause_pending(S) && dbg_get_state(S) == DBG_RUNNING, "pause in Wait(): pending, still running");
+    ok(intuition_ok(3000), "pause pending: Intuition usable");
+    ok(dbg_pause(S) && !dbg_pause_pending(S) && dbg_get_state(S) == DBG_RUNNING, "pause again cancels it");
+    ok(no_event(300), "cancelled: keeps waiting");
+    signal_program(SIGBREAKF_CTRL_F);                 /* woken without a pause: goes round again */
+    ok(no_event(300), "woken without a pause pending: no stop");
+    for (int i = 0; i < 4; i++) {
+        ok(dbg_pause(S) && no_event(300) && dbg_pause_pending(S), "pause %d in Wait(): pending", i);
+        signal_program(SIGBREAKF_CTRL_F);             /* it returns to its own code: now it stops */
+        if (!expect_stop("woken with a pause pending: stops", DBG_STOP_PAUSE, NULL, "pausetest.c", 0)) return;
+        dbg_var *v = dbg_eval(S, "g_wakes");
+        printf("  g_wakes = %s\n", v->value);
+        dbg_var_free(S, &v, 1);
+        ok(intuition_ok(3000), "stopped after Wait(): Intuition usable");
+        dbg_continue(S);
+        ok(no_event(200), "continued: waits again");
+    }
+    ok(dbg_pause(S) && dbg_pause_pending(S), "pause pending again");
+    ok(dbg_continue(S) && !dbg_pause_pending(S) && dbg_get_state(S) == DBG_RUNNING, "Continue cancels it");
+    signal_program(SIGBREAKF_CTRL_F);
+    ok(no_event(300), "cancelled by Continue: woken, no stop");
+    ok(dbg_pause(S) && dbg_pause_pending(S), "pause pending before the end");
+    signal_program(SIGBREAKF_CTRL_E);                 /* it returns to main and ends: stops on the way */
+    if (expect_stop("ending with a pause pending: stops in its code", DBG_STOP_PAUSE, NULL, "pausetest.c", 0)) dbg_continue(S);
+    expect_exit("waiting program ends on CTRL-E", 7);
+    cleanup();
+
+    /* Stop with a pause pending */
+    if (!dbg_load(S, P("pausetest"), "wait", NULL, NULL)) { ok(0, "load pausetest wait: %s", dbg_last_error(S)); return; }
+    dbg_run(S, 0);
+    no_event(400);
+    ok(dbg_pause(S) && dbg_pause_pending(S), "pause pending, then stop");
+    ok(dbg_kill(S), "kill with a pause pending");
+    expect_exit("killed with a pause pending", 20);
+    ok(intuition_ok(2000), "Intuition usable after the test");
+}
+
 static void test_cplus(void)
 {
     printf("== C++: demangled names, members, std::string\n");
@@ -542,7 +664,7 @@ int main(int argc, char **argv)
     if (argc > 3 && !strcmp(argv[3], "memtrace")) { g_memtrace = 1; dbg_set_trace(S, memtrace_line, NULL); }
 
     struct { const char *name; void (*fn)(void); } tests[] = {
-        { "exit", test_exit }, { "basic", test_basic }, { "crash", test_crash }, { "pause", test_pause }, { "cplus", test_cplus }, { "asm", test_asm },
+        { "exit", test_exit }, { "basic", test_basic }, { "crash", test_crash }, { "pause", test_pause }, { "oscall", test_oscall }, { "cplus", test_cplus }, { "asm", test_asm },
     };
     const char *only = argc > 2 && strcmp(argv[2], "all") ? argv[2] : NULL;
     for (size_t i = 0; i < sizeof tests / sizeof tests[0]; i++) {

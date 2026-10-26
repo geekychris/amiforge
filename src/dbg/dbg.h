@@ -161,7 +161,13 @@ int dbg_step_over(dbg_session *s);        /* source line, over calls */
 int dbg_step_out(dbg_session *s);         /* until the current function returns */
 int dbg_step_instruction(dbg_session *s, int over_calls);
 int dbg_run_to(dbg_session *s, const char *file, int line);
+/* Pause: the program stops in its own code, never inside an OS call (where it may hold an
+ * OS lock, e.g. while printing to its console, and stopping it would freeze the GUI). If it
+ * is in the OS, the stop (DBG_STOP_PAUSE) comes when it returns to its code; until then
+ * dbg_pause_pending is 1 and the state stays DBG_RUNNING. dbg_pause while a pause is pending,
+ * dbg_continue and dbg_kill cancel it. */
 int dbg_pause(dbg_session *s);
+int dbg_pause_pending(dbg_session *s);
 int dbg_kill(dbg_session *s);
 
 /* Next event, if any (returns 1 and fills ev, or 0). */

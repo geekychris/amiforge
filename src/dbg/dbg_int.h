@@ -281,6 +281,12 @@ void frame_analyse0(const dbg_info *di, const dbg_mem *m, uint32_t pc, uint32_t 
 /* Walks the back chain; returns the number of frames filled. */
 int frame_walk(const dbg_info *di, const dbg_mem *m, uint32_t pc, uint32_t r1, uint32_t lr,
                frame_info *out, int max);
+/* Pause (dbg_pause) when the program is in OS code: the program addresses it can be stopped
+ * at instead, when it returns to them (LR, then the back chain's return addresses), and
+ * whether a hit at one of them with stack pointer r1 counts. See frame.c. */
+int frame_pause_targets(const dbg_info *di, const dbg_mem *m, uint32_t pc, uint32_t r1, uint32_t lr,
+                        uint32_t *out, int max);
+int frame_pause_hit_ok(uint32_t pause_r1, uint32_t sp_lo, uint32_t sp_hi, uint32_t r1);
 
 /* ---------- expressions and values (eval.c) ---------- */
 

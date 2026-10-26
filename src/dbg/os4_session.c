@@ -44,6 +44,8 @@
 #define EXIT_KILLED    20       /* RETURN_FAIL */
 #define MAX_FRAMES     64
 #define SETTLE_MS      10       /* after a hook suspension, before touching the task */
+#define PAUSE_RESAMPLE 25       /* polls between looks at a program with a pause pending (~250 ms) */
+#define PAUSE_TARGETS  16
 
 struct KernelDebugMessage { uint32_t type; union { struct ExceptionContext *context; struct Library *library; } message; };
 
@@ -57,9 +59,10 @@ enum {
     TK_RUNTO   = 1 << 5,
     TK_STEP    = 1 << 6,        /* instruction step successor */
     TK_PENTRY  = 1 << 7,        /* the program's ELF entry point (kill context) */
-    TK_MAIN    = 1 << 8         /* stop at main */
+    TK_MAIN    = 1 << 8,        /* stop at main */
+    TK_PAUSE   = 1 << 9         /* a pause caught it in OS code: where it returns to the program */
 };
-#define TK_TEMP (TK_STEPOFF | TK_LINE | TK_RET | TK_FNENTRY | TK_RUNTO | TK_STEP)
+#define TK_TEMP (TK_STEPOFF | TK_LINE | TK_RET | TK_FNENTRY | TK_RUNTO | TK_STEP | TK_PAUSE)
 
 typedef struct {
     uint32_t addr, orig;
@@ -137,6 +140,12 @@ struct dbg_session {
     uint32_t start_cfa, ret_sp;
     int start_file, start_line;
     uint32_t fn_lo, fn_hi;
+
+    /* a pause that caught the program in OS code waits for it to return to its own code */
+    int pause_pending;
+    int pause_polls;            /* polls since the pause was planned (re-sampling, see dbg_poll) */
+    uint32_t pause_r1;          /* r1 in the OS call; a hit counts at or above it (frame_pause_hit_ok) */
+    uint32_t pause_sp_lo, pause_sp_hi;   /* the task's stack then */
 
     vec events;                 /* dbg_event queue */
     size_t ev_head;
@@ -889,6 +898,8 @@ static void read_context(dbg_session *s)
 static void report_stop(dbg_session *s, dbg_stop_reason reason, int bp_id)
 {
     trace(s, "stop reason %d bp %d pc %08lx", reason, bp_id, (unsigned long)s->ctx.ip);
+    int deferred = s->pause_pending;                 /* a pause that waited for an OS call to return */
+    s->pause_pending = 0;
     arena_free(&s->stop_mem);
     clear_kinds(s, TK_TEMP);
     for (size_t i = 0; i < s->traps.n; i++) VEC_AT(&s->traps, trap, i).suppressed = 0;
@@ -920,7 +931,7 @@ static void report_stop(dbg_session *s, dbg_stop_reason reason, int bp_id)
     switch (reason) {
     case DBG_STOP_BREAKPOINT: snprintf(ev.text, sizeof ev.text, "Breakpoint %d, %s", bp_id, where); break;
     case DBG_STOP_ENTRY: snprintf(ev.text, sizeof ev.text, "Stopped at %s", where); break;
-    case DBG_STOP_PAUSE: snprintf(ev.text, sizeof ev.text, "Paused in %s", where); break;
+    case DBG_STOP_PAUSE: snprintf(ev.text, sizeof ev.text, "Paused in %s%s", where, deferred ? " (after its AmigaOS call returned)" : ""); break;
     case DBG_STOP_EXCEPTION:
         if (ev.trap_type == 0x300)
             snprintf(ev.text, sizeof ev.text, "Program crashed: %s at address 0x%08lx, in %s", trap_name(ev.trap_type), (unsigned long)ev.fault_addr, where);
@@ -942,6 +953,7 @@ static void report_exit(dbg_session *s)
     snprintf(ev.text, sizeof ev.text, "Program exited with code %d", ev.exit_code);
     s->proc = NULL;
     s->op = OP_NONE;
+    s->pause_pending = 0;
     reap_timer(s, 1);
     for (size_t i = 0; i < s->traps.n; i++) VEC_AT(&s->traps, trap, i).suppressed = 0;
     clear_kinds(s, TK_TEMP | TK_PENTRY | TK_MAIN);
@@ -1207,6 +1219,12 @@ static int handle_trap(dbg_session *s, trap *t)
     if (id) { report_stop(s, DBG_STOP_BREAKPOINT, id); return 1; }
     if ((kinds & TK_MAIN) && s->stop_at_main) { report_stop(s, DBG_STOP_ENTRY, 0); return 1; }
     uint32_t r1 = s->ctx.gpr[1];
+    if ((kinds & TK_PAUSE) && s->pause_pending) {
+        /* back in the program from the OS call a pause caught it in (not a callback from it) */
+        int ok = frame_pause_hit_ok(s->pause_r1, s->pause_sp_lo, s->pause_sp_hi, r1);
+        trace(s, "  pause trap: r1 %08lx, pause r1 %08lx: %s", (unsigned long)r1, (unsigned long)s->pause_r1, ok ? "stop" : "a callback, go on");
+        if (ok) { report_stop(s, DBG_STOP_PAUSE, 0); return 1; }
+    }
     switch (s->op) {
     case OP_STEPI:
         if ((kinds & TK_STEP) && r1 >= s->ret_sp) { report_stop(s, DBG_STOP_STEP, 0); return 1; }
@@ -1294,6 +1312,110 @@ static void quick_wait(dbg_session *s)
     }
 }
 
+/* ======================================================================== pausing
+ *
+ * Suspending the program from outside stops it wherever it is. Inside an OS call that can be
+ * while it holds an OS lock (console.device, layers and Intuition while it prints to its
+ * console window or draws), and everything else that needs the lock, the Workbench and the
+ * IDE included, then waits until it is resumed: the machine looks frozen. So a pause only
+ * ever stops the program in its own code. When it lands in OS code, the program is let go
+ * again with temporary traps at the places it returns to (LR and the back chain's return
+ * addresses into the program, frame_pause_targets) and stops at the first one it reaches.
+ * In case it gets back some other way, it is looked at again every PAUSE_RESAMPLE polls
+ * while it isn't waiting. A program that stays in the OS (Wait() on a window port) keeps
+ * the pause pending, at no cost; pausing again, Continue or Stop cancel it. */
+
+/* Suspends the running program for a moment (to read its context or write traps). A trap hit
+ * arriving on the way is handled first. Returns 1 with the task suspended and still running
+ * as far as the session goes, 0 if it stopped or ended meanwhile (its event is queued). */
+static int hold(dbg_session *s)
+{
+    for (int i = 0; i < 8 && s->state == DBG_RUNNING && s->proc; i++) {
+        IExec->SuspendTask((struct Task *)s->proc, 0);
+        if (s->exc_count == s->seen) {
+            check_death(s);
+            return s->state == DBG_RUNNING && s->proc != NULL;
+        }
+        on_exception(s);                             /* it resumes it, or reports a stop */
+    }
+    return 0;
+}
+
+/* The program, held by hold(), is in OS code (s->ctx): plant the pause traps and let it go. */
+static void defer_pause(dbg_session *s)
+{
+    struct Task *t = (struct Task *)s->proc;
+    uint32_t tg[PAUSE_TARGETS];
+    dbg_mem m = session_mem(s);
+    int n = frame_pause_targets(s->di, &m, s->ctx.ip, s->ctx.gpr[1], s->ctx.lr, tg, PAUSE_TARGETS);
+    clear_kinds(s, TK_PAUSE);
+    for (int i = 0; i < n; i++) add_kind(s, tg[i], TK_PAUSE);
+    s->pause_r1 = s->ctx.gpr[1];
+    s->pause_sp_lo = (uint32_t)t->tc_SPLower;
+    s->pause_sp_hi = (uint32_t)t->tc_SPUpper;
+    s->pause_polls = 0;
+    trace(s, "pause: pc %08lx is outside the program, %d return trap(s), r1 %08lx stack %08lx-%08lx", (unsigned long)s->ctx.ip, n,
+          (unsigned long)s->pause_r1, (unsigned long)s->pause_sp_lo, (unsigned long)s->pause_sp_hi);
+    sync_traps(s);
+    if (!s->pause_pending) {
+        char where[96] = "AmigaOS";
+        struct DebugSymbol *ds = s->idebug->ObtainDebugSymbol((CONST_APTR)s->ctx.ip, NULL);
+        if (ds) {
+            if (ds->Name && ds->SourceFunctionName) snprintf(where, sizeof where, "%s: %s", path_base(ds->Name), ds->SourceFunctionName);
+            else if (ds->Name) snprintf(where, sizeof where, "%s", ds->Name);
+            s->idebug->ReleaseDebugSymbol(ds);
+        }
+        message(s, "Pausing: the program is in an AmigaOS call (%s); it stops when it returns to its own code. "
+                   "Pause again, Continue or Stop to cancel.", where);
+    }
+    s->pause_pending = 1;
+    s->nframes = 0;
+    restart_checked(s, s->ctx.ip);
+}
+
+/* Stops the held program in its own code, as a pause. */
+static void pause_here(dbg_session *s)
+{
+    /* stepping off a trap: put it back, the program is not between our two traps anymore */
+    if (s->stepping_off) { trap *o = find_trap(s, s->stepoff_pc); if (o) o->suppressed = 0; }
+    report_stop(s, DBG_STOP_PAUSE, 0);
+}
+
+/* A pause is pending: has the program got back to its own code some way the traps missed? */
+static void resample_pause(dbg_session *s)
+{
+    struct Task *t = (struct Task *)s->proc;
+    if (t->tc_State == TS_WAIT || s->returned || dt_sampling(s)) return;   /* waiting in the OS: the traps will see it return */
+    if (!hold(s)) return;
+    read_context(s);
+    int in_program = info_in_program(s->di, s->ctx.ip);
+    trace(s, "pause pending: pc %08lx %s", (unsigned long)s->ctx.ip, in_program ? "in the program" : "still in the OS");
+    if (!in_program) { defer_pause(s); return; }
+    if (frame_pause_hit_ok(s->pause_r1, s->pause_sp_lo, s->pause_sp_hi, s->ctx.gpr[1])) { pause_here(s); return; }
+    restart_checked(s, s->ctx.ip);                   /* a callback from the OS call: not here */
+}
+
+static void cancel_pause(dbg_session *s, const char *why)
+{
+    if (!s->pause_pending) return;
+    s->pause_pending = 0;                            /* a pause trap hit from now on just goes on */
+    trace(s, "pause cancelled");
+    if (s->state == DBG_RUNNING && s->proc) {
+        if (hold(s)) {
+            clear_kinds(s, TK_PAUSE);
+            sync_traps(s);
+            IExec->RestartTask((struct Task *)s->proc, 0);
+        }
+        else if (s->state == DBG_RUNNING) { clear_kinds(s, TK_PAUSE); }   /* running on: the traps go at the next stop */
+    } else {
+        clear_kinds(s, TK_PAUSE);
+        sync_traps(s);
+    }
+    if (why) message(s, "%s", why);
+}
+
+int dbg_pause_pending(dbg_session *s) { return s->state == DBG_RUNNING && s->pause_pending; }
+
 int dbg_poll(dbg_session *s, dbg_event *ev)
 {
     if (s->ev_head < s->events.n) goto pop;
@@ -1335,6 +1457,7 @@ int dbg_poll(dbg_session *s, dbg_event *ev)
                 s->stall = 0;
             }
         }
+        if (s->state == DBG_RUNNING && s->proc && s->pause_pending && ++s->pause_polls % PAUSE_RESAMPLE == 0) resample_pause(s);
         if (s->state == DBG_RUNNING && s->quick && s->events.n == s->ev_head) { s->quick = 0; quick_wait(s); }
         if (s->state == DBG_RUNNING) arm_timer(s);
     }
@@ -1460,6 +1583,7 @@ int dbg_run(dbg_session *s, int stop_at_main)
     s->returned = 0;                                 /* debugtools */
     s->returned_polls = 0;
     s->have_entry = 0;
+    s->pause_pending = 0;
     s->stop_at_main = stop_at_main;
 
     s->run_cwd = cwd; s->run_home = progdir;
@@ -1509,7 +1633,11 @@ static int start_op(dbg_session *s, int op)
     return 1;
 }
 
-int dbg_continue(dbg_session *s) { return start_op(s, OP_CONT); }
+int dbg_continue(dbg_session *s)
+{
+    if (s->state == DBG_RUNNING && s->pause_pending) { cancel_pause(s, "Pause cancelled: the program carries on."); return 1; }
+    return start_op(s, OP_CONT);
+}
 int dbg_step_into(dbg_session *s) { return start_op(s, OP_INTO); }
 int dbg_step_over(dbg_session *s) { return start_op(s, OP_OVER); }
 int dbg_step_out(dbg_session *s) { return start_op(s, OP_OUT); }
@@ -1530,18 +1658,20 @@ int dbg_run_to(dbg_session *s, const char *file, int line)
     return start_op(s, OP_RUNTO);
 }
 
+/* Stops the program in its own code: at once if it is there, else when it gets back there
+ * from the OS call it is in (see "pausing" above). Called again while that is pending, it
+ * cancels the pause. */
 int dbg_pause(dbg_session *s)
 {
     if (s->state != DBG_RUNNING || !s->proc) return set_err(s, "the program isn't running");
+    if (s->pause_pending) { cancel_pause(s, "Pause cancelled: the program carries on."); return 1; }
+    /* (debugtools) suspending a process in DOS's cleanup leaves it hanging there */
+    if (s->returned) return set_err(s, "the program has ended (DOS is cleaning it up)");
     trace(s, "pause: state %d count %lu seen %lu", ((struct Task *)s->proc)->tc_State, (unsigned long)s->exc_count, (unsigned long)s->seen);
-    IExec->SuspendTask((struct Task *)s->proc, 0);
-    if (s->exc_count != s->seen) { on_exception(s); if (s->state != DBG_RUNNING) return 1; IExec->SuspendTask((struct Task *)s->proc, 0); }
-    check_death(s);
-    if (s->state != DBG_RUNNING) return 1;
+    if (!hold(s)) return 1;                          /* it stopped or ended on its own meanwhile */
     read_context(s);
-    /* stepping off a trap: put it back, the program is not between our two traps anymore */
-    if (s->stepping_off) { trap *o = find_trap(s, s->stepoff_pc); if (o) o->suppressed = 0; }
-    report_stop(s, DBG_STOP_PAUSE, 0);
+    if (info_in_program(s->di, s->ctx.ip)) pause_here(s);
+    else defer_pause(s);
     return 1;
 }
 
@@ -1562,6 +1692,7 @@ static void kill_now(dbg_session *s)
 {
     if (!s->proc) return;
     trace(s, "kill: state %d have_entry %d", s->state, s->have_entry);
+    s->pause_pending = 0;                            /* its traps go with all the others below */
     if (s->returned) {
         /* (debugtools) the program has already returned and DOS is cleaning the process up:
          * the entry context means nothing any more (restoring it crashed the process). Let it

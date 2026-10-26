@@ -43,6 +43,35 @@ The launcher also changed. It hooks itself (`AddDebugHook(FindTask(NULL), ...)`)
 for CTRL-F before calling `RunCommand`, rather than being created suspended and hooked from
 outside. It takes the hook off again before DOS cleans the process up.
 
+## Pausing (never in OS code)
+
+A pause used to `SuspendTask` the debuggee wherever it was. In an OS call that can be while it
+holds an OS lock: a program looping `printf` into a CON: window plus `Delay()`, paused with
+Break, stopped at `0x01812804 in Kickstart/kernel`. Intuition then froze for the whole machine
+(the mouse pointer stopped, `LockIBase` callers hung), and the IDE's own GUI was among the
+blocked tasks, so nothing could resume the program short of a reset.
+
+So the program is now held only for a moment (`SuspendTask`, read the context, restart it).
+If its pc is outside its own code, it gets temporary traps (`TK_PAUSE`) at the places it
+returns to: LR (for a leaf, or a function that hasn't saved it yet) and every return address
+into the program on the back chain (`frame_pause_targets`). It is restarted and stops at the
+first one it reaches. Traps go only in the program's own code, as always. A hit counts only
+if r1 is at or above the r1 seen in the OS call, when that r1 was on the task's stack
+(`frame_pause_hit_ok`). Below it, the hit is a callback the OS makes into the program (a
+hook), which may run with the OS's locks held. As a fallback, every 25 polls (about 250 ms)
+a program that isn't in `TS_WAIT` is sampled again. In its own code it stops there; otherwise
+the traps are planned again from its new context. A program in `Wait()` keeps the pause
+pending at no cost. A second pause, `dbg_continue` or `dbg_kill` cancels it. A pause is
+refused once the program has returned and DOS is cleaning the process up (suspending it there
+hung it; see dbg_poll).
+
+Limits: a program that never comes back from the OS can't be paused, only stopped. If an OS
+call makes a callback into the program (a hook) and the callback makes a further OS call, a
+pause caught in that inner call stops when it returns into the callback, while the outer call
+may still hold its locks (a breakpoint in the callback has the same problem).
+`dbgtest DIR oscall` covers the console, `Delay()` and `Wait()` cases and checks with a
+`LockIBase` helper process that Intuition stays usable at every stop.
+
 ## The traps (each of these hung a program or the whole guest)
 
 1. **Don't start the program as an `NP_Seglist` process.** If one parent creates a newlib
