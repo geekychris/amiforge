@@ -84,6 +84,14 @@ struct Project {
     bool distcc = false;        // compile with distcc (Build > Distributed Builds)
     std::string distccHosts;    // empty: ENV:AmiForge/DistccHosts
     // --- end integrations ---
+    // --- lang --- Python projects (LangTools.h): nothing is compiled; Build checks the syntax,
+    // Run starts the main script with the interpreter
+    std::string language;       // "" = C/C++ (or Python when every file is a .py), "c", "python"
+    std::string interpreter;    // empty = ENV:AmiForge/Python, else the first one found
+    std::string mainScript;     // empty = main.py, else the first .py file
+    bool isPython() const;
+    std::string pythonMain() const;   // relative to dir; "" if the project has no .py file
+    // --- end lang ---
     std::vector<std::string> files;    // relative to dir
     std::vector<std::string> watches;
     struct Bp { std::string file; int line; bool enabled; std::string cond; };
@@ -115,6 +123,10 @@ public:
     // Run arbitrary commands (label, command line) in dir, reporting like a build.
     // okRc: the highest return code that still counts as success (for tools that return 1 when they worked)
     bool startCommands(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds, int okRc = 0);
+    // --- lang --- run commands for a Python project (the syntax check): Python's tracebacks and
+    // error lines become diagnostics too; `env` are local variables for the commands (PYTHONHOME)
+    bool startPython(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds,
+                     const std::vector<std::pair<std::string, std::string>> &env);
     bool busy() const { return running; }
     void stop();
     // --- hotpatch
@@ -129,6 +141,8 @@ public:
 private:
     Job *job = nullptr;
     bool running = false;
+    bool nextPython = false;   // --- lang --- for startPython
+    std::vector<std::pair<std::string, std::string>> nextEnv;
     int8_t sigBit = -1;
 };
 bool parseDiagnostic(const std::string &text, const std::string &cwd, BuildLine &out);
@@ -710,6 +724,25 @@ public:
     void handleBrowser();
     void closeBrowser();
     // --- end robust ---
+    // --- lang --- Python projects (PythonUI.cpp; the OS-free parts are in LangTools.h)
+    std::string pythonInterpreter(std::string *how = nullptr);   // project, ENV:AmiForge/Python, or found
+    std::vector<std::pair<std::string, std::string>> pythonEnv(const std::string &interpreter);   // PYTHONHOME/PATH if unset
+    void buildPython(const std::string &what);   // Build: syntax check of every .py file
+    void runPython();                            // Run: the main script in a console
+    void debugPython();                          // Debug: explains, offers pdb
+    void runTrackPython(const std::string &stopFile, const std::string &tracebackFile);   // the run just started
+    void pythonRunEnded(const std::string &tracebackFile);   // RunControl: its traceback into the build log
+    uint32_t runStack = 0;                       // runSystem: stack for the next program (0: the shell's)
+    int pythonRuns = 0;
+    // debugger commands for the new keys (DebugKeys.cpp)
+    void debugRestart();                         // Shift-Alt-F5
+    void quickWatch();                           // Shift-F9
+    int breakpointAtCaret();                     // index into project.breakpoints, -1 if none
+    void toggleBreakpointEnabledAtCaret();       // Alt-F9
+    void editBreakpointCondition(int index = -1);   // Shift-Ctrl-F9 (-1: the line at the cursor)
+    void setNextStatement();                     // Shift-Ctrl-F10
+    void runToFunction();                        // Alt-F10
+    // --- end lang ---
 };
 
 extern App *gApp;

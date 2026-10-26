@@ -115,6 +115,8 @@ enum {
     AF_SCI_SETBRACEMATCH = 0x7F00,   // wParam != 0: highlight the brace pair at the caret
     AF_SCI_SETAUTOINDENT = 0x7F01,   // wParam != 0: a new line gets the previous line's indent,
                                      // one level more after '{'; a '}' typed first is outdented
+    AF_SCI_SETLANGUAGE = 0x7F02,     // --- lang --- wParam: af::Language (sci/Languages.h); picks
+                                     // the auto-indent rule (braces, Python's ':', block keywords)
 };
 
 } // namespace af

@@ -32,6 +32,16 @@ for ex in $names; do
       files+=($v)
     fi
   done < $afp
+  # --- lang --- a Python example: the host's python3 checks the syntax
+  if grep -q '^language=python' $afp; then
+    pys=(${(M)files:#*.py})
+    if (cd $out/$ex && python3 -c 'import sys; [compile(open(f).read(), f, "exec") for f in sys.argv[1:]]' $pys); then
+      echo "echo 'OK   $ex (Python syntax, host python3)'" >> $script
+    else
+      echo "echo 'FAIL $ex (Python syntax)'; fail=1" >> $script
+    fi
+    continue
+  fi
   objs=(); cmds=(); cpp=0
   for f in $files; do
     case $f in

@@ -183,5 +183,5 @@ TEST(shipped_templates_are_complete)
         n++;
     }
     closedir(d);
-    CHECK_EQ(n, 9);
+    CHECK_EQ(n, 10);   // --- lang --- with the Python script template
 }

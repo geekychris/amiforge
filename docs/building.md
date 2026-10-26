@@ -104,3 +104,8 @@ programs in `DH1:AmiForge` and their sources in `DH1:AmiForge/src`.
 
 `tests/templates/check.sh` cross-compiles every project template (and a sample GUI with each gadget kind) with `-Werror`.
 `tests/examples/check.sh` does the same for every example in `examples/`, with the flags from its `.afp`.
+Python templates and examples (`language=python`) are checked for syntax with the host's `python3` instead.
+
+`make -C tests/host ide` also runs the `lang` area: language detection, outlines per language,
+the ARexx/AmigaDOS/Python lexers on a test document, the key table (no key bound twice), and
+the Python checker and runner scripts, run with the host's `python3`.

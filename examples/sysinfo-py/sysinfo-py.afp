@@ -1,0 +1,13 @@
+# AmiForge project
+[project]
+name=sysinfo-py
+output=sysinfo
+args=SYS:
+console=
+stopatmain=1
+description=Python: memory, tasks, libraries and free space through the Python port's _amiga module
+language=python
+main=sysinfo.py
+
+[files]
+file=sysinfo.py

@@ -1,5 +1,6 @@
 // Project handling in the GUI: new/open/save/close, the file list, Find in Files.
 #include "App.h"
+#include "LangTools.h"   // --- lang ---
 
 #include <algorithm>
 #include <string.h>
@@ -73,7 +74,8 @@ void App::newProject()
                 if (!EXD_IS_FILE(ed)) continue;
                 std::string n = (const char *)ed->Name;
                 std::string e = extension(n);
-                if (isSourceFile(n) || e == "h" || e == "hpp" || e == "i" || e == "inc")
+                if (isSourceFile(n) || e == "h" || e == "hpp" || e == "i" || e == "inc" ||
+                    lang::isPythonFile(n))   // --- lang --- a drawer of .py files is a Python project
                     project.files.push_back(n);
             }
             IDOS->ReleaseDirContext(ctx);
@@ -92,7 +94,7 @@ void App::newProject()
     refreshProjectList();
     refreshBreakpointList();
     for (auto &f : project.files)
-        if (isSourceFile(f)) { openFile(project.abs(f)); break; }
+        if (isSourceFile(f) || (project.isPython() && f == project.pythonMain())) { openFile(project.abs(f)); break; }   // --- lang ---
     lastDir = project.dir;
     updateTitle();
     addRecent(project.path);
@@ -182,8 +184,9 @@ void App::closeProject()
 bool App::ensureProject()
 {
     if (!project.files.empty()) return true;
-    if (!cur || cur->path.empty() || !isSourceFile(cur->path)) {
-        info("Open or create a project first (Project > New Project), or save this file as a .c, .cpp or .s file.");
+    const bool py = cur && lang::isPythonFile(cur->path);   // --- lang ---
+    if (!cur || cur->path.empty() || (!isSourceFile(cur->path) && !py)) {
+        info("Open or create a project first (Project > New Project), or save this file as a .c, .cpp, .s or .py file.");
         return false;
     }
     // an implicit, unsaved project for a single file
@@ -195,6 +198,7 @@ bool App::ensureProject()
     project.name = stripExt(fileName(cur->path));
     project.output = project.name;
     project.files.push_back(fileName(cur->path));
+    if (py) project.language = "python";   // --- lang ---
     for (auto &b : bps) {
         b.file = project.rel(joinPath(dirName(keepPath.empty() ? cur->path : keepPath), b.file));
         project.breakpoints.push_back(b);

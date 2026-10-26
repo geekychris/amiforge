@@ -16,8 +16,19 @@
 #include "sci/SciView.h"
 #include "sci/LexPPCAsm.h"
 #include "sci/Theme.h"
+#include "sci/Languages.h"   // --- lang ---
+#include "sci/LexAmiga.h"    // --- lang ---
 
 extern const Lexilla::LexerModule lmCPP;
+// --- lang ---
+extern const Lexilla::LexerModule lmPython;
+extern const Lexilla::LexerModule lmLua;
+extern const Lexilla::LexerModule lmPerl;
+extern const Lexilla::LexerModule lmBash;
+extern const Lexilla::LexerModule lmJSON;
+extern const Lexilla::LexerModule lmYAML;
+extern const Lexilla::LexerModule lmMarkdown;
+// --- end lang ---
 extern const Lexilla::LexerModule lmMake;
 extern const Lexilla::LexerModule lmProps;
 extern const Lexilla::LexerModule lmDiff;
@@ -136,43 +147,6 @@ private:
     SciView *v;
 };
 
-enum class Lang { text, cpp, asm_, make, props, diff };
-
-Lang LangForFile(const char *fileName) {
-    std::string name = fileName ? fileName : "";
-    const size_t slash = name.find_last_of("/:");
-    if (slash != std::string::npos)
-        name.erase(0, slash + 1);
-    std::string lower;
-    for (char c : name)
-        lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-    // A bare language name.
-    if (lower == "c" || lower == "cpp")
-        return Lang::cpp;
-    if (lower == "asm")
-        return Lang::asm_;
-    if (lower == "makefile" || lower == "gnumakefile" || lower == "smakefile")
-        return Lang::make;
-    if (lower == "props")
-        return Lang::props;
-    if (lower == "diff")
-        return Lang::diff;
-    const size_t dot = lower.rfind('.');
-    const std::string ext = dot == std::string::npos ? "" : lower.substr(dot + 1);
-    if (ext == "c" || ext == "h" || ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "c++" ||
-        ext == "hpp" || ext == "hh" || ext == "hxx")
-        return Lang::cpp;
-    if (ext == "s" || ext == "asm" || ext == "i")
-        return Lang::asm_;
-    if (ext == "mk" || ext == "mak" || lower.compare(0, 8, "makefile") == 0)
-        return Lang::make;
-    if (ext == "props" || ext == "properties" || ext == "ini" || ext == "cfg" || ext == "afp")
-        return Lang::props;
-    if (ext == "diff" || ext == "patch")
-        return Lang::diff;
-    return Lang::text;
-}
-
 void SetupCpp(Setup &s) {
     const Theme &t = currentTheme();
     s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmCPP.Create()));
@@ -262,16 +236,227 @@ void SetupDiff(Setup &s) {
     s.Style(SCE_DIFF_CHANGED, t.diffChangedFore, t.diffChangedBack);
 }
 
+// --- lang --- the other languages' lexers and styles
+void SetupPython(Setup &s) {
+    const Theme &t = currentTheme();
+    s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmPython.Create()));
+    s.Keywords(0, languageKeywords(Language::Python, 0));
+    s.Keywords(1, languageKeywords(Language::Python, 1));
+    s.Property("fold", "1");
+    s.Property("fold.compact", "0");
+    s.Property("fold.quotes.python", "1");
+    s.Property("lexer.python.strings.f.pep.701", "1");
+    s.Style(SCE_P_COMMENTLINE, t.comment);
+    s.Style(SCE_P_COMMENTBLOCK, t.comment);
+    s.Style(SCE_P_NUMBER, t.number);
+    s.Style(SCE_P_STRING, t.string);
+    s.Style(SCE_P_CHARACTER, t.string);
+    s.Style(SCE_P_TRIPLE, t.docComment);
+    s.Style(SCE_P_TRIPLEDOUBLE, t.docComment);
+    s.Style(SCE_P_FSTRING, t.string);
+    s.Style(SCE_P_FCHARACTER, t.string);
+    s.Style(SCE_P_FTRIPLE, t.string);
+    s.Style(SCE_P_FTRIPLEDOUBLE, t.string);
+    s.Style(SCE_P_STRINGEOL, t.string, t.stringEolBack);
+    s.Style(SCE_P_WORD, t.keyword);
+    s.Style(SCE_P_WORD2, t.builtin);
+    s.Style(SCE_P_CLASSNAME, t.type);
+    s.Style(SCE_P_DEFNAME, t.funcName);
+    s.Style(SCE_P_OPERATOR, t.oper);
+    s.Style(SCE_P_DECORATOR, t.decorator);
+    s.Style(SCE_P_ATTRIBUTE, t.textFore);
+}
+
+void SetupLua(Setup &s) {
+    const Theme &t = currentTheme();
+    s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmLua.Create()));
+    for (int i = 0; i < 3; i++) s.Keywords(i, languageKeywords(Language::Lua, i));
+    s.Property("fold", "1");
+    s.Property("fold.compact", "0");
+    s.Style(SCE_LUA_COMMENT, t.comment);
+    s.Style(SCE_LUA_COMMENTLINE, t.comment);
+    s.Style(SCE_LUA_COMMENTDOC, t.docComment);
+    s.Style(SCE_LUA_NUMBER, t.number);
+    s.Style(SCE_LUA_WORD, t.keyword);
+    s.Style(SCE_LUA_WORD2, t.builtin);
+    s.Style(SCE_LUA_WORD3, t.builtin);
+    s.Style(SCE_LUA_STRING, t.string);
+    s.Style(SCE_LUA_CHARACTER, t.string);
+    s.Style(SCE_LUA_LITERALSTRING, t.string);
+    s.Style(SCE_LUA_STRINGEOL, t.string, t.stringEolBack);
+    s.Style(SCE_LUA_PREPROCESSOR, t.preprocessor);
+    s.Style(SCE_LUA_OPERATOR, t.oper);
+    s.Style(SCE_LUA_LABEL, t.decorator);
+}
+
+void SetupPerl(Setup &s) {
+    const Theme &t = currentTheme();
+    s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmPerl.Create()));
+    s.Keywords(0, languageKeywords(Language::Perl, 0));
+    s.Property("fold", "1");
+    s.Property("fold.compact", "0");
+    s.Style(SCE_PL_ERROR, t.lexError);
+    s.Style(SCE_PL_COMMENTLINE, t.comment);
+    s.Style(SCE_PL_POD, t.docComment, t.codeBack);
+    s.Style(SCE_PL_POD_VERB, t.docComment, t.codeBack);
+    s.Style(SCE_PL_NUMBER, t.number);
+    s.Style(SCE_PL_WORD, t.keyword);
+    for (int st : { SCE_PL_STRING, SCE_PL_CHARACTER, SCE_PL_STRING_Q, SCE_PL_STRING_QQ, SCE_PL_STRING_QX,
+                    SCE_PL_STRING_QR, SCE_PL_STRING_QW, SCE_PL_LONGQUOTE, SCE_PL_BACKTICKS, SCE_PL_STRING_VAR })
+        s.Style(st, t.string);
+    s.Style(SCE_PL_PREPROCESSOR, t.preprocessor);
+    s.Style(SCE_PL_OPERATOR, t.oper);
+    s.Style(SCE_PL_PUNCTUATION, t.oper);
+    for (int st : { SCE_PL_SCALAR, SCE_PL_ARRAY, SCE_PL_HASH, SCE_PL_SYMBOLTABLE, SCE_PL_VARIABLE_INDEXER })
+        s.Style(st, t.variable);
+    for (int st : { SCE_PL_REGEX, SCE_PL_REGSUBST, SCE_PL_XLAT, SCE_PL_REGEX_VAR, SCE_PL_REGSUBST_VAR })
+        s.Style(st, t.preprocessor);
+    for (int st : { SCE_PL_HERE_DELIM, SCE_PL_HERE_Q, SCE_PL_HERE_QQ, SCE_PL_HERE_QX, SCE_PL_DATASECTION })
+        s.Style(st, t.emphasis);
+    s.Style(SCE_PL_SUB_PROTOTYPE, t.type);
+}
+
+void SetupShell(Setup &s) {
+    const Theme &t = currentTheme();
+    s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmBash.Create()));
+    s.Keywords(0, languageKeywords(Language::Shell, 0));
+    s.Property("fold", "1");
+    s.Property("fold.compact", "0");
+    s.Style(SCE_SH_ERROR, t.lexError);
+    s.Style(SCE_SH_COMMENTLINE, t.comment);
+    s.Style(SCE_SH_NUMBER, t.number);
+    s.Style(SCE_SH_WORD, t.keyword);
+    s.Style(SCE_SH_STRING, t.string);
+    s.Style(SCE_SH_CHARACTER, t.string);
+    s.Style(SCE_SH_BACKTICKS, t.preprocessor);
+    s.Style(SCE_SH_OPERATOR, t.oper);
+    s.Style(SCE_SH_SCALAR, t.variable);
+    s.Style(SCE_SH_PARAM, t.variable);
+    s.Style(SCE_SH_HERE_DELIM, t.emphasis);
+    s.Style(SCE_SH_HERE_Q, t.emphasis);
+}
+
+void SetupARexx(Setup &s) {
+    const Theme &t = currentTheme();
+    s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmARexx.Create()));
+    for (int i = 0; i < 3; i++) s.Keywords(i, languageKeywords(Language::ARexx, i));
+    s.Property("fold", "1");
+    s.Style(AF_REXX_COMMENT, t.comment);
+    s.Style(AF_REXX_STRING, t.string);
+    s.Style(AF_REXX_STRINGEOL, t.string, t.stringEolBack);
+    s.Style(AF_REXX_NUMBER, t.number);
+    s.Style(AF_REXX_KEYWORD, t.keyword);
+    s.Style(AF_REXX_BUILTIN, t.builtin);
+    s.Style(AF_REXX_OPERATOR, t.oper);
+    s.Style(AF_REXX_LABEL, t.funcName);
+    s.Style(AF_REXX_SPECIAL, t.type);
+}
+
+void SetupAmigaDOS(Setup &s) {
+    const Theme &t = currentTheme();
+    s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmAmigaDOS.Create()));
+    s.Keywords(0, languageKeywords(Language::AmigaDOS, 0));
+    s.Property("fold", "1");
+    s.Style(AF_DOS_COMMENT, t.comment);
+    s.Style(AF_DOS_STRING, t.string);
+    s.Style(AF_DOS_NUMBER, t.number);
+    s.Style(AF_DOS_COMMAND, t.keyword);
+    s.Style(AF_DOS_DIRECTIVE, t.preprocessor);
+    s.Style(AF_DOS_PARAM, t.type);
+    s.Style(AF_DOS_VARIABLE, t.variable);
+    s.Style(AF_DOS_OPERATOR, t.oper);
+    s.Style(AF_DOS_LABEL, t.funcName);
+}
+
+void SetupJSON(Setup &s) {
+    const Theme &t = currentTheme();
+    s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmJSON.Create()));
+    s.Keywords(0, languageKeywords(Language::JSON, 0));
+    s.Property("fold", "1");
+    s.Property("fold.compact", "0");
+    s.Property("lexer.json.allow.comments", "1");
+    s.Property("lexer.json.escape.sequence", "1");
+    s.Style(SCE_JSON_NUMBER, t.number);
+    s.Style(SCE_JSON_STRING, t.string);
+    s.Style(SCE_JSON_STRINGEOL, t.string, t.stringEolBack);
+    s.Style(SCE_JSON_PROPERTYNAME, t.heading);
+    s.Style(SCE_JSON_ESCAPESEQUENCE, t.number);
+    s.Style(SCE_JSON_LINECOMMENT, t.comment);
+    s.Style(SCE_JSON_BLOCKCOMMENT, t.comment);
+    s.Style(SCE_JSON_OPERATOR, t.oper);
+    s.Style(SCE_JSON_URI, t.variable);
+    s.Style(SCE_JSON_COMPACTIRI, t.variable);
+    s.Style(SCE_JSON_KEYWORD, t.keyword);
+    s.Style(SCE_JSON_LDKEYWORD, t.keyword);
+    s.Style(SCE_JSON_ERROR, t.lexError, t.stringEolBack);
+}
+
+void SetupYAML(Setup &s) {
+    const Theme &t = currentTheme();
+    s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmYAML.Create()));
+    s.Keywords(0, languageKeywords(Language::YAML, 0));
+    s.Property("fold", "1");
+    s.Property("fold.compact", "0");
+    s.Style(SCE_YAML_COMMENT, t.comment);
+    s.Style(SCE_YAML_IDENTIFIER, t.heading);
+    s.Style(SCE_YAML_KEYWORD, t.keyword);
+    s.Style(SCE_YAML_NUMBER, t.number);
+    s.Style(SCE_YAML_REFERENCE, t.variable);
+    s.Style(SCE_YAML_DOCUMENT, t.preprocessor);
+    s.Style(SCE_YAML_TEXT, t.string);
+    s.Style(SCE_YAML_ERROR, t.lexError, t.stringEolBack);
+    s.Style(SCE_YAML_OPERATOR, t.oper);
+}
+
+void SetupMarkdown(Setup &s) {
+    const Theme &t = currentTheme();
+    s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmMarkdown.Create()));
+    for (int st = SCE_MARKDOWN_HEADER1; st <= SCE_MARKDOWN_HEADER6; st++) {
+        s.Style(st, t.heading);
+        s(SCI_STYLESETBOLD, st, 1);
+    }
+    s.Style(SCE_MARKDOWN_STRONG1, t.emphasis);
+    s.Style(SCE_MARKDOWN_STRONG2, t.emphasis);
+    s(SCI_STYLESETBOLD, SCE_MARKDOWN_STRONG1, 1);
+    s(SCI_STYLESETBOLD, SCE_MARKDOWN_STRONG2, 1);
+    s.Style(SCE_MARKDOWN_EM1, t.emphasis);
+    s.Style(SCE_MARKDOWN_EM2, t.emphasis);
+    s(SCI_STYLESETITALIC, SCE_MARKDOWN_EM1, 1);
+    s(SCI_STYLESETITALIC, SCE_MARKDOWN_EM2, 1);
+    s.Style(SCE_MARKDOWN_PRECHAR, t.comment);
+    s.Style(SCE_MARKDOWN_ULIST_ITEM, t.keyword);
+    s.Style(SCE_MARKDOWN_OLIST_ITEM, t.keyword);
+    s.Style(SCE_MARKDOWN_BLOCKQUOTE, t.comment);
+    s.Style(SCE_MARKDOWN_STRIKEOUT, t.comment);
+    s.Style(SCE_MARKDOWN_HRULE, t.oper);
+    s.Style(SCE_MARKDOWN_LINK, t.variable);
+    s.Style(SCE_MARKDOWN_CODE, t.string, t.codeBack);
+    s.Style(SCE_MARKDOWN_CODE2, t.string, t.codeBack);
+    s.Style(SCE_MARKDOWN_CODEBK, t.string, t.codeBack);
+}
+
+// The first line of the document the view shows (for files without an extension).
+std::string FirstLine(Setup &s) {
+    const intptr_t len = s(SCI_LINELENGTH, 0);
+    if (len <= 0 || len > 400) return std::string();
+    std::string buf(static_cast<size_t>(len) + 1, '\0');
+    s(SCI_GETLINE, 0, reinterpret_cast<intptr_t>(&buf[0]));
+    buf.resize(static_cast<size_t>(len));
+    return buf;
+}
+// --- end lang ---
+
 } // namespace
 
 void sciSetupSourceEditor(SciView *v, const char *fileName, int fontSize) {
     Setup s(v);
-    const Lang lang = LangForFile(fileName);
+    // --- lang ---
+    const Language lang = languageFor(fileName ? fileName : "", FirstLine(s));
 
     s(SCI_SETCODEPAGE, 0);
     s(SCI_SETEOLMODE, SC_EOL_LF);
     s(SCI_SETTABWIDTH, 4);
-    s(SCI_SETINDENT, 4);
+    s(SCI_SETINDENT, defaultIndentWidth(lang));   // --- lang ---
     s(SCI_SETUSETABS, 0);
     s(SCI_SETTABINDENTS, 1);
     s(SCI_SETBACKSPACEUNINDENTS, 1);
@@ -336,7 +521,7 @@ void sciSetupSourceEditor(SciView *v, const char *fileName, int fontSize) {
     s(SCI_SETMARGINSENSITIVEN, AF_MARGIN_SYMBOLS, 1);
     s(SCI_SETMARGINTYPEN, AF_MARGIN_FOLD, SC_MARGIN_SYMBOL);
     s(SCI_SETMARGINMASKN, AF_MARGIN_FOLD, SC_MASK_FOLDERS);
-    s(SCI_SETMARGINWIDTHN, AF_MARGIN_FOLD, lang == Lang::cpp ? fontSize : 0);
+    s(SCI_SETMARGINWIDTHN, AF_MARGIN_FOLD, foldable(lang) ? fontSize : 0);   // --- lang ---
     s(SCI_SETMARGINSENSITIVEN, AF_MARGIN_FOLD, 1);
     s(SCI_SETMARGINLEFT, 0, 4);
     s(SCI_SETFOLDMARGINCOLOUR, 1, RGB(t.foldBack));
@@ -374,15 +559,27 @@ void sciSetupSourceEditor(SciView *v, const char *fileName, int fontSize) {
         s.Marker(f.marker, f.symbol, t.foldMarkFore, t.foldMarkBack);
 
     switch (lang) {
-    case Lang::cpp: SetupCpp(s); break;
-    case Lang::asm_: SetupAsm(s); break;
-    case Lang::make: SetupMake(s); break;
-    case Lang::props: SetupProps(s); break;
-    case Lang::diff: SetupDiff(s); break;
-    case Lang::text: s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmNull.Create())); break;
+    case Language::C: SetupCpp(s); break;
+    case Language::Asm: SetupAsm(s); break;
+    case Language::Make: SetupMake(s); break;
+    case Language::Props: SetupProps(s); break;
+    case Language::Diff: SetupDiff(s); break;
+    // --- lang ---
+    case Language::Python: SetupPython(s); break;
+    case Language::Lua: SetupLua(s); break;
+    case Language::Perl: SetupPerl(s); break;
+    case Language::Shell: SetupShell(s); break;
+    case Language::ARexx: SetupARexx(s); break;
+    case Language::AmigaDOS: SetupAmigaDOS(s); break;
+    case Language::JSON: SetupJSON(s); break;
+    case Language::YAML: SetupYAML(s); break;
+    case Language::Markdown: SetupMarkdown(s); break;
+    // --- end lang ---
+    case Language::Text: s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmNull.Create())); break;
     }
     s(SCI_COLOURISE, 0, -1);
 
+    s(AF_SCI_SETLANGUAGE, static_cast<uintptr_t>(lang));   // --- lang --- auto-indent rules
     s(AF_SCI_SETAUTOINDENT, 1);
     s(AF_SCI_SETBRACEMATCH, 1);
 }

@@ -222,9 +222,124 @@ static std::string libraryForInterface(const std::string &iface)
 
 // --- diagnostics ---
 
+// --- lang --- Python's errors (from Build's syntax check or a traceback after Run)
+static Explanation explainPython(const std::string &m, const std::string &sourceLine)
+{
+    Explanation e;
+    auto set = [&](const char *rule, const std::string &title, const std::string &text) {
+        e.rule = rule;
+        e.title = title;
+        e.text = text;
+        return e;
+    };
+    // AmiForge's own checker or runner failing to compile: the interpreter is Python 2
+    if (has(m, "AmiForge-pycheck.py") || has(m, "AmiForge-pyrun.py") || has(m, "will become a reserved keyword in Python 2.6"))
+        return set("py-version2", "The interpreter is Python 2",
+                   "AmiForge needs Python 3, but this interpreter can't read Python 3 code (AmigaOS 4.1's own "
+                   "C:python is Python 2.5). Set the Python 3 interpreter in Project > Settings, or for every "
+                   "project with  setenv SAVE AmiForge/Python <path of python3>.");
+    if (has(m, "TabError:"))
+        return set("py-tab", "Tabs and spaces are mixed in the indentation",
+                   "Python compares indentation exactly, and this block mixes tab characters with spaces. "
+                   "AmiForge indents Python with four spaces: View > Show Whitespace shows the tabs (as arrows); "
+                   "replace them with spaces.");
+    if (has(m, "IndentationError:")) {
+        if (has(m, "expected an indented block"))
+            return set("py-indent-expected", "The block after ':' is empty or not indented",
+                       "A line ending in ':' (if, for, while, def, class, with, try...) must be followed by at least "
+                       "one line indented one level deeper. If the block is meant to be empty, write 'pass' in it.");
+        if (has(m, "unexpected indent"))
+            return set("py-indent-unexpected", "This line is indented more than the code around it",
+                       "Only the lines of a block (after a line ending in ':') are indented deeper. Unindent this line "
+                       "to the level of the lines before it (Shift-Tab or Amiga-[).");
+        return set("py-indent-mismatch", "The indentation doesn't match any outer block",
+                   "When a block ends, the next line must line up exactly with an earlier line. Check the spaces at "
+                   "the start of this line against the 'if'/'for'/'def' it belongs to; View > Show Whitespace helps.");
+    }
+    if (has(m, "SyntaxError:")) {
+        if (has(m, "expected ':'"))
+            return set("py-colon", "A ':' is missing at the end of the line",
+                       "if, elif, else, for, while, def, class, with, try, except and finally lines end with a colon, "
+                       "and the indented block follows on the next lines.");
+        if (has(m, "was never closed") || has(m, "unexpected EOF"))
+            return set("py-unclosed", "A bracket is opened but never closed",
+                       "A '(', '[' or '{' on this line (or above it) has no closing partner, so Python reads on to "
+                       "the end of the file. Put the cursor next to a bracket: AmiForge highlights its partner, or "
+                       "red if there is none.");
+        if (has(m, "unterminated string") || has(m, "unterminated triple-quoted") || has(m, "EOL while scanning"))
+            return set("py-string", "A string isn't closed",
+                       "The string starting on this line has no closing quote. Strings in single quotes end on the "
+                       "same line; for text over several lines use triple quotes (\"\"\"...\"\"\").");
+        if (has(m, "Missing parentheses in call to 'print'") || (has(m, "invalid syntax") && sourceLine.find("print ") != std::string::npos))
+            return set("py-print", "print is a function in Python 3",
+                       "Write print(\"text\", value) with parentheses. Python 2 code needs this change throughout.");
+        if (has(m, "invalid character") || has(m, "non-UTF-8") || has(m, "Non-UTF-8"))
+            return set("py-encoding", "A character Python can't read",
+                       "Python reads source files as UTF-8, but AmigaOS editors (and AmiForge) save Latin-1. Keep "
+                       "accented letters out of the code, or put  # -*- coding: latin-1 -*-  on the first line.");
+        if (has(m, "'return' outside function"))
+            return set("py-return", "'return' outside a function",
+                       "return only works inside a def. To end a script early use sys.exit().");
+        return set("py-syntax", "Python can't read this line",
+                   "Look at the line (and the one before it) for a missing ':', ')' or quote, a missing comma "
+                   "between items, or '=' where '==' was meant in a condition.");
+    }
+    if (has(m, "NameError:")) {
+        std::string name = quoted(m);
+        static const char *const modules[] = { "os", "sys", "time", "math", "re", "json", "random", "argparse",
+                                               "datetime", "pathlib", "subprocess", "shutil", "string", nullptr };
+        for (const char *const *mod = modules; *mod; mod++)
+            if (name == *mod)
+                return set("py-name-import", "'" + name + "' needs an import",
+                           "Add  import " + name + "  at the top of the file.");
+        return set("py-name", "'" + name + "' isn't defined here",
+                   "Python looks the name up when the line runs: it may be misspelt (names are case-sensitive), "
+                   "defined further down or inside another function, or need an import. A variable set only in "
+                   "one branch of an if is undefined when the other branch ran.");
+    }
+    if (has(m, "ModuleNotFoundError:") || has(m, "No module named")) {
+        std::string mod = quoted(m);
+        return set("py-module", "The module '" + mod + "' isn't available",
+                   "The AmigaOS 4 port of Python can't load compiled extension modules (.so files): only modules "
+                   "built into the interpreter and pure-Python modules work. Pure-Python packages go in the "
+                   "standard library drawer (the lib drawer next to the interpreter) or a drawer on PYTHONPATH; "
+                   "the port's amiga.pip installs pure-Python wheels. Packages with C code (numpy, Pillow...) "
+                   "can't be used. A module of the project must be in the project's drawer (the main script's "
+                   "drawer is searched first).");
+    }
+    if (has(m, "ImportError:") && has(m, "cannot import name"))
+        return set("py-import-name", "The module has no '" + quoted(m) + "'",
+                   "Check the spelling, and whether the name exists in this Python version (3.12). Two modules "
+                   "importing each other can also cause this.");
+    if (has(m, "RecursionError:"))
+        return set("py-recursion", "A function calls itself without end",
+                   "Check the condition that should stop the recursion. If the recursion really is that deep, "
+                   "sys.setrecursionlimit() raises the limit, but the stack AmiForge gives the script (2 MB) "
+                   "limits it too.");
+    if (has(m, "UnicodeDecodeError:") || has(m, "UnicodeEncodeError:"))
+        return set("py-unicode", "Text in the wrong character set",
+                   "Files on AmigaOS are usually Latin-1, while Python 3 reads text as UTF-8. Open them with "
+                   "open(name, encoding=\"latin-1\").");
+    if (has(m, "FileNotFoundError:"))
+        return set("py-file", "The file isn't there",
+                   "Amiga paths look like DH1:Drawer/File or Drawer/File (relative to the project's drawer, where "
+                   "Run starts the script); there is no leading '/' for the root, and \"/\" alone means the parent drawer.");
+    if (has(m, "ZeroDivisionError:"))
+        return set("py-zerodiv", "Division by zero", "A value used as a divisor is 0: check it before dividing.");
+    if (has(m, "KeyboardInterrupt"))
+        return set("py-stopped", "The script was stopped",
+                   "Stop Program (Shift-Ctrl-F5) or Ctrl-C ended it; that's not an error in the script.");
+    return e;
+}
+
 Explanation explainDiagnostic(const std::string &raw, const std::string &sourceLine, const LibraryLookup &lookup)
 {
     std::string m = normalise(raw);
+    // --- lang ---
+    {
+        Explanation py = explainPython(m, sourceLine);
+        if (!py.empty()) return py;
+    }
     auto libOf = [&](const std::string &f) {
         std::string l = lookup ? lookup(f) : "";
         return l.empty() ? builtinLibraryOf(f) : l;

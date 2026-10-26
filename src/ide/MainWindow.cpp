@@ -13,6 +13,7 @@
 //  +-------------------------------------------------------------------------+
 #include "App.h"
 #include "Commands.h"
+#include "KeyBindings.h"   // --- lang ---
 
 #include <string.h>
 #include <algorithm>
@@ -209,18 +210,24 @@ static struct NewMenu menus[] = {
     TITLE("Debug"),
     ITEM("Start / Continue  (F5)", "D", CMD_DEBUG_START),
     ITEM("Stop Debugging  (Shift F5)", 0, CMD_DEBUG_STOP),
-    ITEM("Pause", 0, CMD_DEBUG_PAUSE),
+    ITEM("Pause  (Alt F5, Break)", 0, CMD_DEBUG_PAUSE),   // --- lang --- keys
+    ITEM("Restart  (Shift Alt F5)", 0, CMD_DEBUG_RESTART),
     BAR,
     ITEM("Step Over  (F10)", 0, CMD_STEP_OVER),
     ITEM("Step Into  (F11)", 0, CMD_STEP_INTO),
     ITEM("Step Out  (Shift F11)", 0, CMD_STEP_OUT),
     ITEM("Step Instruction  (F8)", 0, CMD_STEP_INSN),
     ITEM("Run to Cursor  (Ctrl F10)", 0, CMD_RUN_TO_CURSOR),
+    ITEM("Run to Function...  (Alt F10)", 0, CMD_RUN_TO_FUNCTION),           // --- lang ---
+    ITEM("Set Next Statement  (Shift Ctrl F10)", 0, CMD_SET_NEXT_STATEMENT),  // --- lang ---
     ITEM("Apply Code Changes  (Ctrl F9)", 0, CMD_APPLY_CHANGES),   // --- hotpatch
     BAR,
     ITEM("Toggle Breakpoint  (F9)", 0, CMD_TOGGLE_BP),
+    ITEM("Enable/Disable Breakpoint  (Alt F9)", 0, CMD_BP_TOGGLE_ENABLED),     // --- lang ---
+    ITEM("Breakpoint Condition...  (Shift Ctrl F9)", 0, CMD_BP_CONDITION),     // --- lang ---
     ITEM("Delete All Breakpoints", 0, CMD_CLEAR_BPS),
     ITEM("Add Watch...", 0, CMD_ADD_WATCH),
+    ITEM("Quick Watch  (Shift F9)", 0, CMD_QUICK_WATCH),                     // --- lang ---
     // --- debugtools ---
     BAR,
     { NM_ITEM, (STRPTR)"Track Leaks", 0, CHECKIT | MENUTOGGLE, 0, (APTR)CMD_TRACK_LEAKS },
@@ -521,8 +528,8 @@ bool App::openMainWindow()
                 LAYOUT_AddChild, gad[GID_TB_RUN] = button(GID_TB_RUN, "Run", "Build and run (Ctrl-F5)"),
                 LAYOUT_AddChild, gap(),
                 CHILD_WeightedWidth, 0,
-                LAYOUT_AddChild, gad[GID_TB_DEBUG] = button(GID_TB_DEBUG, "Debug", "Start debugging / continue (F5)"),
-                LAYOUT_AddChild, gad[GID_TB_OVER] = button(GID_TB_OVER, "Step Over", "F10"),
+                LAYOUT_AddChild, gad[GID_TB_DEBUG] = button(GID_TB_DEBUG, "Debug", "Start debugging / continue (F5); pause: Alt-F5 or Break; restart: Shift-Alt-F5"),
+                LAYOUT_AddChild, gad[GID_TB_OVER] = button(GID_TB_OVER, "Step Over", "F10 (Ctrl-F10: run to cursor, Shift-Ctrl-F10: set next statement)"),
                 LAYOUT_AddChild, gad[GID_TB_INTO] = button(GID_TB_INTO, "Step Into", "F11"),
                 LAYOUT_AddChild, gad[GID_TB_OUT] = button(GID_TB_OUT, "Step Out", "Shift-F11"),
                 LAYOUT_AddChild, gad[GID_TB_STOP] = button(GID_TB_STOP, "Stop",
@@ -798,7 +805,7 @@ uint32_t App::idcmpHook(struct IntuiMessage *im)
         }
         // IDE-wide keys first (function keys); then the editor
         uint16 code = im->Code, qual = im->Qualifier;
-        bool fkey = (code >= 0x50 && code <= 0x59) || code == 0x4B || code == 0x6F || code == 0x5F;
+        bool fkey = keys::isGlobalKey(code);   // --- lang --- F1-F12, Help, Break
         if (fkey) {
             handleKey(code, qual);
             return 0;
@@ -854,27 +861,9 @@ uint32_t App::idcmpHook(struct IntuiMessage *im)
 
 bool App::handleKey(uint16_t code, uint16_t qual)
 {
-    bool shift = qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT);
-    bool ctrl = qual & IEQUALIFIER_CONTROL;
-    uint32_t cmd = 0;
-    switch (code) {
-    case 0x50: cmd = CMD_DOC_LOOKUP; break;                                    // F1
-    case 0x6F: cmd = shift ? CMD_FIND_REFS : CMD_GOTO_DEF; break;              // F12
-    case 0x51: cmd = CMD_RENAME; break;                                        // F2 (--- editor features ---)
-    case 0x5F: cmd = CMD_DOC_LOOKUP; break;                                    // Help
-    case 0x52: cmd = shift ? CMD_FIND_PREV : CMD_FIND_NEXT; break;           // F3
-    case 0x53: cmd = shift ? CMD_PREV_ERROR : CMD_NEXT_ERROR; break;         // F4
-    case 0x54:                                                                // F5
-        cmd = ctrl && shift ? CMD_STOP_PROGRAM                                // --- robust ---
-            : ctrl ? CMD_RUN : shift ? CMD_DEBUG_STOP : CMD_DEBUG_START; break;
-    case 0x55: cmd = CMD_RUN; break;                                          // F6
-    case 0x56: cmd = shift ? CMD_PROFILE : CMD_BUILD; break;                  // F7 (Shift: profile, debugtools)
-    case 0x57: cmd = CMD_STEP_INSN; break;                                    // F8
-    case 0x58: cmd = ctrl ? CMD_APPLY_CHANGES : CMD_TOGGLE_BP; break;         // F9 (--- hotpatch: Ctrl)
-    case 0x59: cmd = ctrl ? CMD_RUN_TO_CURSOR : CMD_STEP_OVER; break;         // F10
-    case 0x4B: cmd = shift ? CMD_STEP_OUT : CMD_STEP_INTO; break;             // F11
-    default: return false;
-    }
+    // --- lang --- the IDE-wide keys are one table (KeyBindings.cpp)
+    uint32_t cmd = keys::commandFor(code, keys::modsFromQualifier(qual));
+    if (!cmd) return false;
     pendingCommands.push_back(cmd);
     return true;
 }
@@ -1055,6 +1044,8 @@ void App::handleGadget(uint32_t gid, uint16_t code)
         int id = (int)(intptr_t)bpList.userData(n);
         if (ev == LBRE_CHECKED || ev == LBRE_UNCHECKED) {
             setBreakpointEnabled(id - 1, ev == LBRE_CHECKED);
+        } else if (ev == LBRE_DOUBLECLICK && id > 0 && id <= (int)project.breakpoints.size()) {
+            editBreakpointCondition(id - 1);   // --- lang ---
         } else if (id > 0 && id <= (int)project.breakpoints.size()) {
             auto &b = project.breakpoints[id - 1];
             gotoLocation(project.abs(b.file), b.line);

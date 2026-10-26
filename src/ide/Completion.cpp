@@ -87,9 +87,12 @@ void App::showCompletion(bool explicitRequest)
         S(editor, SCI_GETTEXTRANGEFULL, 0, (intptr_t)&tr);
         prefix = buf.data();
     }
+    // --- lang --- other languages: their keywords and built-ins, no AutoDocs or C++ scopes
+    const Language lang = languageFor(cur->path.empty() ? std::string("untitled.c") : cur->path);
+    const bool cLike = lang == Language::C || lang == Language::Asm || lang == Language::Text;
     // after "IFoo->": that library's functions
     std::string iface;
-    if (start >= 2 && (char)S(editor, SCI_GETCHARAT, start - 1) == '>' && (char)S(editor, SCI_GETCHARAT, start - 2) == '-') {
+    if (cLike && start >= 2 && (char)S(editor, SCI_GETCHARAT, start - 1) == '>' && (char)S(editor, SCI_GETCHARAT, start - 2) == '-') {
         intptr_t ie = start - 2, is = S(editor, SCI_WORDSTARTPOSITION, ie, 1);
         if (ie > is) {
             std::vector<char> buf(ie - is + 1);
@@ -101,7 +104,7 @@ void App::showCompletion(bool explicitRequest)
     std::set<std::string> words;
     std::string lib = libraryForInterface(iface);
     std::string scopeName;
-    int scopeKind = lib.empty() ? scopeAt(start, scopeName) : 0;
+    int scopeKind = lib.empty() && cLike ? scopeAt(start, scopeName) : 0;
     if (!lib.empty() && loadDocIndex()) {
         for (auto &e : docIndex) {
             std::string l = e.lib;
@@ -141,9 +144,10 @@ void App::showCompletion(bool explicitRequest)
         refreshCompletionWords();
         for (auto &c : wordCache) words.insert(c.second.second.begin(), c.second.second.end());
         std::set<std::string> kw;
-        collectWords(cKeywords, kw);
+        if (cLike) collectWords(cKeywords, kw);
+        else for (int set = 0; set < 3; set++) collectWords(languageKeywords(lang, set), kw);   // --- lang ---
         words.insert(kw.begin(), kw.end());
-        if (loadDocIndex())
+        if (cLike && loadDocIndex())
             for (auto &e : docIndex)
                 if (isalpha((unsigned char)e.func[0]) && e.func.find('-') == std::string::npos) words.insert(e.func);
         addSnippetWords(prefix, words);   // --- editor features: "for»" inserts the snippet ---
@@ -321,6 +325,25 @@ std::string App::docPrototype(const DocEntry &e, const std::string &name)
 void App::completionCharAdded(int ch)
 {
     if (!editor || !cur) return;
+    // --- lang --- Python, Lua and ARexx: the list pops up after three letters of a word (not in
+    // comments or strings); Ctrl-Space works in every language
+    {
+        const Language lang = languageFor(cur->path.empty() ? std::string("x.c") : cur->path);
+        static const std::set<int> pyQuiet = { 1, 3, 4, 6, 7, 12, 13, 16, 17, 18, 19 };
+        static const std::set<int> luaQuiet = { 1, 2, 3, 6, 7, 8, 12 };
+        static const std::set<int> rexxQuiet = { 1, 2, 9 };
+        const std::set<int> *quiet = lang == Language::Python ? &pyQuiet : lang == Language::Lua ? &luaQuiet
+                                   : lang == Language::ARexx ? &rexxQuiet : nullptr;
+        if (quiet) {
+            intptr_t pos = S(editor, SCI_GETCURRENTPOS);
+            int style = (int)S(editor, SCI_GETSTYLEAT, pos > 0 ? pos - 1 : 0);
+            if (identChar(ch) && !S(editor, SCI_AUTOCACTIVE) && !quiet->count(style) &&
+                pos - S(editor, SCI_WORDSTARTPOSITION, pos, 1) == 3)
+                showCompletion(false);
+            return;
+        }
+    }
+    // --- end lang ---
     std::string e = extension(cur->path.empty() ? "x.c" : cur->path);
     if (e != "c" && e != "h" && !isCppFile(cur->path.empty() ? "x.c" : cur->path) && e != "hpp") return;
     // not inside comments or strings (LexCPP styles 1-3 comments, 6/7 strings/chars)

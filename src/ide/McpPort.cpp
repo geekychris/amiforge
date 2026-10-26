@@ -473,6 +473,12 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
     if (cmd == "RUNPROGRAM") {
         if (project.path.empty()) return fail(10, "no project is open");
         if (builder.busy()) return fail(10, "a build is running");
+        // --- lang --- a Python project has no program file: Run starts its main script
+        if (project.isPython()) {
+            if (a.has("CAPTURE")) return fail(10, "CAPTURE isn't available for Python projects; RUNPROGRAM runs the script in a console");
+            runPython();
+            return mcpMessages.empty() ? "" : fail(10, trim(mcpMessages));
+        }
         if (project.runcmd.empty() && !fileExists(project.outputPath()))
             return fail(10, "the program isn't built: " + project.outputPath());
         if (!a.has("CAPTURE")) {
@@ -691,7 +697,7 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
             t = documentText(cur);
         }
         std::string s;
-        for (auto &sym : outlineSymbols(t, isAsmFile(p)))
+        for (auto &sym : outlineSymbols(t, languageFor(p.empty() ? std::string("untitled.c") : p, t.substr(0, t.find('\n')))))   // --- lang ---
             s += mcp::record({ symKindName(sym.kind), sym.name, std::to_string(sym.line), sym.detail }) + "\n";
         return s;
     }
@@ -705,7 +711,7 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
             std::string t;
             if (d && !d->hex) t = documentText(d);
             else if (!readFile(f, t)) continue;
-            for (size_t off : findIdentifier(t, name, isAsmFile(f))) {
+            for (size_t off : findIdentifier(t, name, languageFor(f))) {   // --- lang ---
                 int line, col;
                 lineColumn(t, off, line, col);
                 s += mcp::record({ f, std::to_string(line), std::to_string(col), trim(mcp::lines(t, line, line)) }) + "\n";

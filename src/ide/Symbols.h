@@ -7,9 +7,12 @@
 #include <vector>
 #include <stddef.h>
 
+#include "sci/Languages.h"   // --- lang ---
+
 namespace af {
 
-enum class SymKind { Function, Struct, Class, Union, Enum, Namespace, Typedef, Define, Global, Label, Macro };
+enum class SymKind { Function, Struct, Class, Union, Enum, Namespace, Typedef, Define, Global, Label, Macro,
+                     Method, Heading, Key, Package /* --- lang --- */ };
 
 struct Symbol {
     SymKind kind;
@@ -38,5 +41,20 @@ std::string replaceIdentifier(const std::string &text, const std::string &name, 
 
 // 1-based line and column of an offset.
 void lineColumn(const std::string &text, size_t offset, int &line, int &col);
+
+// --- lang --- The same for every language the editor knows (LangSymbols.cpp). C/C++ and
+// assembler go to the functions above. Python: def (with its parameters), class, methods (one
+// level deeper), top-level assignments. Lua: function, local function, name = function. Perl:
+// sub, package. Shell: name() and function name. ARexx: labels (PROCEDURE ones are functions).
+// AmigaDOS: Lab. Markdown: headings. YAML and JSON: the top-level keys.
+bool hasOutline(Language lang);
+std::vector<Symbol> outlineSymbols(const std::string &text, Language lang);
+std::string maskCode(const std::string &text, Language lang);
+bool isReservedWord(const std::string &s, Language lang);
+// ARexx names are case-insensitive: so is finding them.
+std::vector<size_t> findIdentifier(const std::string &text, const std::string &name, Language lang);
+std::string replaceIdentifier(const std::string &text, const std::string &name, const std::string &newName,
+                              Language lang, int *count = nullptr);
+// --- end lang ---
 
 } // namespace af

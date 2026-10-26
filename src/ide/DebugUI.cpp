@@ -96,6 +96,7 @@ void App::refreshBreakpointList()
 void App::debugStart()
 {
     if (debugging()) return;
+    if (project.isPython()) { debugPython(); return; }   // --- lang ---
     std::string exe = project.outputPath();
     if (!fileExists(exe)) {
         info("Can't find " + exe + " - build the project first.");

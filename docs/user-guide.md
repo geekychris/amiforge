@@ -22,14 +22,15 @@ and use Git without leaving it.
 12. [Debugging](#debugging)
 13. [Edit and Continue](#edit-and-continue)
 14. [Debugger tools: Windows inspector, leak tracker, profiler](#debugger-tools-windows-inspector-leak-tracker-profiler)
-15. [Git and GitHub](#git-and-github)
-16. [Git panel, resource editors, ARexx, distributed builds and explanations](#git-panel-resource-editors-arexx-distributed-builds-and-explanations)
-17. [Controlling AmiForge from an AI assistant (MCP)](#controlling-amiforge-from-an-ai-assistant-mcp)
-18. [The examples](#the-examples)
-19. [Running under QEMU](#running-under-qemu)
-20. [Troubleshooting](#troubleshooting)
-21. [Keyboard reference](#keyboard-reference)
-22. [Files and settings](#files-and-settings)
+15. [Python and other languages](#python-and-other-languages)
+16. [Git and GitHub](#git-and-github)
+17. [Git panel, resource editors, ARexx, distributed builds and explanations](#git-panel-resource-editors-arexx-distributed-builds-and-explanations)
+18. [Controlling AmiForge from an AI assistant (MCP)](#controlling-amiforge-from-an-ai-assistant-mcp)
+19. [The examples](#the-examples)
+20. [Running under QEMU](#running-under-qemu)
+21. [Troubleshooting](#troubleshooting)
+22. [Keyboard reference](#keyboard-reference)
+23. [Files and settings](#files-and-settings)
 
 ---
 
@@ -126,8 +127,10 @@ Drag the bars between the panes to resize them.
 
 The editor is a port of [Scintilla](https://www.scintilla.org/). It highlights C, C++,
 PowerPC assembler (`.s`, `.S`, `.asm`, `.i`; GNU `as` syntax with registers, directives and
-labels), makefiles and diffs. It also matches braces and auto-indents (after `{`, and a `}`
-lines up with its opening line). Files are Latin-1, the Amiga's character set.
+labels), makefiles and diffs, and Python, Lua, Perl, shell scripts, ARexx, AmigaDOS scripts,
+JSON, YAML and Markdown (see [Python and other languages](#python-and-other-languages)). It
+also matches braces and auto-indents (after `{`, and a `}` lines up with its opening line; in
+Python after a `:`). Files are Latin-1, the Amiga's character set.
 
 | Action | Keys |
 |---|---|
@@ -138,7 +141,7 @@ lines up with its opening line). Files are Latin-1, the Amiga's character set.
 | Find next / previous | F3 / Shift-F3 |
 | Find in Files (the whole project) | Amiga-H |
 | Go to line | Amiga-L |
-| Comment or uncomment the selected lines | Amiga-/ |
+| Comment or uncomment the selected lines (`//`, `#`, `--`, `;` or `/* */`, by language) | Amiga-/ |
 | Indent / unindent | Amiga-] / Amiga-[, or Tab / Shift-Tab with a selection |
 | Bigger / smaller / normal text | Amiga-+ / Amiga-- / Amiga-0 |
 | Wrap long lines, show whitespace, fold all | View menu |
@@ -307,7 +310,9 @@ defines, in source order:
 - C and C++: functions (with `Class::method` names), structs, classes, unions, enums,
   namespaces, typedefs, `#define`s and global variables;
 - assembler: labels (functions marked with `.type ..., @function`), `.macro`, `.equ`/`.set`
-  and `#define`.
+  and `#define`;
+- Python, Lua, Perl, shell, ARexx, AmigaDOS scripts, Markdown, YAML and JSON: see
+  [the table](#the-languages).
 
 Click an entry to go there. The list updates about a second after you stop typing.
 
@@ -333,7 +338,8 @@ type the new name.
      saving;
    - files that aren't open are written straight away.
 
-The new name must be a valid C identifier, and not a keyword.
+The new name must be a valid identifier, and not a keyword of the file's language. In ARexx
+and AmigaDOS scripts names are found whatever their case.
 
 ![Rename Symbol](images/editor-rename.png)
 
@@ -378,8 +384,9 @@ AmiForge reads them directly:
 A project is an `.afp` file in the project's drawer. It lists the sources (relative to that
 drawer) and the build settings, and remembers breakpoints and watches.
 
-- **Project > New Project** asks where to save the `.afp`. It adds the C, C++, assembler and
-  header files already in that drawer, or writes a starter `main.c` if there are none. Saved
+- **Project > New Project** asks where to save the `.afp`. It adds the C, C++, assembler,
+  header and Python files already in that drawer, or writes a starter `main.c` if there are
+  none. Saved
   projects get a Workbench icon that opens them in AmiForge.
 - **Project > Open Project**, or **Open Recent**: the last ten projects. Open Project's requester
   starts in the projects folder; when the open project lives somewhere else, it starts in the
@@ -399,11 +406,15 @@ drawer) and the build settings, and remembers breakpoints and watches.
 | Program arguments | (none) |
 | Console | a new console window; or a file or console spec such as `CON:0/0/640/200/Out/CLOSE` |
 | Stop at main() when debugging | on |
+| Python project | on when every file is a `.py` file: see [Python projects](#python-projects) |
+| Main script | `main.py`, else the first `.py` file (Python projects) |
+| Python interpreter | found by itself (Python projects) |
 
 Keep `-gstabs` (C) and `-gstabs+` (C++) in the flags to debug at the source level. The debugger
 reads stabs, the debug format OS4's own tools use.
 
-Without a project, Build, Run and Debug work on the file being edited, as a one-file project.
+Without a project, Build, Run and Debug work on the file being edited, as a one-file project
+(a `.py` file is a one-file Python project).
 
 ### The projects folder and the project browser
 
@@ -564,6 +575,7 @@ Every template builds with **F7**. **Ctrl-F5** runs it.
 | AHI sound player | Synthesises notes and plays them through `ahi.device` |
 | Shared library | A library described in IDL XML, with its headers and function table made by the SDK's `idltool`, and a test program |
 | Device driver skeleton | An exec device (Open, Close, BeginIO, AbortIO) that keeps a small buffer, and a test program |
+| Python script | A Python 3 script with `main()` and `argparse` arguments; Build checks its syntax, Run runs it |
 
 #### The library and device templates
 
@@ -693,8 +705,28 @@ it stops at the start of `main`.
 | Step into (into functions that have source) | F11 |
 | Step out (until the current function returns) | Shift-F11 |
 | Run to the line with the cursor | Ctrl-F10, or right-click > Run to Cursor |
+| Run until a function is called (asks for its name; the word at the cursor is the default) | Alt-F10 |
+| Set Next Statement: go on from the cursor's line (in the same function) | Shift-Ctrl-F10 |
 | Step one machine instruction | F8 |
+| Pause the running program | Alt-F5, or Break (Pause/Break on a PC keyboard) |
+| Restart: stop, build what changed and start again | Shift-Alt-F5 |
 | Toggle a breakpoint | F9, or click the margin |
+| Enable / disable the breakpoint on the line | Alt-F9, or its checkbox in the Breakpoints tab |
+| Breakpoint condition for the line (sets a breakpoint if there is none) | Shift-Ctrl-F9, or double-click it in the Breakpoints tab |
+| Quick watch: watch the word or selection at the cursor (its value goes in the status bar) | Shift-F9 |
+
+Every key is also on the Debug menu, next to its command. A breakpoint condition is an
+expression such as `i == 10` or `p->next != 0`; the program only stops there when it is true
+(not zero). **Set Next Statement** moves the program counter without running anything in
+between: variables keep their values, so skipping a line that initialises one leaves it as it
+was. It only moves within the function the program is stopped in, in the top stack frame.
+
+Pause stops the program wherever it is, possibly inside an OS call that holds a lock (writing
+to its console, drawing). Don't leave it paused for long: until you continue or stop it, other
+programs that need the same lock (even the Workbench's windows) can wait for it.
+
+F11, F12 and Break are on PC keyboards (and QEMU passes them on); on an Amiga keyboard use the Debug
+and Edit menus, or Help for F1.
 
 ![Stopped at a breakpoint](images/breakpoint.png)
 
@@ -960,6 +992,120 @@ a block marked `debugtools`):
 - **Kill doesn't restore the entry context once the program has returned.** Doing that to a
   process in DOS's cleanup crashed it (a DSI in dos.library). Now the process is given a normal
   priority and allowed to finish.
+
+## Python and other languages
+
+Besides C, C++ and assembler, the editor knows these languages. The language comes from the
+file name; a file without a known extension is recognised by its first line (`#!/usr/bin/env
+python3`, `.key` for an AmigaDOS script) or its drawer (`S:`).
+
+### The languages
+
+| Language | Files | Comment (Amiga-/) | Symbols tab | Auto-indent |
+|---|---|---|---|---|
+| Python | `.py`, `.pyw` | `#` | `def` (with its parameters), `class`, methods, top-level variables | after `:`; back out after `return`, `pass`, `break`, `continue`, `raise` |
+| ARexx | `.rexx`, `.rx`, files in `REXX:` | `/* ... */` around each line | labels; `PROCEDURE` ones as functions | after `DO`, `SELECT`, `THEN DO` |
+| AmigaDOS scripts | files in `S:`, scripts starting with `.key`/`.bra`, `.dos` | `;` | `Lab` labels | after `If`, `Else` |
+| Lua | `.lua` | `--` | `function`, `local function`, `name = function` | after `function`, `then`, `do`, `repeat` |
+| Perl | `.pl`, `.pm` | `#` | `sub`, `package` | after `{` |
+| Shell | `.sh`, `.bash` | `#` | `name()` and `function name` | after `{` |
+| JSON | `.json` | (none) | the top-level keys | (keeps the indentation) |
+| YAML | `.yaml`, `.yml` | `#` | the top-level keys | after `key:` |
+| Markdown | `.md` | `<!-- ... -->` | the headings, nested by level | (keeps the indentation) |
+
+Python, ARexx, Lua, Perl, shell, JSON and YAML fold (the margin's boxes, **View > Fold All**).
+Both themes colour every language. Python indents with four spaces, JSON, YAML and Lua with two.
+
+ARexx has its own highlighter (Lexilla has none): nested comments, `''`-doubled quotes, the
+instructions, the built-in functions (when called), `RC`, `RESULT` and `SIGL`, and labels. So do
+AmigaDOS scripts: the command at the start of a line (`C:Copy` too), `.key` directives,
+`<parameters>`, `$variables` and `*"` escapes. The macros in `Rexx/` and the Macros menu are
+ARexx files.
+
+**Completion** (Ctrl-Space) offers the language's keywords and built-in functions and the words
+in the open files and the project's files; in Python, Lua and ARexx the list also pops up after
+three letters. **Find All References** and **Rename Symbol** work as they do for C: whole words
+outside comments and strings (in Python also outside `"""` strings), and in ARexx whatever the
+case. **Snippets** belong to a language: in a Python file `main` is the `if __name__ ==
+"__main__":` guard, and there are `def`, `class`, `for`, `fori`, `while`, `if`, `with`, `try`,
+`argparse`, `print` and `lambda`; ARexx has `rexx`, `do`, `if`, `select` and `proc`, and Lua
+`function`, `for`, `forp` and `if`. In your own snippets file a line `language python` makes the
+snippets after it Python ones.
+
+![Python in AmiForge](images/lang-python.png)
+
+![ARexx in AmiForge](images/lang-arexx.png)
+
+### Python projects
+
+A project is a Python project when **Project > Settings > Python project** is on, which it is
+by itself when every file in the project is a `.py` file. **New Project from Template > Python
+script** makes one, and so does **New Project** in a drawer of `.py` files. Nothing is compiled:
+
+- **Build** (F7) checks the syntax of every `.py` file in one go with the interpreter (compiling
+  without running, and without writing `.pyc` files). Errors and warnings appear in the Build
+  tab like a compiler's, `main.py:12:5: error: SyntaxError: expected ':'`, and are marked in the
+  editor; click one or press F4 to go there. Double-click a line with an **Explain** hint below
+  it for what it means.
+- **Run** (Ctrl-F5) runs the main script straight away (Python reports its own syntax errors,
+  and checking first would start the interpreter twice) in a console window in the project's
+  drawer, with the project's program arguments. The main script is **Main script** in the
+  settings, else `main.py`, else the first `.py` file; its drawer comes first on `sys.path`.
+  The script runs with a 2 MB stack.
+- If the script ends with an exception, the console shows the traceback and the Build tab gets
+  it too: each `File "...", line N` line is clickable, and AmiForge goes to the line where the
+  exception happened.
+- **Stop Program** (Shift-Ctrl-F5) stops the script the next time it sleeps: the AmigaOS 4
+  port of Python doesn't react to Ctrl-C, so AmiForge runs scripts through a small runner whose
+  `time.sleep()` checks for Stop Program and raises `KeyboardInterrupt` (the console says
+  *Stopped*; `try`/`finally` blocks and `with` statements still clean up). A loop that never
+  sleeps can't be stopped this way: give long loops a `time.sleep()` now and then. (`setenv
+  AMIFORGE_STOPWATCH 1` adds a thread that also stops loops that never sleep, but see the
+  port's thread limit below.)
+- **Debug** (F5): the debugger works on compiled programs and can't step through Python. F5
+  explains this and offers to run the script under **pdb**, Python's own debugger, in a console
+  window, with the project's Python breakpoints (F9 in a `.py` file) set, so it runs to the
+  first one. In pdb `n` steps over, `s` into, `r` out of a function, `c` continues, `b 12` sets
+  a breakpoint, `p x` prints, `l` lists and `q` quits. A breakpoint condition (Shift-Ctrl-F9)
+  is passed on, as a Python expression. pdb needs a build of the port that opens volume-name
+  paths (`chris:...`); older builds say the script "does not exist".
+
+Python is slow to start in QEMU (about 20 seconds before the first line runs); the status bar
+says so while it starts.
+
+Known limits of the AmigaOS 4 port of Python (not of AmiForge):
+- A script that keeps the CPU busy while it has a second thread (`threading`) can starve every
+  other program on the Amiga, and has crashed it. Avoid threads in scripts that compute without
+  sleeping. (This is why AmiForge's runner doesn't use a thread to watch for Stop Program.)
+- Ctrl-C in the script's console doesn't interrupt it; Stop Program does, at the next `time.sleep()`.
+- Older builds can't open paths that start with a volume name (`chris:...`, which is what
+  `os.path.abspath()` and `os.getcwd()` return), only device names (`DH1:...`) and assigns.
+  AmiForge passes device-name paths, and its runner reads the script itself.
+
+#### Which Python
+
+AmiForge uses, in this order:
+1. **Python interpreter** in Project > Settings;
+2. the variable `AmiForge/Python`, for every project: `setenv SAVE AmiForge/Python DH1:python-os4`;
+3. the first of `C:python3`, `SYS:Utilities/Python/python3`, `Python3:python3`,
+   `Python:python3`, `DH1:python-os4`, `DH1:python3`, `Work:Python/python3` that exists.
+
+AmigaOS 4.1 comes with Python 2.5 as `C:python`; AmiForge needs Python 3 and never picks it. If
+you name it anyway, Build fails in AmiForge's own checker and Explain says why.
+
+The AmigaOS 4 port needs `PYTHONHOME` (and `PYTHONPATH`) to find its standard library; without
+them it quits without a word. When they aren't set and the interpreter's drawer has a `lib`
+drawer with the standard library (`DH1:python-os4` with `DH1:lib/`), AmiForge sets them for the
+scripts it starts. Set them yourself in `S:User-Startup` for any other layout:
+
+```
+setenv PYTHONHOME DH1:
+setenv PYTHONPATH DH1:lib
+```
+
+The port can't load compiled extension modules (`.so` files): only the modules built into the
+interpreter (`math`, `json`, `_socket`, `zlib`, `_amiga` and others) and pure-Python modules
+work. The `sysinfo-py` example uses `_amiga`, the port's own module for exec and dos calls.
 
 ## Git and GitHub
 
@@ -1451,6 +1597,7 @@ TEXT=...`, and given as `\@1`: `MCP EDITLINES FILE=main.c FROMLINE=10 TOLINE=12 
 | `todo` | C++ with ReAction. window.class and a layout with a listbrowser (a checkbox per item), a string gadget and buttons, one C++ class per gadget group. Return adds an item; Clear Done removes the ticked ones. The list is saved in `ENVARC:TodoExample` after every change |
 | `dirsize` | A C++ Shell tool. `dirsize [DIR] [TOP n] [NOREC]`: walks the drawers with `ExamineDir()`, totals the sizes by file type in a `std::map` and prints them sorted, with the biggest files. Ctrl-C stops it with `***Break`. Its program arguments are set in the project (`SDK:Include TOP 3`) |
 | `workers` | C++ and exec multitasking. `workers [WORKERS n] [LIMIT n]` splits counting primes between n processes started with `CreateNewProcTags()`. Each gets its job on its own message port and sends progress messages back; Ctrl-C is passed on to all of them. The workers use only exec and dos (not the C library, which is set up per process) |
+| `sysinfo-py` | Python. Memory, the tasks with the highest priority, the libraries in use and a volume's free space, through the Python port's built-in `_amiga` module. Its argument is the volume (`SYS:`) |
 | `sketch` | C++ drawing program. An Intuition window with GadTools menus (pen colour and brush size, as mutually exclusive check marks), drawing with `IDCMP_MOUSEMOVE`, an ASL save requester and an IFF ILBM written with iffparse.library; MultiView opens the result |
 
 Each example's classes own its OS resources (windows, bitmaps, ports, timer requests, IFF
@@ -1497,6 +1644,8 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | The program's drawer can't be deleted after stopping a crashed program | A known limitation: Stop ends the program without running its C library cleanup, so a lock it held (such as its current directory) stays until a reboot |
 | The IDE seems frozen: the busy pointer, clicks do nothing, "A build is already running" | A dialog (Project Settings, New Project, a requester) is waiting for an answer, probably hidden behind the main window. Clicking or typing in the main window now brings the dialog back to the front; answer or cancel it and the IDE carries on, including any build that finished meanwhile. The project browser is not a dialog and never blocks the IDE |
 | The program you ran hangs | **Build > Stop Program** (Shift-Ctrl-F5) sends it Ctrl-C; see [Building and running](#building-and-running). The IDE itself keeps working |
+| A Python script fails with `FileNotFoundError: [Errno 2] N: 'Work:...'` | Older builds of the AmigaOS Python port can't open paths that start with a volume name (`Work:`, `chris:`), only device names (`DH1:`) and assigns. AmiForge hands Python device names (the script, its drawer, the interpreter, PYTHONHOME, pdb's breakpoints); in your own scripts use relative paths or device names, or update the port |
+| Build fails in `T:AmiForge-pycheck.py` with "will become a reserved keyword in Python 2.6" | The interpreter is Python 2 (AmigaOS 4.1's `C:python`): set a Python 3 one, see [Which Python](#which-python) |
 | An installer from Package Release says "not executable" in a Shell | Archives don't keep the script bit: use `Execute Install <drawer>`, or double-click its icon |
 
 ## Keyboard reference
@@ -1511,13 +1660,20 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | F4 / Shift-F4 | Next / previous error |
 | F5 | Debug / continue |
 | Shift-F5 | Stop debugging |
+| Alt-F5 / Break | Pause the program being debugged |
+| Shift-Alt-F5 | Restart debugging |
 | Ctrl-F5 / F6 | Build and run |
 | Shift-Ctrl-F5 | Stop the program Run started (sends Ctrl-C) |
 | F7 | Build |
 | F8 | Step one instruction |
 | F9 | Toggle breakpoint |
+| Alt-F9 | Enable / disable the breakpoint on the line |
+| Shift-Ctrl-F9 | Breakpoint condition |
+| Shift-F9 | Quick watch (the word or selection at the cursor) |
 | F10 / F11 / Shift-F11 | Step over / into / out |
 | Ctrl-F10 | Run to cursor |
+| Alt-F10 | Run to a function |
+| Shift-Ctrl-F10 | Set next statement |
 | Amiga-N / O / S / A / W | New / open / save / save as / close file |
 | Amiga-P | Open project |
 | Amiga-U | Browse projects |
@@ -1535,13 +1691,14 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | Esc | One cursor again; end a snippet; clear reference highlights |
 | name + Tab | Insert a snippet; Tab / Shift-Tab move between its fields |
 
-Help > Keyboard Shortcuts shows this list in AmiForge.
+Help > Keyboard Shortcuts shows this list in AmiForge. A combination with no command of its own
+(Ctrl-F7, say) does what the key alone does.
 
 ## Files and settings
 
 | File | What's in it |
 |---|---|
-| `project.afp` | A project: an ini-style text file with `[project]` settings, `[files]`, `[breakpoints]` and `[watches]` |
+| `project.afp` | A project: an ini-style text file with `[project]` settings, `[files]`, `[breakpoints]` and `[watches]`; a Python project also has `language=python`, and `main=` and `interpreter=` when they're set |
 | `obj/` | Object files, in the project's drawer |
 | `ENVARC:AmiForge/RecentProjects` | The Open Recent list |
 | `ENVARC:AmiForge/ProjectsFolder` | The projects folder (unset: `PROGDIR:Examples`) |
@@ -1551,6 +1708,9 @@ Help > Keyboard Shortcuts shows this list in AmiForge.
 | `ENVARC:AmiForge/Snippets` | Your own snippets |
 | `ENVARC:AmiForge/DistccHosts` | The default distcc hosts |
 | `ENVARC:AmiForge/Author` | Your name and e-mail for templates and releases |
+| `ENVARC:AmiForge/Python` | The Python interpreter for projects that don't name one (`setenv SAVE AmiForge/Python DH1:python-os4`) |
+| `T:AmiForge-pycheck.py`, `T:AmiForge-pyrun.py` | The syntax checker and runner AmiForge writes for Python projects |
+| `__pycache__/` | Python's compiled modules, next to the modules a script imports; Clean deletes it |
 | `*.afg` | A GUI designed in Tools > GUI Designer |
 | `PROGDIR:Templates/` | Project templates |
 | `PROGDIR:Examples/` | The example projects, and the default projects folder |

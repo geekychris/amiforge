@@ -43,7 +43,9 @@ TEST(theme_text_is_readable)
         std::string n = t.name;
         CHECK(contrastRatio(t.textFore, t.textBack) >= 7.0);
         for (uint32_t c : { t.comment, t.docComment, t.keyword, t.type, t.string, t.number, t.preprocessor,
-                            t.oper, t.label, t.asmOper })
+                            t.oper, t.label, t.asmOper,
+                            // --- lang --- the other languages' colours
+                            t.funcName, t.decorator, t.builtin, t.variable, t.heading, t.emphasis, t.lexError })
             if (contrastRatio(c, t.textBack) < 3.0)
                 aftest::fail(__FILE__, __LINE__, n + ": syntax colour too faint: " + std::to_string(c));
         CHECK(contrastRatio(t.marginFore, t.marginBack) >= 3.0);
@@ -69,6 +71,25 @@ TEST(theme_dark_is_dark)
     CHECK(contrastRatio(d.textFore, 0xFFFFFF) < 2.0);
     const Theme &l = themeNamed("Light");
     CHECK(contrastRatio(l.textBack, 0xFFFFFF) < 1.1);
+}
+
+// --- lang --- Markdown code and Perl POD are drawn on codeBack; every colour is set (a theme
+// entry missing its new fields would leave them black)
+TEST(theme_language_colours)
+{
+    for (auto &t : themes()) {
+        std::string n = t.name;
+        for (uint32_t c : { t.string, t.docComment, t.comment })
+            if (contrastRatio(c, t.codeBack) < 3.0)
+                aftest::fail(__FILE__, __LINE__, n + ": text on code background too faint: " + std::to_string(c));
+        CHECK(contrastRatio(t.codeBack, t.textBack) < 1.5);   // a tint, not a block of colour
+        CHECK(contrastRatio(t.lexError, t.stringEolBack) >= 3.0);
+        for (uint32_t c : { t.funcName, t.decorator, t.builtin, t.variable, t.heading, t.emphasis, t.codeBack, t.lexError })
+            CHECK(c != 0);
+        // the new colours differ from the keyword colour they sit next to
+        std::set<uint32_t> s = { t.keyword, t.funcName, t.builtin, t.decorator };
+        CHECK_EQ(s.size(), (size_t)4);
+    }
 }
 
 TEST(theme_syntax_colours_are_distinct)

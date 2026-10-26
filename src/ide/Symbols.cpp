@@ -22,6 +22,12 @@ const char *symKindName(SymKind k)
     case SymKind::Global: return "variable";
     case SymKind::Label: return "label";
     case SymKind::Macro: return "macro";
+    // --- lang ---
+    case SymKind::Method: return "method";
+    case SymKind::Heading: return "heading";
+    case SymKind::Key: return "key";
+    case SymKind::Package: return "package";
+    // --- end lang ---
     }
     return "";
 }

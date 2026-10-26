@@ -2,6 +2,7 @@
 // context menu (right mouse button) and Ctrl-click.
 #include "App.h"
 #include "Commands.h"
+#include "KeyBindings.h"   // --- lang ---
 
 #include <string.h>
 #include <strings.h>
@@ -340,7 +341,7 @@ void App::showContextMenu()
 
 void App::showShortcuts()
 {
-    ask("Keyboard Shortcuts",
+    ask("Keyboard Shortcuts", std::string(
         "Editing\n"
         "  Ctrl-Space      complete the word (also pops up by itself after 3 letters)\n"
         "  IExec->  etc.   lists that library's functions as you type\n"
@@ -362,12 +363,14 @@ void App::showShortcuts()
         "  Shift-Ctrl-F5   stop the program Run started (sends Ctrl-C)\n"   // --- robust ---
         "  F4 / Shift-F4   next / previous error\n"
         "\n"
-        "Debugging\n"
-        "  F5              start / continue  Shift-F5      stop\n"
-        "  F9              breakpoint        F10 / F11     step over / into\n"
-        "  Shift-F11       step out          Ctrl-F10      run to cursor\n"
-        "  F8              step one instruction   Shift-F7   profile the program\n"
-        "  Ctrl-F9         apply code changes to the running program (Edit and Continue)",
+        "Debugging\n")   // --- lang --- from the key table (KeyBindings.cpp)
+        + keys::describe({ CMD_DEBUG_START, CMD_DEBUG_STOP, CMD_DEBUG_PAUSE, CMD_DEBUG_RESTART, CMD_STEP_OVER,
+                           CMD_STEP_INTO, CMD_STEP_OUT, CMD_STEP_INSN, CMD_RUN_TO_CURSOR, CMD_RUN_TO_FUNCTION,
+                           CMD_SET_NEXT_STATEMENT, CMD_TOGGLE_BP, CMD_BP_TOGGLE_ENABLED, CMD_BP_CONDITION,
+                           CMD_QUICK_WATCH, CMD_APPLY_CHANGES, CMD_PROFILE }) +
+        "  Break is the Pause/Break key of a PC keyboard.\n"
+        "\n"
+        "Python projects: F7 checks the syntax, Ctrl-F5 runs the main script, F5 offers pdb.",
         "_OK");
 }
 

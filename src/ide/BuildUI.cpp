@@ -45,6 +45,7 @@ void App::build(const std::string &what)
         return;
     }
     if (!ensureProject()) return;
+    if (project.isPython()) { buildPython(what); return; }   // --- lang --- no compiler involved
     if (what != "clean" && !sdkInstalled()) {
         info("Building needs the AmigaOS 4.1 SDK with GCC 11, and it isn't installed here\n"
              "(there is no SDK: assign).\n\n"
@@ -104,6 +105,10 @@ void App::pollBuild()
             std::string summary = ok ? strprintf("Build succeeded (%d warning%s).", builder.warnings, builder.warnings == 1 ? "" : "s")
                                      : strprintf("Build failed: %d error%s, %d warning%s.", builder.errors, builder.errors == 1 ? "" : "s",
                                                  builder.warnings, builder.warnings == 1 ? "" : "s");
+            if (project.isPython())   // --- lang ---
+                summary = ok ? strprintf("No syntax errors (%d warning%s).", builder.warnings, builder.warnings == 1 ? "" : "s")
+                             : strprintf("Syntax check failed: %d error%s, %d warning%s.", builder.errors, builder.errors == 1 ? "" : "s",
+                                         builder.warnings, builder.warnings == 1 ? "" : "s");
             BuildLine s;
             s.kind = ok ? MsgKind::Info : MsgKind::Error;
             s.text = summary;
@@ -159,6 +164,15 @@ void App::pollBuild()
 bool App::buildBeforeRun(int after)
 {
     if (!ensureProject()) return false;
+    // --- lang --- a Python script is run straight away (Python reports its own syntax errors,
+    // and starting the interpreter twice would double the wait)
+    if (project.isPython() && (after == 1 || after == 2)) {
+        if (!saveAll()) return false;
+        saveProject();
+        if (after == 1) runPython();
+        else debugPython();
+        return true;
+    }
     pendingAfterBuild = after;
     build("build");
     return true;
@@ -166,6 +180,7 @@ bool App::buildBeforeRun(int after)
 
 void App::runProgram()
 {
+    if (project.isPython()) { runPython(); return; }   // --- lang ---
     std::string exe = project.outputPath();
     // --- designer ---
     if (!project.runcmd.empty()) exe.clear();    // a run command instead of the program
