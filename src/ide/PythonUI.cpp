@@ -31,6 +31,31 @@ static bool existsQuietly(const std::string &path)
     return fileExists(path);
 }
 
+// The device a volume is mounted on ("chris" -> "DH1"), "" if `name` isn't a volume.
+static std::string deviceOfVolume(const std::string &name)
+{
+    std::string out;
+    struct DosList *dl = IDOS->LockDosList(LDF_VOLUMES | LDF_DEVICES | LDF_READ);
+    struct DosList *v = IDOS->FindDosEntry(dl, name.c_str(), LDF_VOLUMES);
+    if (v && v->dol_Port) {
+        for (struct DosList *d = dl; (d = IDOS->NextDosEntry(d, LDF_DEVICES)) != nullptr;)
+            if (d->dol_Port == v->dol_Port && d->dol_Name) {
+                const unsigned char *b = (const unsigned char *)BADDR(d->dol_Name);
+                out.assign((const char *)b + 1, b[0]);
+                break;
+            }
+    }
+    IDOS->UnLockDosList(LDF_VOLUMES | LDF_DEVICES | LDF_READ);
+    return out;
+}
+
+// Paths handed to Python name the device ("DH1:"), not the volume ("chris:"), which older builds
+// of the AmigaOS port can't open (see lang::deviceForm).
+static std::string forPython(const std::string &path)
+{
+    return lang::deviceForm(path, deviceOfVolume);
+}
+
 static std::string getVar(const char *name)
 {
     char buf[512];
@@ -40,14 +65,14 @@ static std::string getVar(const char *name)
 
 std::string App::pythonInterpreter(std::string *how)
 {
-    return lang::findInterpreter(project.interpreter, getVar("AmiForge/Python"), existsQuietly, how);
+    return forPython(lang::findInterpreter(project.interpreter, getVar("AmiForge/Python"), existsQuietly, how));
 }
 
 std::vector<std::pair<std::string, std::string>> App::pythonEnv(const std::string &interpreter)
 {
     std::vector<std::pair<std::string, std::string>> env;
     if (!getVar("PYTHONHOME").empty()) return env;   // the user's own setting wins
-    std::string home = lang::pythonHomeFor(interpreter, existsQuietly);
+    std::string home = forPython(lang::pythonHomeFor(interpreter, existsQuietly));
     if (home.empty()) return env;
     env.push_back({"PYTHONHOME", home});
     if (getVar("PYTHONPATH").empty()) env.push_back({"PYTHONPATH", lang::pythonPathFor(home)});
@@ -166,7 +191,9 @@ void App::runPython()
         info("Can't open the console " + con);
         return;
     }
-    std::string cmd = project.runcmd.empty() ? lang::runCommand(interp, runner, stopFile, tbFile, main, project.args)
+    // the script by its full device-name path: its drawer goes first on sys.path, so its
+    // sibling modules import, and tracebacks name files the editor can open
+    std::string cmd = project.runcmd.empty() ? lang::runCommand(interp, runner, stopFile, tbFile, forPython(project.abs(main)), project.args)
                                              : project.runcmd;
     BPTR dir = IDOS->Lock(project.dir.c_str(), SHARED_LOCK);
     BPTR old = dir ? IDOS->SetCurrentDir(dir) : 0;
@@ -271,14 +298,14 @@ void App::debugPython()
     harvestBreakpoints(cur);
     std::vector<lang::PyBreakpoint> bps;
     for (auto &b : project.breakpoints)
-        if (b.enabled && lang::isPythonFile(b.file)) bps.push_back({b.file, b.line, b.cond});
+        if (b.enabled && lang::isPythonFile(b.file)) bps.push_back({forPython(project.abs(b.file)), b.line, b.cond});
     std::string con = strprintf("CON:40/60/760/360/%s (pdb)/AUTO/CLOSE/WAIT", project.name.c_str());
     BPTR in = IDOS->Open(con.c_str(), MODE_OLDFILE);
     if (!in) {
         info("Can't open the console " + con);
         return;
     }
-    std::string cmd = lang::pdbCommand(interp, main, project.args, lang::pdbBreakCommands(bps));
+    std::string cmd = lang::pdbCommand(interp, forPython(project.abs(main)), project.args, lang::pdbBreakCommands(bps));
     BPTR dir = IDOS->Lock(project.dir.c_str(), SHARED_LOCK);
     BPTR old = dir ? IDOS->SetCurrentDir(dir) : 0;
     int32 rc;

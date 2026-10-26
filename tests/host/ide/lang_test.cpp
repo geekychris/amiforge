@@ -320,6 +320,23 @@ TEST(lang_command_lines)
           !lang::isPythonFile("a.py/b"));
 }
 
+TEST(lang_device_form_paths)
+{
+    auto deviceOf = [](const std::string &v) {
+        std::string l;
+        for (char c : v) l += (char)tolower((unsigned char)c);
+        return l == "chris" ? std::string("DH1") : l == "ram disk" ? std::string("RAM") : std::string();
+    };
+    CHECK_EQ(lang::deviceForm("chris:AF-lang/pydemo/main.py", deviceOf), std::string("DH1:AF-lang/pydemo/main.py"));
+    CHECK_EQ(lang::deviceForm("Chris:x", deviceOf), std::string("DH1:x"));
+    CHECK_EQ(lang::deviceForm("Ram Disk:T/a.py", deviceOf), std::string("RAM:T/a.py"));
+    CHECK_EQ(lang::deviceForm("chris:", deviceOf), std::string("DH1:"));
+    CHECK_EQ(lang::deviceForm("DH1:x.py", deviceOf), std::string("DH1:x.py"));   // a device already
+    CHECK_EQ(lang::deviceForm("T:AmiForge-pyrun.py", deviceOf), std::string("T:AmiForge-pyrun.py"));   // an assign
+    CHECK_EQ(lang::deviceForm("main.py", deviceOf), std::string("main.py"));   // relative
+    CHECK_EQ(lang::deviceForm("chris:x", nullptr), std::string("chris:x"));
+}
+
 // The checker and the runner really work: run them with the host's python3.
 static std::string scratch()
 {

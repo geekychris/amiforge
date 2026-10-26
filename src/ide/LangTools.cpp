@@ -297,6 +297,14 @@ std::vector<std::string> pdbBreakCommands(const std::vector<PyBreakpoint> &bps)
     return out;
 }
 
+std::string deviceForm(const std::string &path, const DeviceOfFn &deviceOf)
+{
+    size_t colon = path.find(':');
+    if (colon == std::string::npos || colon == 0 || !deviceOf) return path;
+    std::string dev = deviceOf(path.substr(0, colon));
+    return dev.empty() ? path : dev + path.substr(colon);
+}
+
 bool isPythonFile(const std::string &path)
 {
     size_t dot = path.rfind('.');

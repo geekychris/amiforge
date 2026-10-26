@@ -1071,8 +1071,9 @@ Known limits of the AmigaOS 4 port of Python (not of AmiForge):
   other program on the Amiga, and has crashed it. Avoid threads in scripts that compute without
   sleeping. (This is why AmiForge's runner doesn't use a thread to watch for Stop Program.)
 - Ctrl-C in the script's console doesn't interrupt it; Stop Program does, at the next `time.sleep()`.
-- `os.path.abspath()` returns paths the port then can't open (`[Errno 2]`); use relative paths
-  or the ones you were given.
+- Older builds can't open paths that start with a volume name (`chris:...`, which is what
+  `os.path.abspath()` and `os.getcwd()` return), only device names (`DH1:...`) and assigns.
+  AmiForge passes device-name paths, and its runner reads the script itself.
 
 #### Which Python
 
@@ -1636,6 +1637,8 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | The program's drawer can't be deleted after stopping a crashed program | A known limitation: Stop ends the program without running its C library cleanup, so a lock it held (such as its current directory) stays until a reboot |
 | The IDE seems frozen: the busy pointer, clicks do nothing, "A build is already running" | A dialog (Project Settings, New Project, a requester) is waiting for an answer, probably hidden behind the main window. Clicking or typing in the main window now brings the dialog back to the front; answer or cancel it and the IDE carries on, including any build that finished meanwhile. The project browser is not a dialog and never blocks the IDE |
 | The program you ran hangs | **Build > Stop Program** (Shift-Ctrl-F5) sends it Ctrl-C; see [Building and running](#building-and-running). The IDE itself keeps working |
+| A Python script fails with `FileNotFoundError: [Errno 2] N: 'Work:...'` | Older builds of the AmigaOS Python port can't open paths that start with a volume name (`Work:`, `chris:`), only device names (`DH1:`) and assigns. AmiForge hands Python device names (the script, its drawer, the interpreter, PYTHONHOME, pdb's breakpoints); in your own scripts use relative paths or device names, or update the port |
+| Build fails in `T:AmiForge-pycheck.py` with "will become a reserved keyword in Python 2.6" | The interpreter is Python 2 (AmigaOS 4.1's `C:python`): set a Python 3 one, see [Which Python](#which-python) |
 | An installer from Package Release says "not executable" in a Shell | Archives don't keep the script bit: use `Execute Install <drawer>`, or double-click its icon |
 
 ## Keyboard reference

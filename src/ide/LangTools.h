@@ -84,5 +84,12 @@ std::vector<std::string> pdbBreakCommands(const std::vector<PyBreakpoint> &bps);
 
 bool isPythonFile(const std::string &path);    // .py, .pyw
 
+// "chris:AF-lang/x.py" -> "DH1:AF-lang/x.py": the AmigaOS Python port (before its fix) can't
+// open paths that start with a volume name, which is what NameFromLock gives. `deviceOf`
+// returns the device a volume is mounted on ("chris" -> "DH1"), or "" when the name isn't a
+// volume (a device or an assign: left alone). Case-insensitive, like AmigaDOS.
+using DeviceOfFn = std::function<std::string(const std::string &volume)>;
+std::string deviceForm(const std::string &path, const DeviceOfFn &deviceOf);
+
 } // namespace lang
 } // namespace af
