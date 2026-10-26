@@ -1065,6 +1065,15 @@ script** makes one, and so does **New Project** in a drawer of `.py` files. Noth
 Python is slow to start in QEMU (about 20 seconds before the first line runs); the status bar
 says so while it starts.
 
+Known limits of the AmigaOS 4 port of Python (not of AmiForge):
+- A script that keeps the CPU busy (a loop with no `time.sleep()` or I/O) while it has a second
+  thread running can starve every other program on the Amiga, and has crashed it. The runner's
+  Stop Program watcher is such a thread, so for a script that computes for a long time without
+  sleeping, start AmiForge with `setenv AMIFORGE_STOPWATCH 0` (no watcher: Stop Program then
+  can't stop the script, and closing its console or waiting is the way out), or give its loops a
+  short `time.sleep()`. Scripts that sleep, wait for input or do I/O are fine.
+- Ctrl-C in the script's console doesn't interrupt it; Stop Program does (through the watcher).
+
 #### Which Python
 
 AmiForge uses, in this order:
