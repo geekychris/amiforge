@@ -290,8 +290,10 @@ TEST(lang_find_interpreter)
     CHECK_EQ(how, std::string("ENV:AmiForge/Python"));
     files.clear();
     CHECK_EQ(lang::findInterpreter("", "", exists, &how), std::string(""));
-    files = { "C:python", "DH1:python-os4" };
-    CHECK_EQ(lang::findInterpreter("", "", exists), std::string("C:python"));   // C: before DH1:
+    files = { "C:python3", "DH1:python-os4" };
+    CHECK_EQ(lang::findInterpreter("", "", exists), std::string("C:python3"));   // C: before DH1:
+    files = { "C:python", "Python:python" };   // AmigaOS 4.1's Python 2.5: never picked
+    CHECK_EQ(lang::findInterpreter("", "", exists), std::string(""));
     files = { "DH1:lib/os.py", "Work:Python/lib/os.py" };
     CHECK_EQ(lang::pythonHomeFor("DH1:python-os4", exists), std::string("DH1:"));
     CHECK_EQ(lang::pythonHomeFor("Work:Python/python3", exists), std::string("Work:Python"));
@@ -405,10 +407,22 @@ TEST(lang_runner_script_traceback_and_stop)
     out = run("cd " + d + " && rm -f tb stop && (sleep 1; touch stop) & cd " + d + " && python3 -u run.py stop tb loop.py", &rc);
     CHECK_EQ(rc, 5);
     CHECK(out.find("Stopped (KeyboardInterrupt).") != std::string::npos);
-    // a busy loop too
-    put(d + "/busy.py", "n = 0\nwhile True:\n    n += 1\n");
-    out = run("cd " + d + " && rm -f tb stop && (sleep 1; touch stop) & cd " + d + " && python3 -u run.py stop tb busy.py", &rc);
+    // a long sleep is cut short too
+    put(d + "/long.py", "import time\ntime.sleep(60)\n");
+    out = run("cd " + d + " && rm -f tb stop && (sleep 1; touch stop) & cd " + d + " && python3 -u run.py stop tb long.py", &rc);
     CHECK_EQ(rc, 5);
+    // no thread: a script that never sleeps runs on (here it ends by itself)
+    put(d + "/count.py", "n = 0\nfor i in range(200000):\n    n += i\nprint('sum', n)\n");
+    out = run("cd " + d + " && rm -f tb && touch stop && python3 -u run.py stop tb count.py", &rc);
+    CHECK_EQ(rc, 0);
+    CHECK(out.find("sum 19999900000") != std::string::npos);
+    // a syntax error in the script: its location, not the runner's
+    put(d + "/syn.py", "x = 1\nif x\n    pass\n");
+    run("cd " + d + " && rm -f tb stop && python3 run.py stop tb syn.py", &rc);
+    CHECK_EQ(rc, 10);
+    tb = get(d + "/tb");
+    CHECK(tb.find("File \"syn.py\", line 2") != std::string::npos);
+    CHECK(tb.find("run.py") == std::string::npos);
     // sys.exit keeps its code, no traceback
     put(d + "/exit.py", "import sys\nsys.exit(3)\n");
     run("cd " + d + " && rm -f tb stop && python3 run.py stop tb exit.py", &rc);
@@ -536,6 +550,9 @@ TEST(lang_python_explanations)
     CHECK(e.text.find(".so") != std::string::npos);
     CHECK_EQ(rule("UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe4"), std::string("py-unicode"));
     CHECK_EQ(rule("RecursionError: maximum recursion depth exceeded"), std::string("py-recursion"));
+    // Python 2 can't compile AmiForge's checker (seen with OS4.1's C:python)
+    CHECK_EQ(rule("T:AmiForge-pycheck.py:7: Warning: 'with' will become a reserved keyword in Python 2.6"), std::string("py-version2"));
+    CHECK_EQ(rule("SyntaxError: invalid syntax", ""), std::string("py-syntax"));
     CHECK_EQ(rule("FileNotFoundError: [Errno 2] No such file or directory: '/tmp/x'"), std::string("py-file"));
     // C messages still get their own rules
     CHECK(rule("main.c:3:5: error: implicit declaration of function 'OpenWindowTags'").find("py-") != 0);

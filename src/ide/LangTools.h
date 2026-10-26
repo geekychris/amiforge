@@ -20,6 +20,8 @@ extern const char pyCheckScript[];
 // __main__ (its drawer first on sys.path), writes the traceback of an uncaught exception to
 // TRACEBACKFILE as well as to the console, and turns the IDE's Stop Program (which creates
 // STOPFILE) into a KeyboardInterrupt: Python on AmigaOS 4 doesn't react to Ctrl-C by itself.
+// STOPFILE is checked in time.sleep() (which the runner replaces), not by a thread: a second
+// thread can starve the whole machine on the port. A loop that never sleeps can't be stopped.
 extern const char pyRunScript[];
 
 enum class DiagKind { None, Info, Location, Error, Warning };
@@ -53,7 +55,8 @@ std::string exceptionName(const std::string &line);
 
 // --- the interpreter ---
 using ExistsFn = std::function<bool(const std::string &path)>;
-// Where AmiForge looks when neither the project nor ENV:AmiForge/Python names one.
+// Where AmiForge looks when neither the project nor ENV:AmiForge/Python names one: Python 3
+// names only (AmigaOS 4.1 ships Python 2.5 as C:python).
 const std::vector<std::string> &interpreterCandidates();
 // The project's setting, else ENV:AmiForge/Python, else the first candidate that exists.
 // `how` says which ("project setting", "ENV:AmiForge/Python", "found"). Empty if none.

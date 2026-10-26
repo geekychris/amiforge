@@ -42,21 +42,31 @@ sys.argv = sys.argv[3:]
 _script = sys.argv[0]
 _dir = os.path.dirname(_script)
 sys.path[0] = _dir
-def _watch():
-    import time, _thread
-    while not os.path.exists(_stop):
-        time.sleep(0.5)
-    _thread.interrupt_main()
-if os.environ.get('AMIFORGE_STOPWATCH', '1') != '0':
-    try:
-        import signal, threading
-        signal.signal(signal.SIGINT, signal.default_int_handler)
-        threading.Thread(target=_watch, daemon=True).start()
-    except Exception:
-        pass
-import runpy, traceback
+# Stop Program creates STOPFILE. No thread watches it: on the AmigaOS port a second thread can
+# starve the whole machine. time.sleep() looks instead, so a script that sleeps stops at once.
+import time as _time
+_sleep = _time.sleep
+def _stopping_sleep(seconds):
+    end = _time.monotonic() + seconds
+    while True:
+        if os.path.exists(_stop):
+            raise KeyboardInterrupt
+        left = end - _time.monotonic()
+        if left <= 0:
+            return
+        _sleep(min(left, 0.25))
+_time.sleep = _stopping_sleep
+import traceback, types, builtins
+# like runpy.run_path, without making the path absolute (the AmigaOS port can't open the
+# volume-name paths abspath() gives)
+_main = types.ModuleType('__main__')
+_main.__file__ = _script
+_main.__builtins__ = builtins
+sys.modules['__main__'] = _main
 try:
-    runpy.run_path(_script, run_name='__main__')
+    with open(_script, 'rb') as _f:
+        _code = compile(_f.read(), _script, 'exec', dont_inherit=True)
+    exec(_code, _main.__dict__)
 except KeyboardInterrupt:
     sys.stderr.write('\nStopped (KeyboardInterrupt).\n')
     sys.exit(5)
@@ -66,7 +76,8 @@ except BaseException as e:
     tb = e.__traceback__
     while tb is not None and tb.tb_frame.f_code.co_filename != _script:
         tb = tb.tb_next
-    text = ''.join(traceback.format_exception(type(e), e, tb or e.__traceback__))
+    # no frame of the script (a SyntaxError, a missing file): just the exception, with its location
+    text = ''.join(traceback.format_exception(type(e), e, tb))
     sys.stderr.write(text)
     try:
         with open(_tb, 'w') as f:
@@ -171,8 +182,9 @@ Diag TracebackParser::feed(const std::string &raw)
 const std::vector<std::string> &interpreterCandidates()
 {
     static const std::vector<std::string> list = {
-        "C:python3", "C:python", "SYS:Utilities/Python/python3", "Python3:python3", "Python:python3",
-        "Python:python", "DH1:python-os4", "DH1:python3", "Work:Python/python3",
+        // Python 3 only: AmigaOS 4.1's own C:python is Python 2.5, which can't run Python 3 code
+        "C:python3", "SYS:Utilities/Python/python3", "Python3:python3", "Python:python3",
+        "DH1:python-os4", "DH1:python3", "Work:Python/python3",
     };
     return list;
 }

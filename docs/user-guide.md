@@ -1051,10 +1051,11 @@ script** makes one, and so does **New Project** in a drawer of `.py` files. Noth
 - If the script ends with an exception, the console shows the traceback and the Build tab gets
   it too: each `File "...", line N` line is clickable, and AmiForge goes to the line where the
   exception happened.
-- **Stop Program** (Shift-Ctrl-F5) stops the script: the AmigaOS 4 port of Python doesn't react
-  to Ctrl-C by itself, so AmiForge runs scripts through a small runner that turns Stop Program
-  into a `KeyboardInterrupt` (the console says *Stopped*). `try`/`finally` blocks and `with`
-  statements still clean up.
+- **Stop Program** (Shift-Ctrl-F5) stops the script the next time it sleeps: the AmigaOS 4
+  port of Python doesn't react to Ctrl-C, so AmiForge runs scripts through a small runner whose
+  `time.sleep()` checks for Stop Program and raises `KeyboardInterrupt` (the console says
+  *Stopped*; `try`/`finally` blocks and `with` statements still clean up). A loop that never
+  sleeps can't be stopped this way: give long loops a `time.sleep()` now and then.
 - **Debug** (F5): the debugger works on compiled programs and can't step through Python. F5
   explains this and offers to run the script under **pdb**, Python's own debugger, in a console
   window, with the project's Python breakpoints (F9 in a `.py` file) set, so it runs to the
@@ -1066,22 +1067,23 @@ Python is slow to start in QEMU (about 20 seconds before the first line runs); t
 says so while it starts.
 
 Known limits of the AmigaOS 4 port of Python (not of AmiForge):
-- A script that keeps the CPU busy (a loop with no `time.sleep()` or I/O) while it has a second
-  thread running can starve every other program on the Amiga, and has crashed it. The runner's
-  Stop Program watcher is such a thread, so for a script that computes for a long time without
-  sleeping, start AmiForge with `setenv AMIFORGE_STOPWATCH 0` (no watcher: Stop Program then
-  can't stop the script, and closing its console or waiting is the way out), or give its loops a
-  short `time.sleep()`. Scripts that sleep, wait for input or do I/O are fine.
-- Ctrl-C in the script's console doesn't interrupt it; Stop Program does (through the watcher).
+- A script that keeps the CPU busy while it has a second thread (`threading`) can starve every
+  other program on the Amiga, and has crashed it. Avoid threads in scripts that compute without
+  sleeping. (This is why AmiForge's runner doesn't use a thread to watch for Stop Program.)
+- Ctrl-C in the script's console doesn't interrupt it; Stop Program does, at the next `time.sleep()`.
+- `os.path.abspath()` returns paths the port then can't open (`[Errno 2]`); use relative paths
+  or the ones you were given.
 
 #### Which Python
 
 AmiForge uses, in this order:
 1. **Python interpreter** in Project > Settings;
 2. the variable `AmiForge/Python`, for every project: `setenv SAVE AmiForge/Python DH1:python-os4`;
-3. the first of `C:python3`, `C:python`, `SYS:Utilities/Python/python3`, `Python3:python3`,
-   `Python:python3`, `Python:python`, `DH1:python-os4`, `DH1:python3`, `Work:Python/python3` that
-   exists.
+3. the first of `C:python3`, `SYS:Utilities/Python/python3`, `Python3:python3`,
+   `Python:python3`, `DH1:python-os4`, `DH1:python3`, `Work:Python/python3` that exists.
+
+AmigaOS 4.1 comes with Python 2.5 as `C:python`; AmiForge needs Python 3 and never picks it. If
+you name it anyway, Build fails in AmiForge's own checker and Explain says why.
 
 The AmigaOS 4 port needs `PYTHONHOME` (and `PYTHONPATH`) to find its standard library; without
 them it quits without a word. When they aren't set and the interpreter's drawer has a `lib`

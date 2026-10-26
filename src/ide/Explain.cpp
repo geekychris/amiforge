@@ -232,6 +232,12 @@ static Explanation explainPython(const std::string &m, const std::string &source
         e.text = text;
         return e;
     };
+    // AmiForge's own checker or runner failing to compile: the interpreter is Python 2
+    if (has(m, "AmiForge-pycheck.py") || has(m, "AmiForge-pyrun.py") || has(m, "will become a reserved keyword in Python 2.6"))
+        return set("py-version2", "The interpreter is Python 2",
+                   "AmiForge needs Python 3, but this interpreter can't read Python 3 code (AmigaOS 4.1's own "
+                   "C:python is Python 2.5). Set the Python 3 interpreter in Project > Settings, or for every "
+                   "project with  setenv SAVE AmiForge/Python <path of python3>.");
     if (has(m, "TabError:"))
         return set("py-tab", "Tabs and spaces are mixed in the indentation",
                    "Python compares indentation exactly, and this block mixes tab characters with spaces. "

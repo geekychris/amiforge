@@ -237,8 +237,11 @@ calls `compile()` on each and prints `file:line:col: error: SyntaxError: msg`, w
 parser already reads; tracebacks are parsed too. Run writes the runner to `T:AmiForge-pyrun.py`
 and starts `python -u runner STOPFILE TBFILE main.py args` through `runSystem` (so Stop Program
 and the DeathMessage tracking work) with a 2 MB stack. The port doesn't turn Ctrl-C into
-`KeyboardInterrupt`, so Stop Program also creates STOPFILE, which a thread in the runner
-watches (`_thread.interrupt_main()`). When the program ends, TBFILE (the uncaught exception's
+`KeyboardInterrupt`, so Stop Program also creates STOPFILE; the runner's replacement
+`time.sleep()` sleeps in 0.25 s slices and raises `KeyboardInterrupt` when it exists. (A watcher
+thread with `_thread.interrupt_main()` wedged the QEMU guest: a second thread can starve the
+machine on the port.) The runner compiles and `exec`s the script itself instead of
+`runpy.run_path`, which makes the path absolute, and the port can't open those paths. When the program ends, TBFILE (the uncaught exception's
 traceback, with the runner's frames dropped) goes into the build log. PYTHONHOME/PYTHONPATH
 are set as local variables, copied into the new process, when they're unset and the
 interpreter's drawer has `lib/os.py`. Debug runs `python -m pdb -c "b file:line" ... -c
