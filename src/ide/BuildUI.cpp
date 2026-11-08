@@ -159,7 +159,9 @@ void App::pollBuild()
         if (l.kind == MsgKind::Output && l.text.find("Unknown command") != std::string::npos) {
             BuildLine hint;
             hint.kind = MsgKind::Error;
-            hint.text = "A build tool wasn't found: check that the SDK is installed and that SDK:gcc/bin contains it.";
+            hint.text = project.isBasic()   // --- basic ---
+                ? "The boing command wasn't found: set it in Project > Settings (Boing BASIC command)."
+                : "A build tool wasn't found: check that the SDK is installed and that SDK:gcc/bin contains it.";
             diagnostics.push_back(hint);
             struct Node *h = buildLog.add({hint.text}, (void *)(intptr_t)diagnostics.size());
             if (h) buildLog.setPens(h, penError);

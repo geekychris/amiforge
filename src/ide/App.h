@@ -727,6 +727,7 @@ public:
     void stopProgram();                         // Build > Stop Program (Shift-Ctrl-F5, the Stop button)
     bool programRunning();
     bool runQuitCheck();                        // before quitting: false = don't quit
+    bool quitForce = false;                     // ARexx QUIT FORCE: don't ask about running programs either
     void runCleanup();
     // the project browser is a normal (non-modal) window, handled by the event loop
     struct BrowserState *browser = nullptr;

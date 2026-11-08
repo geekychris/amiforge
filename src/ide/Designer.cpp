@@ -199,7 +199,7 @@ bool Designer::open(const std::string &afg)
         static const int evWeights[] = { 60, 40 };
         Object *evg = group("Events (click one to write its code)");
         IIntuition->SetAttrs(evg, LAYOUT_AddChild, (uint32)events.create(DG_EVENTS, evTitles, evWeights), TAG_DONE);
-        IIntuition->SetAttrs(prg, LAYOUT_AddChild, (uint32)evg, CHILD_WeightedHeight, 45, TAG_DONE);
+        IIntuition->SetAttrs(prg, LAYOUT_AddChild, (uint32)evg, CHILD_WeightedHeight, 90, TAG_DONE);
     }
 
     static std::string title;
@@ -207,7 +207,7 @@ bool Designer::open(const std::string &afg)
     winObj = IIntuition->NewObject(IWindow->WINDOW_GetClass(), nullptr,
         WA_Title, (uint32)title.c_str(), WA_DragBar, TRUE, WA_CloseGadget, TRUE, WA_DepthGadget, TRUE,
         WA_SizeGadget, TRUE, WA_Activate, TRUE, WA_PubScreen, (uint32)app.win->WScreen,
-        WA_Left, app.win->LeftEdge + 40, WA_Top, app.win->TopEdge + 30, WA_InnerWidth, 820, WA_InnerHeight, 460,
+        WA_Left, app.win->LeftEdge + 40, WA_Top, app.win->TopEdge + 30, WA_InnerWidth, 820, WA_InnerHeight, basicMode ? 520 : 460,
         WA_IDCMP, IDCMP_GADGETUP | IDCMP_CLOSEWINDOW,
         WINDOW_GadgetHelp, TRUE,
         WINDOW_Layout, IIntuition->NewObject(layout, nullptr,

@@ -238,7 +238,7 @@ bool App::programRunning()
 
 bool App::runQuitCheck()
 {
-    if (!programRunning()) return true;
+    if (!programRunning() || quitForce) return true;
     int c = ask("Quit", runCtl->model.name() + " (started with Run) is still running.\n\n"
                 "AmiForge can quit and leave it running, or send it Ctrl-C first.",
                 "_Quit|_Stop It First|_Cancel");

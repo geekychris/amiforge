@@ -56,7 +56,8 @@ std::string App::boingCommand(std::string *how)
     for (const char *const *c = basicCandidates; *c; c++)
         if (existsQuietly(*c)) {
             if (how) *how = "found";
-            return *c;
+            // the full path: PROGDIR: means something else to the shell that runs it
+            return strncasecmp(*c, "PROGDIR:", 8) == 0 ? absolutePath(*c) : std::string(*c);
         }
     return "";
 }

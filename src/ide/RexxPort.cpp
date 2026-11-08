@@ -223,6 +223,7 @@ std::string App::rexxCommand(const std::string &line, int &rc)
     if (cmd == "REQUEST") return ask("ARexx", unescape(a.str("TEXT")), "_OK|_Cancel") == 1 ? "1" : "0";
     if (cmd == "QUIT") {
         if (a.has("FORCE")) for (auto &d : docs) d->modified = false;
+        quitForce = a.has("FORCE");   // no questions at all (a program Run started keeps running)
         queueCommand(CMD_QUIT);
         return "";
     }

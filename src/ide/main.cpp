@@ -1,4 +1,4 @@
-// AmiForge entry point. Starts from the Shell (AmiForge [project.afp | files...]) or from
+// AmiForge entry point. Starts from the Shell (AmiForge [project.afp|.bbp | files...]) or from
 // Workbench (project or source icons passed as arguments).
 #include "App.h"
 
@@ -59,7 +59,8 @@ int App::run(int argc, char **argv)
             if (strncasecmp(argv[i], "REXXPORT=", 9) != 0) args.push_back(argv[i]);   // --- mcp ---
     }
     for (auto &a : args) {
-        if (extension(a) == "afp") openProject(a);
+        if (extension(a) == "afp" || extension(a) == "bbp") openProject(a);   // --- basic --- .bbp too
+        else if (extension(a) == "afg") openDesigner(a);                     // --- basic --- a form
         else openFile(a);
     }
     // started on its own: carry on with the last project
