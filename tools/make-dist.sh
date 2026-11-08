@@ -154,6 +154,9 @@ EOF
 cp $icons/install.info $d/Install-AmiForge.info
 chmod 755 $d/AmiForge $d/Install-AmiForge
 
+# every binary in the archive must run on any OS4 PowerPC, not only the 440/460 (tools/check-cpu.sh)
+docker run --rm -v $root/tools:/tools:ro -v $dist:/dist -w /dist/stage $image sh -c '/tools/check-cpu.sh $(find . -type f | sort)'
+
 # archive (inside the build image: LHa for UNIX)
 # Files only: xadmaster reports explicit directory entries as errors; the paths imply them.
 docker run --rm -v $dist:/dist -w /dist/stage $image sh -c 'lha aq ../AmiForge.lha AmiForge.info $(find AmiForge -type f | sort)'

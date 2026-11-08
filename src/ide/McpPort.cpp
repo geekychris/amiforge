@@ -225,7 +225,7 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         int modified = 0;
         for (auto &d : docs) if (d->modified) modified++;
         l.push_back(mcp::kv("port", rexxPortName()));
-        l.push_back(mcp::kv("version", "AmiForge 0.1"));
+        l.push_back(mcp::kv("version", "AmiForge 0.3"));
         l.push_back(mcp::kv("project", project.path));
         l.push_back(mcp::kv("projectname", project.path.empty() ? "" : project.name));
         l.push_back(mcp::kv("projectdir", project.dir));

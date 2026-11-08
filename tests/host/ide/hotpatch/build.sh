@@ -2,7 +2,7 @@
 # Builds the hotpatch fixtures (run inside the walkero OS4 GCC image). $1 = output dir.
 set -e
 src=$(cd "$(dirname "$0")" && pwd); out=$1
-F="-mcrt=newlib -mcpu=440fp -O0 -gstabs+ -Wall"
+F="-mcrt=newlib -mcpu=powerpc -O0 -gstabs+ -Wall"
 mkdir -p $out/v1 $out/v2 $out/newvar $out/grow $out/newlib $out/cpp1 $out/cpp2
 cp $src/compute.c $out/v1/compute.c; cp $src/main.c $out/v1/main.c
 cp $src/compute_v2.c $out/v2/compute.c
@@ -18,5 +18,5 @@ cp $src/shape.h $out/cpp2/; cp $src/shape_v2.cpp $out/cpp2/shape.cpp
 (cd $out/cpp2 && ppc-amigaos-g++ $F -c shape.cpp -o shape.o)
 # plain -gstabs (C): no end-of-function stabs
 mkdir -p $out/gs; cp $src/compute_v2.c $out/gs/compute.c
-(cd $out/gs && ppc-amigaos-gcc -mcrt=newlib -mcpu=440fp -O0 -gstabs -Wall -c compute.c -o compute.o)
+(cd $out/gs && ppc-amigaos-gcc -mcrt=newlib -mcpu=powerpc -O0 -gstabs -Wall -c compute.c -o compute.o)
 touch $out/.fixtures

@@ -16,7 +16,8 @@ else
 OPT     = -O2
 endif
 
-CPU      = -mcpu=440fp
+# Generic PowerPC (hard float with this GCC 11). Never -mcpu=440/440fp: see check-cpu below.
+CPU      = -mcpu=powerpc
 DEFS     = -D__USE_OLD_TIMEVAL__ -DSCI_LEXER
 INCS     = -Ithird_party/scintilla/include -Ithird_party/scintilla/src \
            -Ithird_party/lexilla/include -Ithird_party/lexilla/lexlib -Isrc
@@ -52,11 +53,16 @@ DBG_OBJS  = $(patsubst %,$(O)/%.o,$(DBG_SRC))
 IDE_SRC   = $(wildcard src/ide/*.cpp) $(wildcard src/ide/*.c)
 IDE_OBJS  = $(patsubst %,$(O)/%.o,$(IDE_SRC))
 
-all: $(B)/AmiForge $(B)/QEMUCopyFix tests
+all: $(B)/AmiForge $(B)/QEMUCopyFix tests check-cpu
+
+# No 440/460-only instructions (dlmzb) in anything we build: they crash X5000, A1222 and G3/G4
+# machines although QEMU's sam460ex runs them (tools/check-cpu.sh, docs/building.md)
+check-cpu: $(B)/AmiForge $(B)/QEMUCopyFix tests
+	@tools/check-cpu.sh $(B)/AmiForge $(B)/QEMUCopyFix $(TESTS) $(TARGETS)
 
 # for the QEMU sam460ex guest (see docs/user-guide.md)
 $(B)/QEMUCopyFix: tools/os4/QEMUCopyFix.c
-	@mkdir -p $(@D); $(CC) -mcrt=newlib -O2 -Wall -o $@ $< && $(STRIP) $@
+	@mkdir -p $(@D); $(CC) -mcrt=newlib $(CPU) -O2 -Wall -o $@ $< && $(STRIP) $@
 
 $(B)/libscintilla.a: $(SCI_OBJS)
 	@mkdir -p $(@D); rm -f $@; $(AR) rcs $@ $^
@@ -94,7 +100,7 @@ $(B)/tests/%: tests/os4/%.cpp $(B)/libscintilla.a $(B)/libafdbg.a
 $(B)/tests/%: tests/os4/%.c $(B)/libafdbg.a
 	@mkdir -p $(@D); $(CXX) $(CFLAGS) $(LDFLAGS) -x c $< -x none -o $@ -L$(B) -lafdbg $(LIBS)
 
-TFLAGS = -mcrt=newlib -mcpu=440fp -O0 -gstabs+ -D__USE_INLINE__ -Wall
+TFLAGS = -mcrt=newlib $(CPU) -O0 -gstabs+ -D__USE_INLINE__ -Wall
 $(B)/targets/%: tests/targets/%.c
 	@mkdir -p $(@D); $(CC) $(TFLAGS) -o $@ $< -lauto
 $(B)/targets/%: tests/targets/%.cpp
@@ -140,4 +146,4 @@ clean:
 
 -include $(shell find $(O) -name '*.d' 2>/dev/null)
 
-.PHONY: all tests clean host-tests
+.PHONY: all tests clean host-tests check-cpu

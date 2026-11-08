@@ -22,7 +22,18 @@ tools/make-dist.sh                  # dist/AmiForge.lha
 ```
 
 Build notes:
-- C++17 with newlib (`-mcrt=newlib`) and `-mcpu=440fp`.
+- C++17 with newlib (`-mcrt=newlib`) and `-mcpu=powerpc` (generic PowerPC, hard float with
+  this GCC 11).
+- **Never `-mcpu=440` or `-mcpu=440fp`.** With them GCC inlines `strlen`, `strcat`, `strcmp`
+  and friends using `dlmzb`, an instruction only the PowerPC 440/460 cores have. QEMU's
+  sam460ex runs it, so everything passes there, but real X5000 (e5500), A1222 and G3/G4
+  machines stop with an illegal-instruction alert (0x80000004). AmiForge 0.1 and 0.2 were
+  built that way; 0.3 fixed it.
+- `make` (and so `tools/build.sh` with no target) ends with `check-cpu`: `tools/check-cpu.sh`
+  runs `ppc-amigaos-objdump -d` on the IDE, QEMUCopyFix, the test programs and the debuggee
+  targets, and fails if any of them contains a `dlmzb`. `tools/make-dist.sh` runs the same
+  check on every file it puts in the archive and stops if one fails. To check a binary by
+  hand: `ppc-amigaos-objdump -d <file> | grep -c dlmzb` must print 0.
 - No `-D__USE_INLINE__`: OS functions are called through their interfaces
   (`IExec->AllocVecTags`), because the inline macros define names like `Insert`, `Remove` and
   `Text` that clash with C++ code.
