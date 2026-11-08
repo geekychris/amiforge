@@ -542,6 +542,29 @@ static int pausetest_left(void)
     return t != NULL;
 }
 
+/* A test must never leave pausetest's console window on the user's screen. After each section
+ * (and its cleanup, which unloads the session) end any pausetest task that is still there: a
+ * kill that gave up leaves it suspended with its own context and without our hook, so it is
+ * safe to restart; CTRL-E ends both of its modes. */
+static void reap_pausetest(void)
+{
+    for (int i = 0; i < 30; i++) {
+        IExec->Forbid();
+        struct Task *t = IExec->FindTask("pausetest");
+        if (t) {
+            if (t->tc_State == TS_SUSPENDED) IExec->RestartTask(t, 0);
+            IExec->Signal(t, SIGBREAKF_CTRL_E);
+        }
+        IExec->Permit();
+        if (!t) {
+            if (i) printf("  (ended a leftover pausetest task with CTRL-E)\n");
+            return;
+        }
+        IDOS->Delay(5);
+    }
+    ok(0, "a pausetest task is still there after CTRL-E: reboot before the next run");
+}
+
 static void test_oskill(void)
 {
     printf("== stop a program that is in AmigaOS calls\n");
@@ -705,6 +728,7 @@ int main(int argc, char **argv)
         if (only && strcmp(only, tests[i].name)) continue;
         tests[i].fn();
         cleanup();
+        reap_pausetest();
     }
     dbg_destroy(S);
     printf("dbgtest: %d passed, %d failed\n", g_pass, g_fail);
