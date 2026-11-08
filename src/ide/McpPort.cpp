@@ -6,6 +6,7 @@
 // Every command here returns at once: a build or a debugger step is started, and the
 // assistant polls GETSTATE until it has finished.
 #include "App.h"
+#include "BasicModel.h"   // --- basic ---
 #include "Commands.h"
 #include "RexxCmd.h"
 #include "McpCmd.h"
@@ -479,7 +480,14 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
             runPython();
             return mcpMessages.empty() ? "" : fail(10, trim(mcpMessages));
         }
-        if (project.runcmd.empty() && !fileExists(project.outputPath()))
+        // --- basic --- RUNPROGRAM runs boing run (interpreted); CAPTURE sends its output to the file
+        const bool bas = project.isBasic();
+        if (bas && !a.has("CAPTURE")) {
+            runBasic();
+            return mcpMessages.empty() ? "" : fail(10, trim(mcpMessages));
+        }
+        if (bas && boingCommand().empty()) return fail(10, "the Boing BASIC compiler (boing) isn't found");
+        if (!bas && project.runcmd.empty() && !fileExists(project.outputPath()))
             return fail(10, "the program isn't built: " + project.outputPath());
         if (!a.has("CAPTURE")) {
             runProgram();
@@ -496,6 +504,7 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         }
         std::string cmdline = project.runcmd.empty()
             ? "\"" + project.outputPath() + "\"" + (project.args.empty() ? "" : " " + project.args) : project.runcmd;
+        if (bas && project.runcmd.empty()) cmdline = basic::runCommand(boingCommand(), project.basicTarget(), project.args);
         mcpRunTask = "AmiForge MCP run " + project.name;
         BPTR dir = IDOS->Lock(project.dir.c_str(), SHARED_LOCK);
         BPTR old = dir ? IDOS->SetCurrentDir(dir) : 0;

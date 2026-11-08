@@ -92,6 +92,15 @@ struct Project {
     bool isPython() const;
     std::string pythonMain() const;   // relative to dir; "" if the project has no .py file
     // --- end lang ---
+    // --- basic --- Boing BASIC projects (BasicModel.h): language=basic, the .bbp names the
+    // modules/forms/classes; Build runs boing check + boing build, Run runs boing run.
+    // `interpreter` is the boing command for them (empty: ENV:AmiForge/Boing, else found).
+    std::string bbp;            // the .bbp, relative to dir
+    bool isBasic() const;
+    std::string basicTarget() const;  // what boing is given: the .bbp, else the first .bas
+    bool loadBbp(const std::string &bbpPath, std::string &err);   // a project made from a .bbp
+    bool syncBbp(std::string &err);   // the .bbp's Module/Form/Class lines from `files`
+    // --- end basic ---
     std::vector<std::string> files;    // relative to dir
     std::vector<std::string> watches;
     struct Bp { std::string file; int line; bool enabled; std::string cond; };
@@ -744,6 +753,16 @@ public:
     void setNextStatement();                     // Shift-Ctrl-F10
     void runToFunction();                        // Alt-F10
     // --- end lang ---
+    // --- basic --- Boing BASIC projects (BasicUI.cpp, BasicDesign.cpp; the OS-free parts are in BasicModel.h)
+    std::string boingCommand(std::string *how = nullptr);   // project, ENV:AmiForge/Boing, or found
+    bool basicReady();                           // boing and something to give it, else explains
+    void buildBasic(const std::string &what);    // build, rebuild, clean, check
+    void runBasic();                             // boing run in a console
+    void runTrackBasic(const std::string &errorFile);   // the run just started
+    void basicRunEnded(const std::string &errorFile);   // RunControl: its runtime error into the build log
+    int basicRuns = 0;
+    std::string basicLastWhat;                   // the last buildBasic's `what`
+    // --- end basic ---
 };
 
 extern App *gApp;

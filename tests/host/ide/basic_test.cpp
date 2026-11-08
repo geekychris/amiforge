@@ -322,6 +322,7 @@ TEST(basic_commands)
     CHECK_EQ(buildCommand("SDK:C/boing", "My App.bbp", "myapp", false), std::string("SDK:C/boing build \"My App.bbp\" -o myapp --debug"));
     CHECK_EQ(buildCommand("boing", "a.bbp", "a", true), std::string("boing build a.bbp -o a"));
     CHECK_EQ(runCommand("boing", "a.bbp", "x y"), std::string("boing run a.bbp x y"));
+    CHECK_EQ(runCommand("boing", "a.bbp", "", "T:e.1"), std::string("boing run --error-file T:e.1 a.bbp"));
     std::string f, m;
     int l = 0;
     CHECK(parseRuntimeError("DH1:proj/main.bas:12: runtime error 9: Subscript out of range", f, l, m));

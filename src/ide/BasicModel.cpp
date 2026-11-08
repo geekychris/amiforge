@@ -775,9 +775,12 @@ std::string buildCommand(const std::string &boing, const std::string &target, co
     return c;
 }
 
-std::string runCommand(const std::string &boing, const std::string &target, const std::string &args)
+std::string runCommand(const std::string &boing, const std::string &target, const std::string &args,
+                       const std::string &errorFile)
 {
-    std::string c = quoteArg(boing) + " run " + quoteArg(target);
+    std::string c = quoteArg(boing) + " run ";
+    if (!errorFile.empty()) c += "--error-file " + quoteArg(errorFile) + " ";
+    c += quoteArg(target);
     if (!args.empty()) c += " " + args;
     return c;
 }

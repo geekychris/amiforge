@@ -129,7 +129,9 @@ std::string quoteArg(const std::string &s);       // AmigaDOS quoting when neede
 std::string checkCommand(const std::string &boing, const std::string &target);
 std::string buildCommand(const std::string &boing, const std::string &target, const std::string &output,
                          bool release, const std::string &extra = "");
-std::string runCommand(const std::string &boing, const std::string &target, const std::string &args);
+// errorFile: --error-file FILE (boing writes a runtime error there too)
+std::string runCommand(const std::string &boing, const std::string &target, const std::string &args,
+                       const std::string &errorFile = "");
 std::string symbolsCommand(const std::string &boing, const std::string &file);
 
 // Runtime errors from `boing run`: "file:line: runtime error 9: Subscript out of range".

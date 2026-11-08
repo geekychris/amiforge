@@ -13,9 +13,12 @@
 //   watch=p->next
 #include "App.h"
 #include "LangTools.h"   // --- lang ---
+#include "BasicModel.h"  // --- basic ---
 
 #include <stdlib.h>
 #include <strings.h>
+#include <algorithm>
+#include <ctype.h>
 
 namespace af {
 
@@ -47,6 +50,15 @@ static std::string unescapeNewlines(const std::string &v)
 
 bool Project::load(const std::string &afp, std::string &err)
 {
+    // --- basic --- a .bbp opens the AmiForge project beside it, or makes one from it
+    if (extension(afp) == "bbp") {
+        std::string beside = afp.substr(0, afp.size() - 4) + ".afp";
+        if (!fileExists(beside)) return loadBbp(afp, err);
+        if (!load(beside, err)) return false;
+        if (bbp.empty()) bbp = rel(absolutePath(afp));
+        if (language.empty()) language = "basic";
+        return true;
+    }
     std::string text;
     if (!readFile(afp, text)) { err = "Can't read " + afp; return false; }
     *this = Project();
@@ -94,6 +106,7 @@ bool Project::load(const std::string &afp, std::string &err)
             else if (k == "interpreter") interpreter = v;
             else if (k == "main") mainScript = v;
             // --- end lang ---
+            else if (k == "bbp") bbp = v;   // --- basic ---
         } else if (section == "files" && k == "file") {
             files.push_back(v);
         } else if (section == "watches" && k == "watch") {
@@ -151,6 +164,7 @@ bool Project::save(std::string &err)
     if (!interpreter.empty()) s += "interpreter=" + interpreter + "\n";
     if (!mainScript.empty()) s += "main=" + mainScript + "\n";
     // --- end lang ---
+    if (!bbp.empty()) s += "bbp=" + bbp + "\n";   // --- basic ---
     s += "\n[files]\n";
     for (auto &f : files) s += "file=" + f + "\n";
     if (!breakpoints.empty()) {
@@ -197,6 +211,79 @@ std::string Project::pythonMain() const
     return "";
 }
 // --- end lang ---
+
+// --- basic ---
+bool Project::isBasic() const
+{
+    if (language == "basic") return true;
+    if (!language.empty()) return false;
+    if (!bbp.empty()) return true;
+    for (auto &f : files)
+        if (extension(f) == "bbp") return true;
+    return false;
+}
+
+std::string Project::basicTarget() const
+{
+    if (!bbp.empty()) return bbp;
+    for (auto &f : files)
+        if (extension(f) == "bbp") return f;
+    for (auto &f : files)
+        if (basic::isBasicFile(f)) return f;
+    return "";
+}
+
+bool Project::loadBbp(const std::string &bbpPath, std::string &err)
+{
+    std::string text;
+    if (!readFile(bbpPath, text)) { err = "Can't read " + bbpPath; return false; }
+    basic::Bbp b;
+    basic::parseBbp(text, b);
+    *this = Project();
+    std::string full = absolutePath(bbpPath);
+    path = full.substr(0, full.size() - 4) + ".afp";
+    dir = dirName(full);
+    std::string base = fileName(full);
+    base = base.substr(0, base.size() - 4);
+    name = b.name.empty() ? base : b.name;
+    output = base;
+    for (char &c : output) c = (char)tolower((unsigned char)c);
+    language = "basic";
+    bbp = fileName(full);
+    files.push_back(bbp);
+    for (auto &f : b.allFiles())
+        if (std::find(files.begin(), files.end(), f) == files.end()) files.push_back(f);
+    return true;
+}
+
+bool Project::syncBbp(std::string &err)
+{
+    std::string target = basicTarget();
+    if (target.empty() || extension(target) != "bbp") return true;
+    std::string text;
+    basic::Bbp b;
+    if (readFile(abs(target), text)) basic::parseBbp(text, b);
+    if (b.name.empty()) b.name = name;
+    std::vector<std::string> forms, modules, classes;
+    for (auto &f : files) {
+        std::string e = extension(f);
+        if (e == "afg") forms.push_back(f);
+        else if (e == "cls") classes.push_back(f);
+    }
+    for (auto &f : files)
+        if (extension(f) == "bas" && basic::formOf(f, forms).empty()) modules.push_back(f);
+    if (forms == b.forms && modules == b.modules && classes == b.classes) return true;
+    b.forms = forms;
+    b.modules = modules;
+    b.classes = classes;
+    if (b.startup.empty()) {
+        std::string first = forms.empty() ? "" : fileName(forms[0]);
+        b.startup = forms.empty() ? "Sub Main" : "Form " + first.substr(0, first.size() - 4);
+    }
+    if (!writeFile(abs(target), basic::writeBbp(b))) { err = "Can't write " + abs(target); return false; }
+    return true;
+}
+// --- end basic ---
 
 bool Project::contains(const std::string &absPath) const
 {
