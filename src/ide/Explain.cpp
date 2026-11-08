@@ -506,8 +506,8 @@ Explanation explainDiagnostic(const std::string &raw, const std::string &sourceL
             if (n == *f) {
                 e.rule = "libm";
                 e.title = n + "() is in the maths library";
-                e.text = "Add -lm to the libraries (Project > Settings). Floating-point code should also be built "
-                         "with -mcpu=440fp on the sam460ex, not plain -mcpu=440.";
+                e.text = "Add -lm to the libraries (Project > Settings). Build for a generic PowerPC (-mcpu=powerpc, "
+                         "hard float with the SDK's GCC 11) rather than -mcpu=440/440fp, whose code crashes on X5000, A1222 and G3/G4 machines.";
                 return e;
             }
         e.rule = "undefined-reference";
@@ -796,7 +796,7 @@ Explanation explainCrash(const CrashInfo &c)
     if (c.trapType == 0x800) {
         e.rule = "fpu-unavailable";
         e.title = "Floating point unavailable";
-        e.text = "Build floating-point code with -mcpu=440fp (hard float) consistently; mixing soft-float and "
+        e.text = "Build all floating-point code hard float (-mcpu=powerpc) consistently; mixing soft-float and "
                  "hard-float objects or libraries causes this.";
         return e;
     }
