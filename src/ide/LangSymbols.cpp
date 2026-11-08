@@ -8,6 +8,8 @@
 #include <set>
 #include <sstream>
 
+#include "BasicModel.h"   // --- basic ---
+
 namespace af {
 
 namespace {
@@ -569,7 +571,7 @@ bool hasOutline(Language lang)
     switch (lang) {
     case Language::C: case Language::Asm: case Language::Python: case Language::Lua: case Language::Perl:
     case Language::Shell: case Language::ARexx: case Language::AmigaDOS: case Language::Markdown:
-    case Language::YAML: case Language::JSON:
+    case Language::YAML: case Language::JSON: case Language::Basic:
         return true;
     default:
         return false;
@@ -590,6 +592,7 @@ std::vector<Symbol> outlineSymbols(const std::string &text, Language lang)
     case Language::Markdown: return markdownOutline(text);
     case Language::YAML: return yamlOutline(text);
     case Language::JSON: return jsonOutline(text);
+    case Language::Basic: return basic::outline(text);   // --- basic ---
     default: return {};
     }
 }
@@ -606,6 +609,7 @@ std::string maskCode(const std::string &text, Language lang)
     case Language::ARexx: return maskARexx(text);
     case Language::AmigaDOS: return maskAmigaDOS(text);
     case Language::JSON: return maskJSON(text);
+    case Language::Basic: return basic::maskCode(text);   // --- basic ---
     default: return text;
     }
 }
@@ -614,7 +618,8 @@ bool isReservedWord(const std::string &s, Language lang)
 {
     if (lang == Language::C || lang == Language::Asm) return isReservedWord(s);
     std::string kw = std::string(" ") + languageKeywords(lang, 0) + " ";
-    if (lang == Language::ARexx || lang == Language::AmigaDOS) {
+    if (lang == Language::ARexx || lang == Language::AmigaDOS || lang == Language::Basic) {   // --- basic ---
+        if (lang == Language::Basic) kw += std::string(languageKeywords(lang, 2)) + " ";
         kw = lowerStr(kw);
         return kw.find(" " + lowerStr(s) + " ") != std::string::npos;
     }
@@ -624,6 +629,7 @@ bool isReservedWord(const std::string &s, Language lang)
 std::vector<size_t> findIdentifier(const std::string &text, const std::string &name, Language lang)
 {
     if (lang == Language::C || lang == Language::Asm) return findIdentifier(text, name, lang == Language::Asm);
+    if (lang == Language::Basic) return basic::findIdentifier(text, name);   // --- basic --- any case
     std::vector<size_t> out;
     if (name.empty()) return out;
     const bool rexx = lang == Language::ARexx;
