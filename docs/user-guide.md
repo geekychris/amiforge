@@ -1174,8 +1174,9 @@ their case, strings (`""` is a quote), `'` and `Rem` comments, numbers (`&HFF`, 
 
 - **Package Release** builds with `boing build` without `--debug` (optimised) and packages
   that program.
-- **Debug** (F5) builds natively and starts the debugger on the program. The generated C has
-  `#line` directives that point at the `.bas` lines (see below for how far that goes yet).
+- **F5** is Visual Basic's Run: it checks and starts the project in the interpreter (the
+  `Startup=` form or `Sub Main`). When the project's `.bas` files have breakpoints (F9), F5
+  makes a native debug build instead and starts the debugger, so they stop.
 
 AmiForge looks for the `boing` command in **Project > Settings > Boing BASIC command**, then in
 the variable `AmiForge/Boing` (`setenv SAVE AmiForge/Boing Work:BoingBASIC/boing`), then in
@@ -1188,11 +1189,17 @@ no C code. The form's code is its code-behind module, and every object with an *
 is a control of that name in BASIC: `who.Text`, `greet.Enabled = False`, `names.AddItem "x"`.
 The window is `Me` in its code and is called by its **Code name** elsewhere (`main.Show`).
 
+- The **palette** is laid out like Visual Basic's Toolbox, with VB's names: Label, TextBox,
+  CommandButton, CheckBox, OptionButtons, ComboBox, ListBox, ScrollBar, Slider, Number field,
+  Timer, Canvas (PictureBox), multi-line TextBox, File chooser, ProgressBar, then the frames
+  (vertical and horizontal groups) and Space.
 - **Double-click a control** in the Layout tree, or click it twice in the preview, and the
   editor opens the form's `.bas` at its default event's Sub: `Sub greet_Click()` for a
   button, `who_Change` for a text field, `Form_Load` for the window. A Sub that isn't there yet
   is added (empty, with the event's parameters, such as `Form_Unload(Cancel As Integer)`) and
-  the cursor is put inside it, indented.
+  the cursor is put inside it, indented. A control without events of its own (Label, Canvas,
+  ProgressBar) opens `Form_Load` (a Canvas: `Form_KeyDown` once that has code), where such
+  controls are driven from.
 - The **Events** list under the properties shows every event of the selected object. Events
   that have code are marked **code**, empty Subs **empty**. Click one to go to its Sub (it's
   made if it's missing).
@@ -1236,12 +1243,24 @@ use.
 
 ### Debugging BASIC
 
-The debugger works on the native program `boing build --debug` makes. The generated C file
-has `#line` directives pointing at the `.bas` files, so the stabs debug information names
-BASIC lines: breakpoints set in a `.bas` file, stepping and the execution marker should then
-work on BASIC lines, with variables shown as the C variables the compiler made of them. This
-hasn't been checked against the real compiler yet. Stepping through the interpreter
-(`boing run`) isn't possible.
+The debugger works on the native program Build makes. `boing build --debug` writes C with
+`#line` directives that point at the `.bas` files; AmiForge compiles it with stabs debug
+information (it sets `BOING_CFLAGS=-gstabs`, as the debugger reads stabs) and keeps the C file
+beside the program. Then:
+
+- breakpoints set with F9 in a `.bas` file stop on that BASIC line;
+- **Step Over** (F10) and **Step Into** (F11) go from BASIC line to BASIC line: a step that
+  lands in the generated C, in one of the runtime's inline helpers (`boing.h`) or in the
+  runtime carries on until it's back on a BASIC line;
+- **Locals** in a BASIC procedure show the BASIC names and types (`total`, `Long`, `String`) and
+  leave out the compiler's temporaries; the **Call Stack** shows the procedures (`main`,
+  `ok_click`: the compiler writes them in lower case);
+- a String shows as the runtime's `bb_str` structure (expand it: `len` and `data`);
+- BASIC projects don't stop at `main()` (that's the generated C's): set a breakpoint instead.
+
+This was checked against the debug information of a cross-built program (breakpoint addresses,
+functions and locals for `.bas` lines); stepping through the interpreter (`boing run`) isn't
+possible.
 
 ### ARexx commands for the designer
 
@@ -1817,6 +1836,7 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | Alt-F5 / Break | Pause the program being debugged |
 | Shift-Alt-F5 | Restart debugging |
 | Ctrl-F5 / F6 | Build and run |
+| F5 (Boing BASIC project) | Run in the interpreter, or debug when `.bas` files have breakpoints |
 | Shift-Ctrl-F5 | Stop the program Run started (sends Ctrl-C) |
 | F7 | Build |
 | Alt-F7 | Boing BASIC: View Form / View Code |

@@ -130,6 +130,14 @@ void App::buildBasic(const std::string &what)
     updateToolbar();
 }
 
+bool App::basicHasBreakpoints()
+{
+    harvestBreakpoints(cur);
+    for (auto &b : project.breakpoints)
+        if (b.enabled && basic::isBasicFile(b.file)) return true;
+    return false;
+}
+
 void App::runBasic()
 {
     if (!basicReady()) return;

@@ -242,7 +242,7 @@ bool Designer::open(const std::string &afg)
     palette.win = tree.win = props.win = win;
     events.win = win;   // --- basic ---
     palette.detach();
-    for (Kind k : paletteKinds = gui::paletteKinds(basicMode)) palette.add({ kindInfo(k).title });   // --- basic --- + Timer
+    for (Kind k : paletteKinds = gui::paletteKinds(basicMode)) palette.add({ gui::paletteTitle(k, basicMode) });   // --- basic --- VB's Toolbox
     palette.attach(0);
     select(model.root());
     openPreview();
@@ -407,6 +407,25 @@ bool Designer::gotoEvent(const std::string &event)
     std::string kind = kindInfo(n->kind).name;
     const basic::ControlInfo *ci = basic::controlFor(kind);
     std::string ev = event.empty() && ci ? ci->defaultEvent : event;
+    if (ci && ev.empty() && event.empty() && n->kind != Kind::VLayout && n->kind != Kind::HLayout && n->kind != Kind::Space) {
+        // --- basic --- a control without events (Label, Canvas, ProgressBar): its code lives in
+        // the form's events, so double-click opens Form_Load (a Canvas: Form_KeyDown if there's
+        // code there already)
+        idOf(n);
+        if (modified) save();
+        std::string fe = "Load";
+        if (n->kind == Kind::Canvas) {
+            std::vector<int> st = app.basicEventStates(path, model.window.get("name"), "window");
+            const basic::ControlInfo *wi = basic::controlFor("window");
+            for (size_t i = 0; wi && i < wi->events.size() && i < st.size(); i++)
+                if (wi->events[i].name == "KeyDown" && st[i] == 2) fe = "KeyDown";
+        }
+        bool ok = app.basicGotoEvent(path, model.window.get("name"), "window", fe);
+        app.setStatus(std::string("A ") + gui::paletteTitle(n->kind, true) + " has no events of its own: Form_" + fe +
+                      (n->kind == Kind::Canvas ? " (draw from a Timer or the form's KeyDown)" : ""));
+        refreshEvents();
+        return ok;
+    }
     if (!ci || ev.empty()) {
         setStatus(std::string("A ") + kindInfo(n->kind).title + " has no events.");
         return false;

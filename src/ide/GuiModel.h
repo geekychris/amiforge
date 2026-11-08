@@ -57,7 +57,9 @@ const KindInfo *kindByName(const std::string &name);
 // The kinds the designer's palette offers, in order; the Timer and the Canvas only for Boing
 // BASIC forms (the C code generator has nothing to make of them).
 bool basicOnly(Kind k);
+// For BASIC the order and names are Visual Basic's Toolbox (CommandButton, TextBox, ...).
 std::vector<Kind> paletteKinds(bool basic = false);
+const char *paletteTitle(Kind k, bool basic);
 
 struct Node {
     Kind kind = Kind::Button;

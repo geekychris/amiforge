@@ -761,6 +761,7 @@ public:
     bool basicReady();                           // boing and something to give it, else explains
     void buildBasic(const std::string &what);    // build, rebuild, clean, check
     void runBasic();                             // boing run in a console
+    bool basicHasBreakpoints();                  // enabled breakpoints in .bas files (F5 debugs then)
     void runTrackBasic(const std::string &errorFile);   // the run just started
     void basicRunEnded(const std::string &errorFile);   // RunControl: its runtime error into the build log
     int basicRuns = 0;

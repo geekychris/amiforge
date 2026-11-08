@@ -125,6 +125,10 @@ void App::handleMenu(uint32_t cmd)
     case CMD_DEBUG_START:
         profileNext = false;   // --- debugtools ---
         if (stopped() || pausePending()) debugContinue();   // Continue also cancels a pending pause
+        // --- basic --- F5 in a Boing BASIC project is VB's Run: the interpreter starts the
+        // project's Startup form or Sub at once; with breakpoints in its .bas files it's a native
+        // debug build instead, so they stop
+        else if (!debugging() && project.isBasic() && !basicHasBreakpoints()) buildBeforeRun(1);
         else if (!debugging()) buildBeforeRun(2);
         break;
     case CMD_DEBUG_STOP: debugStop(); break;

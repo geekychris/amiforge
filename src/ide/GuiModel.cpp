@@ -113,10 +113,40 @@ const KindInfo *kindByName(const std::string &name)
     return nullptr;
 }
 
+const char *paletteTitle(Kind k, bool basic)
+{
+    if (basic) switch (k) {
+        case Kind::Label: return "Label";
+        case Kind::String: return "TextBox";
+        case Kind::Button: return "CommandButton";
+        case Kind::CheckBox: return "CheckBox";
+        case Kind::Radio: return "OptionButtons";
+        case Kind::Chooser: return "ComboBox";
+        case Kind::ListBrowser: return "ListBox";
+        case Kind::Scroller: return "ScrollBar";
+        case Kind::Slider: return "Slider";
+        case Kind::Integer: return "Number field";
+        case Kind::Timer: return "Timer";
+        case Kind::Canvas: return "Canvas (PictureBox)";
+        case Kind::TextEditor: return "TextBox (multi-line)";
+        case Kind::GetFile: return "File chooser";
+        case Kind::FuelGauge: return "ProgressBar";
+        case Kind::VLayout: return "Frame: vertical group";
+        case Kind::HLayout: return "Frame: horizontal group";
+        case Kind::Space: return "Space";
+        default: break;
+    }
+    return kindInfo(k).title;
+}
+
 bool basicOnly(Kind k) { return k == Kind::Timer || k == Kind::Canvas; }
 
 std::vector<Kind> paletteKinds(bool basic)
 {
+    if (basic)   // Visual Basic's Toolbox order, then the layout groups
+        return { Kind::Label, Kind::String, Kind::Button, Kind::CheckBox, Kind::Radio, Kind::Chooser,
+                 Kind::ListBrowser, Kind::Scroller, Kind::Slider, Kind::Integer, Kind::Timer, Kind::Canvas,
+                 Kind::TextEditor, Kind::GetFile, Kind::FuelGauge, Kind::VLayout, Kind::HLayout, Kind::Space };
     std::vector<Kind> v;
     for (int i = (int)Kind::VLayout; i < (int)Kind::Count; i++)
         if (basic || !basicOnly((Kind)i)) v.push_back((Kind)i);

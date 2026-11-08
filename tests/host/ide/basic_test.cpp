@@ -617,6 +617,14 @@ TEST(basic_form_template_to_designer_flow)
     g = gui::generate(m, "");
     CHECK(g.source.find("VIEW") == std::string::npos);
     CHECK(gui::paletteKinds(false).size() + 2 == gui::paletteKinds(true).size());
+    // the BASIC palette is VB's Toolbox: every kind once, CommandButton named so
+    std::set<int> seen;
+    for (gui::Kind k : gui::paletteKinds(true)) CHECK(seen.insert((int)k).second);
+    CHECK_EQ(std::string(gui::paletteTitle(gui::Kind::Button, true)), std::string("CommandButton"));
+    CHECK_EQ(std::string(gui::paletteTitle(gui::Kind::Button, false)), std::string("Button"));
+    for (gui::Kind k : gui::paletteKinds(true))
+        if (k != gui::Kind::VLayout && k != gui::Kind::HLayout && k != gui::Kind::Space)
+            CHECK(controlFor(gui::kindInfo(k).name) != nullptr);   // every control kind is in the contract
     std::string again = m.write();
     CHECK(again.find("canvas id=view width=400") != std::string::npos);
     gui::Model m2;
