@@ -39,7 +39,7 @@
 
 #define POLL_MS        10       /* hit polling while the program runs */
 #define QUICK_WAIT_MS  40       /* how long an internal resume waits for its next hit */
-#define KILL_WAIT_MS   2000
+#define KILL_WAIT_MS   5000     /* how long a kill waits for the unwound program to end */
 #define DEFAULT_STACK  (256 * 1024)
 #define EXIT_KILLED    20       /* RETURN_FAIL */
 #define MAX_FRAMES     64
@@ -750,7 +750,7 @@ int dbg_load(dbg_session *s, const char *path, const char *args, const char *cwd
     return 1;
 }
 
-static void wait_death(dbg_session *s, uint32_t ms);
+static void wait_death(dbg_session *s, uint32_t ms, int kick_it);
 static void kill_now(dbg_session *s);
 
 void dbg_unload(dbg_session *s)
@@ -1680,16 +1680,47 @@ int dbg_pause(dbg_session *s)
     return 1;
 }
 
-static void wait_death(dbg_session *s, uint32_t ms)
+/* Waits for the program's death message. kick: the program was just unwound by a kill and must
+ * run to its end. OS4 sometimes leaves a restarted task with a debug hook marked ready without
+ * dispatching it (see task_in_limbo); a slow machine makes that likelier. So while it sits ready
+ * at the same address, or ready but off the ready list, suspend and restart it. Never while DOS
+ * is cleaning up a process that has returned (suspending it there left it hanging). */
+static void wait_death(dbg_session *s, uint32_t ms, int kick_it)
 {
-    for (uint32_t t = 0; t < ms && s->proc; t += 5) {
-        if (IExec->GetMsg(s->dport)) { report_exit(s); return; }
+    uint32_t t = 0, last_ip = 0;
+    int same = 0, kicks = 0;
+    for (; t < ms && s->proc; t += 5) {
+        if (IExec->GetMsg(s->dport)) {
+            trace(s, "kill: it ended after %lu ms (%d kicks)", (unsigned long)t, kicks);
+            report_exit(s);
+            return;
+        }
         if (s->exc_count != s->seen) {               /* crashed on the way out: give up on it */
             s->seen = s->exc_count;
-            break;
+            trace(s, "kill: exception %lx at %08lx on the way out, after %lu ms", (unsigned long)s->exc.Traptype, (unsigned long)s->exc.ip, (unsigned long)t);
+            return;
+        }
+        if (kick_it && t % 100 == 0) {
+            struct Task *tk = (struct Task *)s->proc;
+            if (tk->tc_State == TS_READY) {
+                struct ExceptionContext c;
+                s->idebug->ReadTaskContext(tk, &c, RTCF_STATE);
+                same = c.ip == last_ip ? same + 1 : 0;
+                last_ip = c.ip;
+                if (task_in_limbo(tk) || same >= 2) {
+                    trace(s, "kill: kicking the unwound task (ready at %08lx%s)", (unsigned long)c.ip, same >= 2 ? "" : ", not queued");
+                    IExec->SuspendTask(tk, 0);
+                    if (s->exc_count == s->seen && tk->tc_State == TS_SUSPENDED) IExec->RestartTask(tk, 0);
+                    same = 0;
+                    kicks++;
+                }
+            } else {
+                same = 0;
+            }
         }
         delay_ms(s, 5);
     }
+    if (s->proc) trace(s, "kill: no death message within %lu ms (task state %d, %d kicks)", (unsigned long)t, ((struct Task *)s->proc)->tc_State, kicks);
 }
 
 /* The kill couldn't finish: the process stays, so nothing it may still use may go away. It is
@@ -1808,7 +1839,7 @@ static void kill_now(dbg_session *s)
          * the entry context means nothing any more (restoring it crashed the process). Let it
          * finish, at a normal priority. */
         IExec->SetTaskPri(t, 0);
-        wait_death(s, 5000);
+        wait_death(s, 5000, 0);
         if (s->proc) abandon(s, 1, "it has returned, but DOS hasn't finished cleaning it up");
         return;
     }
@@ -1858,7 +1889,7 @@ static void kill_now(dbg_session *s)
     trace(s, "kill: unwinding from %08lx", (unsigned long)s->ctx.ip);
     s->idebug->WriteTaskContext(t, &c, RTCF_STATE | RTCF_GENERAL | RTCF_SPECIAL);
     IExec->RestartTask(t, 0);
-    wait_death(s, KILL_WAIT_MS);
+    wait_death(s, KILL_WAIT_MS, 1);
     if (s->proc) abandon(s, 0, "it didn't end after being unwound");
 }
 
