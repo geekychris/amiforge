@@ -137,7 +137,7 @@ void ColouriseBoing(Sci_PositionU startPos, Sci_Position length, int, WordList *
                 // #1/2/2026# is a date; "#1" after Open/Print/Close is a file number
                 Sci_Position e = sc.currentPos + 1;
                 bool date = false;
-                while (e < sc.currentPos + 30) {
+                while (e < static_cast<Sci_Position>(sc.currentPos) + 30) {
                     const char c = styler.SafeGetCharAt(e);
                     if (c == '#') { date = true; break; }
                     if (!(IsADigit(c) || c == '/' || c == '-' || c == ':' || c == ' ' || std::isalpha((unsigned char)c))) break;
