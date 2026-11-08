@@ -278,6 +278,31 @@ timer id=tick interval=1000 enabled=1
 Timers run on timer.device. Events never overlap: a `Timer` event that is still running when
 the next one is due skips that tick.
 
+## Canvas (`canvas`) — a drawing surface (VB `PictureBox`, for graphics and games) — **new .afg kind**
+
+```
+canvas id=view width=400 height=300
+```
+
+The layout gives it at least `width` x `height` pixels. Programs draw into an off-screen
+picture and show it with `Refresh`. The full reference is [graphics.md](graphics.md).
+
+| Property | Type | Design-time key | Notes |
+|---|---|---|---|
+| `Width`, `Height` | Long, R/O | `width`, `height` | the picture size |
+| `ForeColor`, `FillColor`, `BackColor` | Long | — | VB colours (`RGB()`) |
+| `CurrentX`, `CurrentY` | Long | — | |
+| `Frames` | Long, R/O | — | |
+
+Methods: `Cls`, `PSet`, `Line` (`B`/`BF`), `Box`, `Rect`, `Circle`, `Polygon`, `PSetMany`,
+`Point`, `DrawText`, `Print`, `TextWidth`, `TextHeight`, `Refresh` (`Flip`, `EndDraw`),
+`BeginDraw`, `KeyDown`, `CreateImage`, `LoadImage`, `SetTarget`, `DrawImage`,
+`DrawImagePart`, `ImageWidth`, `ImageHeight`, `FreeImage`, `SaveImage`, `Hash`, `Resize`
+(see graphics.md for their arguments).
+
+No events: keys arrive as the form's `KeyDown`/`KeyUp`, and `view.KeyDown(k)` gives a key's
+state at any time. Animate it from a `Timer`.
+
 ## Requesters
 
 - `MsgBox(prompt [, buttons [, title]])` — an Intuition requester (requester.class) with the

@@ -523,6 +523,18 @@ TEST(basic_forms_events_contract)
         for (auto &p : tm->properties) interval = interval || p.name == "Interval";
         CHECK(interval);
     }
+    const ControlInfo *cv = find("canvas");
+    CHECK(cv != nullptr);
+    if (cv) {
+        CHECK(cv->events.empty() && cv->defaultEvent.empty());
+        bool cls = false, line = false, b = false, setFocus = false;
+        for (auto &m : cv->methods) {
+            cls = cls || m.name == "Cls"; line = line || m.name == "Line"; b = b || m.name == "B" || m.name == "BF";
+            setFocus = setFocus || m.name == "SetFocus";
+        }
+        CHECK(cls && line && !b && !setFocus);
+        CHECK(cv->methods.size() >= 20);
+    }
     const ControlInfo *sl = find("slider");
     if (sl) CHECK(sl->event("Scroll") != nullptr && sl->defaultEvent == "Change");
 }
@@ -599,7 +611,14 @@ TEST(basic_form_template_to_designer_flow)
     t->set("interval", "500");
     gui::Generated g = gui::generate(m, "");
     CHECK(g.source.find("tick") == std::string::npos || g.source.find("TIMER") == std::string::npos);
+    gui::Node *cv = m.root()->add(gui::Kind::Canvas);
+    cv->set("id", "view");
+    cv->set("width", "400");
+    g = gui::generate(m, "");
+    CHECK(g.source.find("VIEW") == std::string::npos);
+    CHECK(gui::paletteKinds(false).size() + 2 == gui::paletteKinds(true).size());
     std::string again = m.write();
+    CHECK(again.find("canvas id=view width=400") != std::string::npos);
     gui::Model m2;
     CHECK(m2.parse(again, err));
     CHECK(m2.findById("tick") && m2.findById("tick")->kind == gui::Kind::Timer);

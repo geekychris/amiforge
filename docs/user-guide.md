@@ -1215,10 +1215,13 @@ The window is `Me` in its code and is called by its **Code name** elsewhere (`ma
 | getfile | (file chooser) | Change | Change |
 | texteditor | (multi-line TextBox) | Change | Change |
 | timer | Timer | Timer | Timer |
+| canvas | (PictureBox) | - | none: the form's KeyDown/KeyUp and a Timer drive it |
 
 Labels, spaces and fuel gauges have no events. The palette has a **Timer (BASIC)** in a Boing
 BASIC form: it takes no space in the window (the preview leaves it out) and has an
-**Interval** in milliseconds and **Enabled**; `<id>_Timer` runs every Interval.
+**Interval** in milliseconds and **Enabled**; `<id>_Timer` runs every Interval. **Canvas
+(BASIC)** is a drawing surface for graphics and games (`view.Cls`, `view.Line`,
+`view.Refresh`...) of **Width** x **Height** pixels; the preview shows a box of that size.
 
 The table, with each control's properties and methods (which completion offers after `ok.`),
 comes from Boing BASIC's `docs/forms-events.md`, the contract between its forms runtime and

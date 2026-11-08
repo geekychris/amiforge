@@ -94,6 +94,12 @@ static const std::vector<KindInfo> &kinds()
           { { "id", "ID name", PropType::Ident, "", nullptr },
             { "interval", "Interval (ms, 0 = off)", PropType::Int, "0", nullptr },
             { "enabled", "Enabled", PropType::Bool, "1", nullptr } } },
+        { Kind::Canvas, "canvas", "Canvas (BASIC)", false, false, "canvas",
+          { { "id", "ID name", PropType::Ident, "", nullptr },
+            { "width", "Width (pixels)", PropType::Int, "320", nullptr },
+            { "height", "Height (pixels)", PropType::Int, "200", nullptr },
+            { "label", "Label (left)", PropType::Text, "", nullptr },
+            { "weight", "Weight (0 = minimum size)", PropType::Int, "", nullptr } } },
     };
     return k;
 }
@@ -107,11 +113,13 @@ const KindInfo *kindByName(const std::string &name)
     return nullptr;
 }
 
+bool basicOnly(Kind k) { return k == Kind::Timer || k == Kind::Canvas; }
+
 std::vector<Kind> paletteKinds(bool basic)
 {
     std::vector<Kind> v;
     for (int i = (int)Kind::VLayout; i < (int)Kind::Count; i++)
-        if (basic || (Kind)i != Kind::Timer) v.push_back((Kind)i);
+        if (basic || !basicOnly((Kind)i)) v.push_back((Kind)i);
     return v;
 }
 
@@ -508,7 +516,7 @@ struct Gen {
             if (n->getBool("even")) tag("LAYOUT_EvenSize", "TRUE");
             for (auto &c : n->children) {
                 Node *ch = c.get();
-                if (ch->kind == Kind::Timer) continue;   // --- basic --- not part of the window
+                if (basicOnly(ch->kind)) continue;   // --- basic --- Timer, Canvas: Boing BASIC's runtime makes them
                 bool image = ch->kind == Kind::Label;
                 s += I + (image ? "LAYOUT_AddImage, " : "LAYOUT_AddChild, ") + object(ch, ind + 4);
                 if (ch->has("label"))
@@ -621,7 +629,7 @@ struct Gen {
 
     void collect(Node *n)
     {
-        if (n->kind == Kind::Timer) return;   // --- basic ---
+        if (basicOnly(n->kind)) return;   // --- basic ---
         kindsUsed.insert(n->kind);
         if (n->has("label")) kindsUsed.insert(Kind::Label);
         if (!n->get("id").empty()) nodes.push_back(n);

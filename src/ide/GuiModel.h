@@ -28,6 +28,7 @@ enum class Kind {
     Window, VLayout, HLayout, Button, String, Integer, CheckBox, Chooser, Radio, Slider, Scroller,
     ListBrowser, Label, Space, FuelGauge, GetFile, TextEditor,
     Timer,      // --- basic --- Boing BASIC only: no gadget, the runtime fires <id>_Timer
+    Canvas,     // --- basic --- Boing BASIC only: a drawing surface of width x height
     Count
 };
 
@@ -53,8 +54,9 @@ struct KindInfo {
 
 const KindInfo &kindInfo(Kind k);
 const KindInfo *kindByName(const std::string &name);
-// The kinds the designer's palette offers, in order; the Timer only for Boing BASIC forms
-// (the C code generator has nothing to make of it).
+// The kinds the designer's palette offers, in order; the Timer and the Canvas only for Boing
+// BASIC forms (the C code generator has nothing to make of them).
+bool basicOnly(Kind k);
 std::vector<Kind> paletteKinds(bool basic = false);
 
 struct Node {

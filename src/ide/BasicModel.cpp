@@ -185,7 +185,7 @@ bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std:
     out.clear();
     static const char *const known[] = { "window", "button", "string", "integer", "checkbox", "chooser",
                                          "radio", "slider", "scroller", "listbrowser", "label", "space",
-                                         "fuelgauge", "getfile", "texteditor", "timer", nullptr };
+                                         "fuelgauge", "getfile", "texteditor", "timer", "canvas", nullptr };
     auto isKnown = [](const std::string &k) {
         for (const char *const *x = known; *x; x++) if (k == *x) return true;
         return false;
@@ -237,6 +237,30 @@ bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std:
         if (bare == "methods") { list = 2; continue; }
         if (bare == "events") { list = 3; continue; }
         if (l[0] == '#') continue;
+        // "Methods: `Cls`, `PSet`, `Line` (`B`/`BF`), ..." in prose (backquoted names outside
+        // parentheses), maybe over several lines
+        if (cur && (ll.compare(0, 8, "methods:") == 0 || (list == 4 && l[0] == '`'))) {
+            int depth = 0;
+            for (size_t i = 0; i < l.size(); i++) {
+                if (l[i] == '(') depth++;
+                else if (l[i] == ')') depth--;
+                else if (l[i] == '`') {
+                    size_t e = l.find('`', i + 1);
+                    if (e == std::string::npos) break;
+                    if (depth == 0) {
+                        Member m;
+                        splitMember(l.substr(i + 1, e - i - 1), m.name, m.params);
+                        bool have = false;
+                        for (auto &x : cur->methods) have = have || equalsNoCase(x.name, m.name);
+                        if (!m.name.empty() && !have) cur->methods.push_back(m);
+                    }
+                    i = e;
+                }
+            }
+            list = l.back() == '.' ? 0 : 4;   // continues on the next line until a full stop
+            continue;
+        }
+        if (list == 4) list = 0;
         std::vector<std::string> row;
         std::string item;
         if (l[0] == '|') {
@@ -326,7 +350,7 @@ bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std:
     // the common properties and gadget methods
     for (auto &c : out) {
         const bool gadget = c.kind != "label" && c.kind != "space" && c.kind != "fuelgauge" && c.kind != "timer" &&
-                            c.kind != "window";
+                            c.kind != "window" && c.kind != "canvas";
         if (c.kind != "window" && c.kind != "timer")
             for (auto &m : common) {
                 if (!gadget && (m.name == "Enabled" || m.name == "ToolTipText")) continue;

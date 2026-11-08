@@ -664,6 +664,10 @@ Object *Designer::build(Node *n)
                 tag(n->kind == Kind::HLayout ? CHILD_WeightedWidth : CHILD_WeightedHeight, (uint32)c->getInt("weight"));
             if (c->has("minwidth")) tag(CHILD_MinWidth, (uint32)c->getInt("minwidth"));
             if (c->has("minheight")) tag(CHILD_MinHeight, (uint32)c->getInt("minheight"));
+            if (c->kind == Kind::Canvas) {   // --- basic --- at least width x height
+                tag(CHILD_MinWidth, (uint32)std::max(16, c->getInt("width")));
+                tag(CHILD_MinHeight, (uint32)std::max(16, c->getInt("height")));
+            }
         }
         break;
     }
@@ -751,6 +755,11 @@ Object *Designer::build(Node *n)
     case Kind::TextEditor:
         cls = ITextEditor->TEXTEDITOR_GetClass();
         tag(GA_TEXTEDITOR_Contents, (uint32)keep(n->get("text")));
+        break;
+    case Kind::Canvas:   // --- basic --- a box of its size, labelled with its id
+        cls = IButton->BUTTON_GetClass();
+        tag(GA_ReadOnly, TRUE);
+        tag(GA_Text, (uint32)keep("Canvas " + n->get("id") + " (" + n->get("width") + " x " + n->get("height") + ")"));
         break;
     default:
         return nullptr;
