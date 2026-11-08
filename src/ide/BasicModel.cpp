@@ -712,7 +712,10 @@ std::vector<Symbol> parseSymbols(const std::string &output)
         if (line <= 0 || f[1].empty()) continue;
         std::string k = lower(f[0]);
         Symbol s{ SymKind::Function, f[1], line, 0, "" };
-        std::string sig = f.size() >= 5 ? f[4] : "";
+        // boing's format: kind, name, line, signature[, scope]; also accepted: kind, name, line, endline, signature
+        auto numeric = [](const std::string &x) { return !x.empty() && x.find_first_not_of("0123456789") == std::string::npos; };
+        std::string sig = f.size() >= 4 && !numeric(f[3]) ? f[3] : f.size() >= 5 ? f[4] : "";
+        if (f.size() >= 5 && !numeric(f[3]) && !f[4].empty()) s.depth = 1;   // inside a procedure (a local)
         size_t lp = sig.find('('), rp = sig.rfind(')');
         if (k == "sub" || k == "function") s.detail = lp != std::string::npos && rp != std::string::npos && rp > lp ? sig.substr(lp, rp - lp + 1) : "()";
         else if (k == "property-get" || k == "property-let" || k == "property-set") {

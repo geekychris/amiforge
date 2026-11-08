@@ -345,6 +345,14 @@ TEST(basic_symbols_output)
     CHECK(s[1].detail == "(ByVal n As Long)");
     CHECK(s[2].kind == SymKind::Method);
     CHECK(s[3].kind == SymKind::Struct);
+    // the format boing prints: kind, name, line, signature[, scope]; locals and labels are skipped
+    s = parseSymbols("sub\tMain\t1\tSub Main(ByVal n As Long)\nlocal\tx\t2\tDim x As Long\tMain\n"
+                     "const\tMax\t3\tConst Max = 3\n");
+    CHECK_EQ(s.size(), (size_t)2);
+    if (s.size() == 2) {
+        CHECK(s[0].name == "Main" && s[0].detail == "(ByVal n As Long)");
+        CHECK(s[1].kind == SymKind::Define);
+    }
 }
 
 TEST(basic_member_completion)
