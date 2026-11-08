@@ -546,7 +546,6 @@ bool Designer::setProperty(const std::string &key, const std::string &valueIn, s
     n->set(p->key, value);
     changed(false);
     if (basicMode && p->type == PropType::Ident && !oldId.empty() && oldId != value) {
-        if (!app.mcpQuiet && modified) save();
         app.basicRenameControl(path, oldId, value, kindInfo(n->kind).name, !app.mcpQuiet);
         refreshEvents();
     }

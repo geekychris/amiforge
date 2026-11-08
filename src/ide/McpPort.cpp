@@ -353,7 +353,9 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         if (!createFromTemplate(def->dir, name, target, afp, err, &toOpen)) return fail(10, "the project couldn't be made: " + err);
         openProject(afp);
         for (auto &f : toOpen)
-            if (fileExists(f)) openFile(f);
+            if (fileExists(f) && extension(f) != "afg") openFile(f);
+        for (auto &f : toOpen)   // --- basic --- a form opens in the designer
+            if (fileExists(f) && extension(f) == "afg") { openDesigner(f); break; }
         return afp;
     }
 

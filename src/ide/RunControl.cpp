@@ -112,7 +112,7 @@ static void act(App *app, RunCtl *rc, int bits)
         uint32 sigs = SIGBREAKF_CTRL_C;
         if (rc->model.alsoDEF()) sigs |= SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_E | SIGBREAKF_CTRL_F;
         signalPrograms(rc, sigs);
-        for (auto &p : rc->py) writeFile(p.stopFile, "stop\n");   // --- lang ---
+        for (auto &p : rc->py) if (!p.stopFile.empty()) writeFile(p.stopFile, "stop\n");   // --- lang --- (a boing run has none: Ctrl-C)
     }
     if (bits & robust::RA_ARM_TIMER) armTimer(rc, 3100);
     if (bits & robust::RA_OFFER_MORE) rc->offerPending = true;   // runIdle shows it (not under a dialog)
