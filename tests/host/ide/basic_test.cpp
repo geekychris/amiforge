@@ -623,3 +623,18 @@ TEST(basic_form_template_to_designer_flow)
     CHECK(m2.parse(again, err));
     CHECK(m2.findById("tick") && m2.findById("tick")->kind == gui::Kind::Timer);
 }
+
+TEST(basic_debugger_names)
+{
+    CHECK_EQ(basicVarName("l_total"), std::string("total"));
+    CHECK_EQ(basicVarName("s2"), std::string(""));
+    CHECK_EQ(basicVarName("t0"), std::string(""));
+    CHECK_EQ(basicVarName("bbL"), std::string(""));
+    CHECK_EQ(basicVarName("self"), std::string("self"));
+    CHECK_EQ(basicProcName("p1_main"), std::string("main"));
+    CHECK_EQ(basicProcName("p12_ok_click"), std::string("ok_click"));
+    CHECK_EQ(basicProcName("printf"), std::string("printf"));
+    CHECK_EQ(basicTypeName("bb_long"), std::string("Long"));
+    CHECK_EQ(basicTypeName("bb_str *"), std::string("String"));
+    CHECK_EQ(basicTypeName("int"), std::string("int"));
+}

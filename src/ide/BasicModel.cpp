@@ -758,6 +758,41 @@ std::vector<Symbol> parseSymbols(const std::string &output)
     return out;
 }
 
+// --- the debugger -----------------------------------------------------------------------------
+
+std::string basicVarName(const std::string &n)
+{
+    if (n.size() > 2 && n[0] == 'l' && n[1] == '_') return n.substr(2);
+    if (n.size() > 2 && n[0] == 'g' && n[1] == '_') return n.substr(2);   // module-level
+    if (n == "bbL" || n == "bbC" || n == "c" || n == "ctx") return "";
+    if (n.size() >= 2 && (n[0] == 's' || n[0] == 't') && n.find_first_not_of("0123456789", 1) == std::string::npos) return "";
+    return n;
+}
+
+std::string basicProcName(const std::string &n)
+{
+    if (n.size() > 2 && n[0] == 'p' && std::isdigit((unsigned char)n[1])) {
+        size_t us = n.find('_');
+        if (us != std::string::npos && n.find_first_not_of("0123456789", 1) == us) return n.substr(us + 1);
+    }
+    return n;
+}
+
+std::string basicTypeName(const std::string &t)
+{
+    std::string x = t;
+    while (!x.empty() && x.back() == ' ') x.pop_back();
+    static const struct { const char *c, *b; } map[] = {
+        { "bb_int", "Integer" }, { "bb_long", "Long" }, { "bb_single", "Single" }, { "bb_double", "Double" },
+        { "bb_cur", "Currency" }, { "bb_date", "Date" }, { "bb_bool", "Boolean" }, { "bb_byte", "Byte" },
+        { "bb_str *", "String" }, { "bb_str*", "String" }, { "struct bb_str *", "String" }, { "bb_value", "Variant" },
+        { "bb_obj *", "Object" }, { "struct bb_obj *", "Object" },
+    };
+    for (auto &m : map)
+        if (x == m.c) return m.b;
+    return t;
+}
+
 // --- projects ----------------------------------------------------------------------------
 
 std::vector<std::string> Bbp::allFiles() const

@@ -137,6 +137,8 @@ public:
     bool startPython(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds,
                      const std::vector<std::pair<std::string, std::string>> &env);
     bool busy() const { return running; }
+    // --- basic --- local variables for the next startCommands (BOING_CFLAGS)
+    void setNextEnv(const std::vector<std::pair<std::string, std::string>> &env) { nextEnv = env; }
     void stop();
     // --- hotpatch
     static std::string compileCommand(const Project &p, const std::string &src, const std::string &obj);
@@ -763,6 +765,8 @@ public:
     void basicRunEnded(const std::string &errorFile);   // RunControl: its runtime error into the build log
     int basicRuns = 0;
     std::string basicLastWhat;                   // the last buildBasic's `what`
+    int basicStepKind = -1, basicStepGuard = 0;  // a step from a BASIC line (DebugUI.cpp)
+    bool basicAutoStep(const dbg_event &ev);
     // the VB-style designer (BasicDesign.cpp): forms and their code-behind modules
     bool basicFormMode(const std::string &afg);  // the designer edits code-behind, not C
     void loadFormsEvents();                      // Boing BASIC's docs/forms-events.md, once

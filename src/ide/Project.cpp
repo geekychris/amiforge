@@ -249,6 +249,7 @@ bool Project::loadBbp(const std::string &bbpPath, std::string &err)
     output = base;
     for (char &c : output) c = (char)tolower((unsigned char)c);
     language = "basic";
+    stopAtMain = false;   // main() is the generated C's: set breakpoints in the .bas files
     bbp = fileName(full);
     files.push_back(bbp);
     for (auto &f : b.allFiles())

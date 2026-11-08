@@ -107,6 +107,14 @@ bool equalsNoCase(const std::string &a, const std::string &b);
 // Unknown lines are skipped.
 std::vector<Symbol> parseSymbols(const std::string &output);
 
+// --- the debugger on native builds -------------------------------------------------------
+// The C that boing build makes names a local "l_total", a procedure "p1_main", a type
+// "bb_long". In a frame of a .bas file the debugger shows them the BASIC way. A name that is
+// only the compiler's (temporaries s2/t0, bbL/bbC, cleanup frames) gives "" (hide it).
+std::string basicVarName(const std::string &cName);
+std::string basicProcName(const std::string &cName);    // "p1_main" -> "main"; others unchanged
+std::string basicTypeName(const std::string &cType);    // "bb_long" -> "Long", "bb_str *" -> "String"
+
 // --- projects (.bbp) -------------------------------------------------------------------------
 
 struct Bbp {

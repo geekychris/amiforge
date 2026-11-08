@@ -117,7 +117,10 @@ void App::buildBasic(const std::string &what)
     cmds.push_back({"Checking " + target, basic::checkCommand(boing, target)});
     if (what != "check")
         cmds.push_back({"Compiling " + target + " to " + fileName(project.output) + " (native, with debug information)",
-                        basic::buildCommand(boing, target, project.output, false)});
+                        basic::buildCommand(boing, target, project.output, false, "--keep-c")});
+    // the debugger reads stabs: GCC's -g alone gives DWARF (BOING_CFLAGS comes after it); the
+    // C file stays (--keep-c) for the lines between BASIC statements
+    if (what != "check") builder.setNextEnv({{"BOING_CFLAGS", "-gstabs"}});
     if (!builder.startCommands(project.dir, cmds)) {
         info("Couldn't start boing.");
         pendingAfterBuild = 0;

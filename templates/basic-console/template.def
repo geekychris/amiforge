@@ -4,6 +4,7 @@ description=A Boing BASIC program that starts in Sub Main and prints to its cons
 order=17
 [project]
 language=basic
+stopatmain=0
 bbp=${NAME}.bbp
 output=${LOWER}
 args=World

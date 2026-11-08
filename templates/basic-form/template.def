@@ -4,6 +4,7 @@ description=A window designed in the GUI Designer with its code in Boing BASIC, 
 order=16
 [project]
 language=basic
+stopatmain=0
 bbp=${NAME}.bbp
 output=${LOWER}
 [files]
