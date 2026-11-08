@@ -452,11 +452,12 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         if (debugging()) return fail(10, "stop debugging before building (DEBUGSTOP)");
         if (project.path.empty()) return fail(10, "no project is open");
         bool clean = a.has("CLEAN");
-        if (!clean && !sdkInstalled()) return fail(10, "the AmigaOS 4.1 SDK isn't installed (no SDK: assign)");
+        bool check = a.has("CHECK") && project.isBasic();   // --- basic --- boing check only
+        if (!clean && !check && !sdkInstalled()) return fail(10, "the AmigaOS 4.1 SDK isn't installed (no SDK: assign)");
         for (auto &d : docs)
             if (d->modified && d->path.empty()) return fail(10, d->title + " has never been saved: SAVEAS it first");
         pendingAfterBuild = 0;
-        build(clean ? "clean" : a.has("REBUILD") ? "rebuild" : "build");
+        build(clean ? "clean" : check ? "check" : a.has("REBUILD") ? "rebuild" : "build");
         if (!builder.busy()) return fail(10, mcpMessages.empty() ? "the build didn't start" : trim(mcpMessages));
         return "";
     }

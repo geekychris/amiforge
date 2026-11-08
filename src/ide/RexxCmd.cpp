@@ -55,7 +55,7 @@ const std::vector<CommandDef> &commands()
         { "SUBST", "FILE,OLD/A,NEW,ALL/S", "Replace exact text (must be unique unless ALL); RESULT = count<tab>line" },
         { "SAVEALL", "", "Save every modified file" },
         { "REVERT", "FILE", "Drop unsaved changes: reload the file from disk" },
-        { "STARTBUILD", "REBUILD/S,CLEAN/S", "Start a build now (no requesters); poll GETSTATE for build=idle" },
+        { "STARTBUILD", "REBUILD/S,CLEAN/S,CHECK/S", "Start a build now (no requesters); poll GETSTATE for build=idle; CHECK: Boing BASIC's boing check only" },
         { "STOPBUILD", "", "Stop the running build" },
         { "ERRORS", "ALL/S", "RESULT = the last build's messages: kind, file, line, col, text, explanation" },
         { "BUILDLOG", "", "RESULT = the build log as shown" },
