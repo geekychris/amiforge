@@ -9,7 +9,7 @@
 
 #include <strings.h>   // --- mcp ---
 
-static const char version[] __attribute__((used)) = "$VER: AmiForge 0.1 (24.10.2026)";
+static const char version[] __attribute__((used)) = "$VER: AmiForge 0.3 (8.11.2026)";
 static const char stack[] __attribute__((used)) = "$STACK: 524288";
 
 namespace af {

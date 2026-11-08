@@ -28,7 +28,7 @@ Build notes:
   and friends using `dlmzb`, an instruction only the PowerPC 440/460 cores have. QEMU's
   sam460ex runs it, so everything passes there, but real X5000 (e5500), A1222 and G3/G4
   machines stop with an illegal-instruction alert (0x80000004). AmiForge 0.1 and 0.2 were
-  built that way; 0.2.1 fixed it.
+  built that way; 0.3 fixed it.
 - `make` (and so `tools/build.sh` with no target) ends with `check-cpu`: `tools/check-cpu.sh`
   runs `ppc-amigaos-objdump -d` on the IDE, QEMUCopyFix, the test programs and the debuggee
   targets, and fails if any of them contains a `dlmzb`. `tools/make-dist.sh` runs the same
