@@ -106,6 +106,7 @@ void App::newProject()
     std::string err;
     if (!project.save(err)) info(err);
     else makeProjectIcon(project.path);
+    designerProjectChanged();   // --- basic ---
     refreshProjectList();
     refreshBreakpointList();
     for (auto &f : project.files)
@@ -131,6 +132,7 @@ void App::openProject(const std::string &pathIn)
     }
     if (!closeProjectFiles(*this)) return;
     project = p;
+    designerProjectChanged();   // --- basic ---
     addRecent(project.path);
     lastDir = project.dir;
     refreshProjectList();
@@ -188,6 +190,7 @@ void App::closeProject()
     if (debugging()) debugStop();
     saveProject();
     project = Project();
+    designerProjectChanged();   // --- basic ---
     diagnostics.clear();
     buildLog.clear();
     refreshProjectList();

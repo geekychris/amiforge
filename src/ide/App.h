@@ -783,6 +783,7 @@ public:
     void basicViewToggle();                      // View Form / View Code (Alt-F7)
     std::string designerPath();                  // the designer's .afg ("" if it isn't open)
     void designerToFront();
+    void designerProjectChanged();               // a project switch closes a designer on the old project's form
     bool designerCommand(const std::string &what, const std::string &arg1, const std::string &arg2,
                          std::string &out, std::string &err);   // MCP DESIGNER ... (Designer.cpp)
     std::string mcpLastSub;                      // the sub the last event jump went to

@@ -977,7 +977,17 @@ void App::closeDesigner()
 
 uint32_t App::designerSignals() { return designer ? designer->signals() : 0; }
 
-// --- basic ---
+// --- basic --- another project was opened (or the project closed): the designer's form belongs
+// to the old one, so it closes (asking about unsaved changes; under MCP they're saved)
+void App::designerProjectChanged()
+{
+    if (!designer) return;
+    if (!project.path.empty() && project.contains(designer->file())) return;
+    if (mcpQuiet) designer->saveFile();
+    else if (!designer->confirmClose()) return;
+    closeDesigner();
+}
+
 std::string App::designerPath() { return designer ? designer->file() : ""; }
 void App::designerToFront() { if (designer) designer->toFront(); }
 
