@@ -42,7 +42,7 @@ static const char *const kCommands[] = {
     "STEPOUT", "PAUSE", "RUNTO", "BREAK", "UNBREAK", "BREAKS", "LOCALS", "STACK", "FRAME", "EVAL", "REGS",
     "CRASH", "SYMBOLS", "REFERENCES", "GITSTATUS",
     // --- basic ---
-    "DESIGN", "DESIGNSELECT", "DESIGNEVENTS", "GOTOEVENT", "DESIGNSET", "DESIGNSAVE", "VIEWTOGGLE", "BASICSUBS",
+    "DESIGN", "DESIGNSELECT", "DESIGNEVENTS", "GOTOEVENT", "DESIGNSET", "DESIGNSAVE", "DESIGNADD", "VIEWTOGGLE", "BASICSUBS",
     "BASICCONTROLS",
 };
 
@@ -758,7 +758,8 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         });
         return f + "\t" + (basicFormMode(f) ? "basic" : "c");
     }
-    if (cmd == "DESIGNSELECT" || cmd == "DESIGNEVENTS" || cmd == "GOTOEVENT" || cmd == "DESIGNSET" || cmd == "DESIGNSAVE") {
+    if (cmd == "DESIGNSELECT" || cmd == "DESIGNEVENTS" || cmd == "GOTOEVENT" || cmd == "DESIGNSET" || cmd == "DESIGNSAVE" ||
+        cmd == "DESIGNADD") {
         std::string out, err;
         if (a.has("ID") && !designerCommand("SELECT", mcp::unescape(a.str("ID")), "", out, err)) return fail(10, err);
         bool ok = true;
@@ -766,6 +767,7 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         else if (cmd == "DESIGNEVENTS") ok = designerCommand("EVENTS", "", "", out, err);
         else if (cmd == "GOTOEVENT") ok = designerCommand("GOTOEVENT", mcp::unescape(a.str("EVENT")), "", out, err);
         else if (cmd == "DESIGNSET") ok = designerCommand("SET", a.str("KEY"), mcp::unescape(a.str("VALUE")), out, err);
+        else if (cmd == "DESIGNADD") ok = designerCommand("ADD", a.str("KIND"), "", out, err);
         else ok = designerCommand("SAVE", "", "", out, err);
         if (!ok) return fail(10, err);
         return out;

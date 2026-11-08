@@ -83,6 +83,7 @@ public:
     std::string eventsReport();                    // name<TAB>state<TAB>params per event of the selection
     bool setProperty(const std::string &key, const std::string &value, std::string &err);   // as typed in the editor field
     bool saveFile() { return save(); }
+    void addKind(Kind k);                          // as the palette's Add does
 
 private:
     App &app;
@@ -481,7 +482,11 @@ void Designer::addObject()
     ::Node *pn = palette.selected();
     int pi = palette.indexOf(pn);
     if (pi < 0 || pi >= (int)paletteKinds.size()) { setStatus("Choose what to add in the palette."); return; }
-    Kind k = paletteKinds[pi];
+    addKind(paletteKinds[pi]);
+}
+
+void Designer::addKind(Kind k)
+{
     Node *at = nodeOf();
     Node *n;
     if (!selected || kindInfo(at->kind).container) {
@@ -1016,6 +1021,13 @@ bool App::designerCommand(const std::string &what, const std::string &arg1, cons
         return true;
     }
     if (what == "SET") return designer->setProperty(arg1, arg2, err);
+    if (what == "ADD") {   // --- basic --- the palette's Add: after the selection, or into the selected group
+        const gui::KindInfo *ki = gui::kindByName(arg1);
+        if (!ki || ki->kind == gui::Kind::Window) { err = "no object kind " + arg1; return false; }
+        designer->addKind(ki->kind);
+        out = designer->selectedKind() + "\t" + designer->selectedId();
+        return true;
+    }
     if (what == "SAVE") { if (!designer->saveFile()) { err = "can't save"; return false; } return true; }
     if (what == "FILE") { out = designer->file(); return true; }
     err = "unknown DESIGNER command " + what;

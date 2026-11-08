@@ -1277,6 +1277,7 @@ These work like the other MCP commands (see [Commands for assistants and scripts
 | `GOTOEVENT [ID] [EVENT]` | Open the code at `Sub <id>_<event>`, made if missing (no EVENT: the default event). RESULT `file<tab>line<tab>sub` |
 | `DESIGNSET [ID] KEY VALUE` | Set a property; a new `id` renames the control's event Subs without asking |
 | `DESIGNSAVE` | Save the `.afg` |
+| `DESIGNADD [ID] KIND` | Add an object (as the palette's Add does) after the selected object or into the selected group. RESULT `kind<tab>id` |
 | `VIEWTOGGLE` | View Form / View Code |
 | `BASICSUBS [FILE]` | The procedures of a module or of a form's code: kind, name, line, end line, code/empty, parameters |
 | `BASICCONTROLS` | The control table: kind, BASIC type, default event, events |
