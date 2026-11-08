@@ -1121,7 +1121,7 @@ away) or compiles it to C and then to a native program with GCC (`boing build`).
 Boing BASIC program is made the way Visual Basic programs are: you draw a window in the GUI
 designer, double-click a button, and type what happens when it is clicked.
 
-![A Boing BASIC form in the designer, with its code](images/basic-designer.png)
+![A Boing BASIC form in the designer: its Events list and the preview](images/basic-designer.png)
 
 ### Projects and files
 
@@ -1170,6 +1170,8 @@ their case, strings (`""` is a quote), `'` and `Rem` comments, numbers (`&HFF`, 
   (Shift-Ctrl-F5) sends it Ctrl-C. If the program stops with a runtime error
   (`main.bas:12: runtime error 9: Subscript out of range`), the error goes into the Build tab
   and the editor goes to the line.
+![A runtime error from boing run, in the Build tab and at its line](images/basic-runtime-error.png)
+
 - **Package Release** builds with `boing build` without `--debug` (optimised) and packages
   that program.
 - **Debug** (F5) builds natively and starts the debugger on the program. The generated C has
@@ -1199,6 +1201,8 @@ The window is `Me` in its code and is called by its **Code name** elsewhere (`ma
 - **View Code** (the button that replaces Generate Code) saves the form and opens its code.
   **Tools > View Form / View Code** (Alt-F7) switches between a form and its code, from the
   editor or the designer.
+
+![Choosing Unload in the Events list made Form_Unload(Cancel As Integer)](images/basic-event-sub.png)
 
 | Control | BASIC (VB) type | Default event | Events |
 |---|---|---|---|
