@@ -297,8 +297,14 @@ void App::onStopped(const dbg_event &ev)
     frameFile.clear();
     frameLine = 0;
     bool crash = ev.reason == DBG_STOP_EXCEPTION;
-    debugLog(ev.text, crash ? penError : -1);
-    setStatus(ev.text);
+    std::string text = ev.text;
+    if (ev.function && ev.file && basic::isBasicFile(ev.file)) {   // --- basic --- p0_twice() -> twice()
+        std::string fn = ev.function, bn = basic::basicProcName(fn);
+        size_t at = text.find(fn);
+        if (bn != fn && at != std::string::npos) text.replace(at, fn.size(), bn);
+    }
+    debugLog(text, crash ? penError : -1);
+    setStatus(text);
     // the program's console may be in front: come back
     if (win) {
         IIntuition->WindowToFront(win);

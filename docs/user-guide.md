@@ -1258,9 +1258,12 @@ beside the program. Then:
 - a String shows as the runtime's `bb_str` structure (expand it: `len` and `data`);
 - BASIC projects don't stop at `main()` (that's the generated C's): set a breakpoint instead.
 
-This was checked against the debug information of a cross-built program (breakpoint addresses,
-functions and locals for `.bas` lines); stepping through the interpreter (`boing run`) isn't
-possible.
+![Stopped at a breakpoint in a BASIC function: the Locals show n, twice and r as Long](images/basic-debugger.png)
+
+Tested on the QEMU guest with a program built by `boing build --debug`: breakpoints, the call
+stack, stepping over BASIC lines and the BASIC-named Locals work. The MCP/ARexx `LOCALS` and
+`STACK` commands give the C names (`l_total`, `p1_main`), which `EVAL` takes. Stepping through
+the interpreter (`boing run`) isn't possible.
 
 ### ARexx commands for the designer
 
