@@ -13,18 +13,19 @@
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <dos/var.h>
+#include <strings.h>
 
 namespace af {
 
 static const char *const basicCandidates[] = {
-    "C:boing", "SDK:C/boing", "BoingBASIC:boing", "Boing:boing", "SYS:Utilities/BoingBASIC/boing", nullptr,
+    "C:boing", "SDK:C/boing", "BoingBASIC:boing", "Boing:boing", "SYS:Utilities/BoingBASIC/boing", "PROGDIR:boing", nullptr,
 };
 
 // A file that exists, without an "insert volume" requester for a volume that isn't mounted.
 static bool existsQuietly(const std::string &path)
 {
     size_t colon = path.find(':');
-    if (colon != std::string::npos && colon > 0) {
+    if (colon != std::string::npos && colon > 0 && strcasecmp(path.substr(0, colon).c_str(), "PROGDIR") != 0) {
         std::string dev = path.substr(0, colon);
         struct DosList *dl = IDOS->LockDosList(LDF_ALL | LDF_READ);
         bool found = IDOS->FindDosEntry(dl, dev.c_str(), LDF_ALL) != nullptr;
@@ -64,7 +65,7 @@ static const char *noBoingText =
     "AmiForge can't find the Boing BASIC compiler (boing).\n\n"
     "Set it in Project > Settings (Boing BASIC command), or for every project with\n"
     "    setenv SAVE AmiForge/Boing <path of boing>\n"
-    "(it also looks in C:, SDK:C and BoingBASIC:).";
+    "(it also looks in C:, SDK:C, BoingBASIC: and AmiForge's own drawer).";
 
 bool App::basicReady()
 {

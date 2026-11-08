@@ -1,6 +1,7 @@
 // --- basic --- Boing BASIC projects: controls, code-behind, outline, .bbp (see BasicModel.h).
 #include "BasicModel.h"
 #include "sci/BasicSyntax.h"
+#include "GuiModel.h"
 
 #include <algorithm>
 #include <cctype>
@@ -804,6 +805,61 @@ bool parseRuntimeError(const std::string &line, std::string &file, int &lineNo, 
     lineNo = std::atoi(num.c_str());
     msg = trimmed(line.substr(re + 2));
     return !file.empty() && lineNo > 0;
+}
+
+const std::vector<std::string> &completionWords()
+{
+    static std::vector<std::string> w;
+    if (!w.empty()) return w;
+    const char *cased =
+        // statements
+        "AddressOf And As Alias Append Base Binary Boolean ByRef ByVal Call Case Class Close Compare Const "
+        "DefBool DefByte DefCur DefDate DefDbl DefInt DefLng DefObj DefSng DefStr DefVar Interface Version CreateObject "
+        "Declare Dim Do Each Else ElseIf Empty End Enum Eqv Erase Error Event Exit Explicit False For Friend "
+        "Function Get Global GoSub GoTo If Imp Implements In Input Is Let Lib Like Line Lock Loop Me Mod New "
+        "Next Not Nothing Null On Open Option Optional Or Output ParamArray Preserve Print Private Property "
+        "Public Put RaiseEvent Random Read ReDim Rem Resume Return Seek Select Set Shared Static Step Stop Sub "
+        "Then To True Type TypeOf Unlock Until Wend While With WithEvents Write Xor Debug Err App "
+        // builtins
+        "Abs Array Asc Atn CBool CByte CCur CDate CDbl ChDir Chr CInt CLng Cos CSng CStr CurDir CVar Date "
+        "DateAdd DateDiff DatePart DateSerial Day Dir DoEvents Environ EOF Exp FileCopy FileLen Fix Format "
+        "FreeFile Hex Hour IIf InputBox InStr InStrRev Int IsArray IsDate IsEmpty IsNull IsNumeric IsObject Join "
+        "Kill LBound LCase Left Len Loc LOF Log LTrim Mid Minute MkDir Month MsgBox Name Now Oct Randomize "
+        "Replace Right RmDir Rnd Round RTrim Second Sgn Shell Sin Space Split Sqr Str StrComp StrReverse String "
+        "Tan Time Timer TimeSerial Trim TypeName UBound UCase Val VarType Weekday Year Beep Command Load Unload "
+        "Show Hide VarPtr StrPtr ObjPtr Collection "
+        // types
+        "Integer Long Single Double Currency Variant Object Any Byte";
+    std::string cur;
+    for (const char *p = cased;; p++) {
+        if (*p == ' ' || *p == 0) {
+            if (!cur.empty()) w.push_back(cur);
+            cur.clear();
+            if (!*p) break;
+        } else cur.push_back(*p);
+    }
+    return w;
+}
+
+std::string casedWord(const std::string &word)
+{
+    for (auto &c : completionWords())
+        if (equalsNoCase(c, word)) return c;
+    return word;
+}
+
+std::map<std::string, std::string> formControls(const std::string &afgText)
+{
+    std::map<std::string, std::string> out;
+    gui::Model m;
+    std::string err;
+    if (!m.parse(afgText, err)) return out;
+    out[m.window.get("name")] = "window";
+    std::vector<std::pair<gui::Node *, int>> all;
+    m.walk(all);
+    for (auto &p : all)
+        if (p.first->has("id")) out[p.first->get("id")] = gui::kindInfo(p.first->kind).name;
+    return out;
 }
 
 std::vector<std::string> memberCompletions(const std::string &name, const std::map<std::string, std::string> &ctls)

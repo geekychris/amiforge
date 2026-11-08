@@ -212,6 +212,35 @@ int App::basicRenameControl(const std::string &afg, const std::string &oldId, co
     return nSubs;
 }
 
+// The project's forms' controls (id -> kind), for completion: every .afg in the project (the
+// open designer's model as saved). In a form's code-behind, Me is that form.
+std::map<std::string, std::string> App::basicControlMap()
+{
+    std::map<std::string, std::string> out;
+    std::vector<std::string> forms;
+    for (auto &f : project.files)
+        if (extension(f) == "afg") forms.push_back(project.abs(f));
+    if (cur && basic::isBasicFile(cur->path)) {
+        std::string mine = cur->path.substr(0, cur->path.rfind('.')) + ".afg";
+        if (fileExists(mine)) {
+            forms.push_back(mine);
+            out["Me"] = "window";
+        }
+    }
+    for (auto &f : forms) {
+        int64_t t = fileTime(f);
+        auto &c = formCache[f];
+        if (c.first != t) {
+            std::string text;
+            readFile(f, text);
+            c.first = t;
+            c.second = basic::formControls(text);
+        }
+        for (auto &kv : c.second) out.insert(kv);
+    }
+    return out;
+}
+
 // View Form / View Code (Alt-F7): from a code-behind module to its form in the designer, from
 // the designer (or a form file) to the code.
 void App::basicViewToggle()

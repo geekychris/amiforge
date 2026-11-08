@@ -5,7 +5,7 @@
 IDE_AREAS += lang
 LANG_LEXLIB := $(patsubst $(ROOT)/%,%,$(wildcard $(ROOT)/third_party/lexilla/lexlib/*.cxx))
 lang_TESTS = lang_test.cpp lang_lexer_test.cpp
-lang_SRCS  = src/sci/Languages.cpp src/sci/BasicSyntax.cpp src/ide/BasicModel.cpp src/ide/LangSymbols.cpp src/ide/Symbols.cpp src/ide/LangTools.cpp \
+lang_SRCS  = src/sci/Languages.cpp src/sci/BasicSyntax.cpp src/ide/BasicModel.cpp src/ide/GuiModel.cpp src/ide/LangSymbols.cpp src/ide/Symbols.cpp src/ide/LangTools.cpp \
              src/ide/KeyBindings.cpp src/ide/Snippets.cpp src/ide/Explain.cpp src/sci/LexAmiga.cpp \
              third_party/lexilla/lexers/LexPython.cxx $(LANG_LEXLIB)
 lang_HDRS  = src/sci/Languages.h src/sci/BasicSyntax.h src/ide/LangTools.h src/ide/KeyBindings.h src/sci/LexAmiga.h

@@ -138,6 +138,14 @@ std::string symbolsCommand(const std::string &boing, const std::string &file);
 // True with file, line and message for such a line.
 bool parseRuntimeError(const std::string &line, std::string &file, int &lineNo, std::string &msg);
 
+// The words completion offers, written the way VB writes them ("ElseIf", "MsgBox", "UBound").
+const std::vector<std::string> &completionWords();
+// A word in the case completion would write it, for one in the lists ("elseif" -> "ElseIf").
+std::string casedWord(const std::string &word);
+
+// The controls of a form, for completion: (.afg text) -> id -> kind, the window's name -> "window".
+std::map<std::string, std::string> formControls(const std::string &afgText);
+
 // Completion after "name.": the members of the control or form called `name` (any case)
 // in `controls` (id -> kind; the form's own name maps to "window"; "Me" too in a code-behind).
 std::vector<std::string> memberCompletions(const std::string &name, const std::map<std::string, std::string> &controls);

@@ -411,3 +411,30 @@ TEST(basic_forms_events_md)
     resetControls();
     CHECK(controlFor("string")->event("Enter") == nullptr);
 }
+
+TEST(basic_completion_words_and_form_controls)
+{
+    CHECK_EQ(casedWord("elseif"), std::string("ElseIf"));
+    CHECK_EQ(casedWord("MSGBOX"), std::string("MsgBox"));
+    CHECK_EQ(casedWord("myVar"), std::string("myVar"));
+    // every keyword the lexer knows has a cased form for completion
+    for (int set = 0; set < 3; set++) {
+        std::string list = keywords(set), w;
+        for (size_t i = 0; i <= list.size(); i++) {
+            if (i < list.size() && list[i] != ' ') { w.push_back(list[i]); continue; }
+            if (!w.empty() && casedWord(w) == w && w != "") {
+                bool found = false;
+                for (auto &c : completionWords()) found = found || equalsNoCase(c, w);
+                if (!found) aftest::fail(__FILE__, __LINE__, "no cased word for " + w);
+            }
+            w.clear();
+        }
+    }
+    std::map<std::string, std::string> c = formControls(
+        "# AmiForge GUI\nwindow name=main title=x\nvlayout id=root\n  button id=ok text=_OK\n  string id=who\n  space\n");
+    CHECK_EQ(c["main"], std::string("window"));
+    CHECK_EQ(c["ok"], std::string("button"));
+    CHECK_EQ(c["who"], std::string("string"));
+    CHECK_EQ(c["root"], std::string("vlayout"));
+    CHECK_EQ(c.size(), (size_t)4);
+}

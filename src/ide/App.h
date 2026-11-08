@@ -780,6 +780,8 @@ public:
     bool designerCommand(const std::string &what, const std::string &arg1, const std::string &arg2,
                          std::string &out, std::string &err);   // MCP DESIGNER ... (Designer.cpp)
     std::string mcpLastSub;                      // the sub the last event jump went to
+    std::map<std::string, std::string> basicControlMap();   // the forms' controls: id -> kind (completion)
+    std::map<std::string, std::pair<int64_t, std::map<std::string, std::string>>> formCache;
     // --- end basic ---
 };
 
