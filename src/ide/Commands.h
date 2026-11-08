@@ -52,6 +52,7 @@ enum Command {
     // --- lang --- debugger keys (KeyBindings.h)
     CMD_DEBUG_RESTART = 1700, CMD_QUICK_WATCH, CMD_BP_TOGGLE_ENABLED, CMD_BP_CONDITION, CMD_SET_NEXT_STATEMENT,
     CMD_RUN_TO_FUNCTION,
+    CMD_BASIC_VIEW_TOGGLE = 1800,   // --- basic --- View Form / View Code
     // --- end lang ---
 };
 

@@ -41,6 +41,9 @@ static const char *const kCommands[] = {
     "BUILDLOG", "RUNPROGRAM", "RUNOUTPUT", "STOPPROGRAM", "DEBUGSTART", "DEBUGSTOP", "CONTINUE", "STEP", "NEXT",
     "STEPOUT", "PAUSE", "RUNTO", "BREAK", "UNBREAK", "BREAKS", "LOCALS", "STACK", "FRAME", "EVAL", "REGS",
     "CRASH", "SYMBOLS", "REFERENCES", "GITSTATUS",
+    // --- basic ---
+    "DESIGN", "DESIGNSELECT", "DESIGNEVENTS", "GOTOEVENT", "DESIGNSET", "DESIGNSAVE", "VIEWTOGGLE", "BASICSUBS",
+    "BASICCONTROLS",
 };
 
 bool App::mcpHandles(const std::string &cmd)
@@ -709,6 +712,59 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         std::string s;
         for (auto &sym : outlineSymbols(t, languageFor(p.empty() ? std::string("untitled.c") : p, t.substr(0, t.find('\n')))))   // --- lang ---
             s += mcp::record({ symKindName(sym.kind), sym.name, std::to_string(sym.line), sym.detail }) + "\n";
+        return s;
+    }
+    // --- basic --- the VB-style designer and Boing BASIC code-behind modules
+    if (cmd == "DESIGN") {
+        std::string f = a.has("FILE") ? resolvePath(this, a.str("FILE")) : "";
+        if (!f.empty() && extension(f) != "afg") f += ".afg";
+        if (designer && !f.empty() && !sameFile(designerPath(), f)) {
+            std::string o, e;   // another form: save it (no requester under MCP), then switch
+            if (!designerCommand("SAVE", "", "", o, e)) return fail(10, e);
+            closeDesigner();
+        }
+        openDesigner(f);
+        if (!designer) return fail(10, mcpMessages.empty() ? "the designer didn't open" : trim(mcpMessages));
+        designerToFront();
+        return designerPath() + "\t" + (basicFormMode(designerPath()) ? "basic" : "c");
+    }
+    if (cmd == "DESIGNSELECT" || cmd == "DESIGNEVENTS" || cmd == "GOTOEVENT" || cmd == "DESIGNSET" || cmd == "DESIGNSAVE") {
+        std::string out, err;
+        if (a.has("ID") && !designerCommand("SELECT", mcp::unescape(a.str("ID")), "", out, err)) return fail(10, err);
+        bool ok = true;
+        if (cmd == "DESIGNSELECT") ok = designerCommand("SELECTED", "", "", out, err);
+        else if (cmd == "DESIGNEVENTS") ok = designerCommand("EVENTS", "", "", out, err);
+        else if (cmd == "GOTOEVENT") ok = designerCommand("GOTOEVENT", mcp::unescape(a.str("EVENT")), "", out, err);
+        else if (cmd == "DESIGNSET") ok = designerCommand("SET", a.str("KEY"), mcp::unescape(a.str("VALUE")), out, err);
+        else ok = designerCommand("SAVE", "", "", out, err);
+        if (!ok) return fail(10, err);
+        return out;
+    }
+    if (cmd == "VIEWTOGGLE") {
+        basicViewToggle();
+        if (!mcpMessages.empty()) return fail(10, trim(mcpMessages));
+        return std::string(cur ? cur->path : "") + "\t" + designerPath();
+    }
+    if (cmd == "BASICSUBS") {
+        std::string p = a.has("FILE") ? resolvePath(this, a.str("FILE")) : cur ? cur->path : "";
+        if (p.empty()) return fail(10, "no file");
+        if (extension(p) == "afg") p = basic::codeBehindOf(p);
+        std::string t = basicCodeText(p);
+        static const char *const kinds[] = { "sub", "function", "property-get", "property-let", "property-set" };
+        std::string s;
+        for (auto &pr : basic::procedures(t))
+            s += mcp::record({ kinds[(int)pr.kind], pr.name, std::to_string(pr.line), std::to_string(pr.endLine),
+                               pr.hasCode ? "code" : "empty", pr.params }) + "\n";
+        return s;
+    }
+    if (cmd == "BASICCONTROLS") {
+        loadFormsEvents();
+        std::string s = "source=" + (formsEventsFile.empty() ? std::string("built in") : formsEventsFile) + "\n";
+        for (auto &c : basic::controls()) {
+            std::string ev;
+            for (auto &e : c.events) ev += (ev.empty() ? "" : ",") + e.name;
+            s += mcp::record({ c.kind, c.basicType, c.defaultEvent, ev }) + "\n";
+        }
         return s;
     }
     if (cmd == "REFERENCES") {

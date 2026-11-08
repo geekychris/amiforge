@@ -257,6 +257,7 @@ static struct NewMenu menus[] = {
     // --- designer ---
     TITLE("Tools"),
     ITEM("GUI Designer...", 0, CMD_GUI_DESIGNER),
+    ITEM("View Form / View Code  (Alt-F7)", 0, CMD_BASIC_VIEW_TOGGLE),   // --- basic ---
     // --- end designer ---
 
     TITLE("Help"),

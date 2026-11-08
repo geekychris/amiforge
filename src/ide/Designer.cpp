@@ -1,8 +1,15 @@
 // Tools > GUI Designer: edit a .afg file (GuiModel.h) - a palette of ReAction objects, the
 // window's layout as a tree, the selected object's properties - with a live preview window
 // built from real ReAction objects, and "Generate Code" for <name>_gui.c/.h.
+// --- basic --- In a Boing BASIC project it is a Visual Basic style form designer instead:
+// there is no generated code, the form's code is the module beside it (main.afg -> main.bas);
+// an Events list shows the selected object's events (with code, empty, none), double-clicking
+// a control (in the tree or the preview) or choosing an event opens its sub in the editor,
+// and "View Code" opens the module (BasicDesign.cpp does the editor side).
 #include "App.h"
 #include "GuiModel.h"
+#include "BasicModel.h"   // --- basic ---
+#include "Scintilla.h"
 
 #include <deque>
 #include <string.h>
@@ -49,7 +56,8 @@ using namespace gui;
 
 enum {
     DG_PALETTE = 1, DG_ADD, DG_TREE, DG_REMOVE, DG_UP, DG_DOWN, DG_INDENT, DG_OUTDENT,
-    DG_PROPS, DG_VALUE, DG_SAVE, DG_GENERATE, DG_PREVIEW, DG_STATUS, DG_N
+    DG_PROPS, DG_VALUE, DG_SAVE, DG_GENERATE, DG_PREVIEW, DG_STATUS,
+    DG_EVENTS /* --- basic --- */, DG_N
 };
 static const uint32 PREVIEW_ID_BASE = 1000;
 
@@ -64,6 +72,17 @@ public:
     uint32 signals();
     void handle(uint32 got);
     bool wantsClose = false;
+    // --- basic --- for App and the MCP commands
+    const std::string &file() const { return path; }
+    bool isBasic() const { return basicMode; }
+    void toFront() { if (win) { IIntuition->WindowToFront(win); IIntuition->ActivateWindow(win); } }
+    bool selectId(const std::string &id);          // "" or the window's name: the window
+    std::string selectedId();                      // the window's name for the window
+    std::string selectedKind();                    // "window", "button"...
+    bool gotoEvent(const std::string &event);      // the selected object's ("" = its default event)
+    std::string eventsReport();                    // name<TAB>state<TAB>params per event of the selection
+    bool setProperty(const std::string &key, const std::string &value, std::string &err);   // as typed in the editor field
+    bool saveFile() { return save(); }
 
 private:
     App &app;
@@ -87,6 +106,14 @@ private:
     std::deque<std::vector<const char *>> pvArrays;
     std::vector<struct List *> pvLists;
     std::vector<Node *> pvNodes;               // by preview gadget ID - PREVIEW_ID_BASE
+    // --- basic ---
+    bool basicMode = false;
+    ListView events{2};
+    std::vector<std::string> eventRows;        // event names, per row of `events`
+    Node *pvLastPick = nullptr;                // preview double-clicks
+    uint32 pvLastSecs = 0, pvLastMicros = 0;
+    void refreshEvents();
+    std::string idOf(Node *n);                 // its id (the window: its name); made if it has none
 
     Node *nodeOf() { return selected ? selected : &model.window; }
     void setStatus(const std::string &s);
@@ -165,6 +192,15 @@ bool Designer::open(const std::string &afg)
                                         TAG_DONE);
     IIntuition->SetAttrs(prg, LAYOUT_AddChild, (uint32)props.create(DG_PROPS, propTitles, propWeights),
                          LAYOUT_AddChild, (uint32)g[DG_VALUE], CHILD_WeightedHeight, 0, TAG_DONE);
+    // --- basic --- the events of the selected object, under its properties
+    basicMode = app.basicFormMode(afg);
+    if (basicMode) {
+        static const char *evTitles[] = { "Event", "Code" };
+        static const int evWeights[] = { 60, 40 };
+        Object *evg = group("Events (click one to write its code)");
+        IIntuition->SetAttrs(evg, LAYOUT_AddChild, (uint32)events.create(DG_EVENTS, evTitles, evWeights), TAG_DONE);
+        IIntuition->SetAttrs(prg, LAYOUT_AddChild, (uint32)evg, CHILD_WeightedHeight, 45, TAG_DONE);
+    }
 
     static std::string title;
     title = "GUI Designer - " + path;
@@ -188,7 +224,9 @@ bool Designer::open(const std::string &afg)
                 CHILD_WeightedWidth, 0,
                 LAYOUT_AddChild, btn(DG_SAVE, "_Save", "Save the .afg file"),
                 CHILD_WeightedWidth, 0,
-                LAYOUT_AddChild, btn(DG_GENERATE, "_Generate Code", "Save, and write the C code for this window into the project"),
+                LAYOUT_AddChild, basicMode
+                    ? btn(DG_GENERATE, "View _Code", "Open the form's code (its Boing BASIC module) in the editor")   // --- basic ---
+                    : btn(DG_GENERATE, "_Generate Code", "Save, and write the C code for this window into the project"),
                 CHILD_WeightedWidth, 0,
                 TAG_DONE),
             CHILD_WeightedHeight, 0,
@@ -202,24 +240,27 @@ bool Designer::open(const std::string &afg)
         return false;
     }
     palette.win = tree.win = props.win = win;
+    events.win = win;   // --- basic ---
     palette.detach();
     for (Kind k : paletteKinds = gui::paletteKinds()) palette.add({ kindInfo(k).title });
     palette.attach(0);
     select(model.root());
     openPreview();
-    setStatus(modified ? "A new GUI: add objects from the palette, then Generate Code."
-                       : "Select an object to change it; the preview follows every change.");
+    setStatus(basicMode ? (modified ? "A new form: add controls from the palette, double-click one to write its code."
+                                    : "Double-click a control to write its code; choose an event below its properties.")
+                        : modified ? "A new GUI: add objects from the palette, then Generate Code."
+                                   : "Select an object to change it; the preview follows every change.");
     return true;
 }
 
 void Designer::close()
 {
     closePreview();
-    palette.win = tree.win = props.win = nullptr;
+    palette.win = tree.win = props.win = events.win = nullptr;
     if (winObj) IIntuition->DisposeObject(winObj);
     winObj = nullptr;
     win = nullptr;
-    palette.obj = tree.obj = props.obj = nullptr;
+    palette.obj = tree.obj = props.obj = events.obj = nullptr;
 }
 
 bool Designer::confirmClose()
@@ -300,6 +341,98 @@ void Designer::refreshProps()
     bool isRoot = selected == model.root() || !selected;
     for (int id : { DG_REMOVE, DG_UP, DG_DOWN, DG_INDENT, DG_OUTDENT })
         IIntuition->SetGadgetAttrs((struct Gadget *)g[id], win, nullptr, GA_Disabled, isRoot, TAG_DONE);
+    refreshEvents();   // --- basic ---
+}
+
+// --- basic --- the Events list: every event of the selected object's kind, and whether the
+// code-behind has a sub for it ("code", or "empty" for a sub with nothing in it yet)
+void Designer::refreshEvents()
+{
+    if (!basicMode || !events.obj) return;
+    Node *n = nodeOf();
+    std::string kind = kindInfo(n->kind).name;
+    const basic::ControlInfo *ci = basic::controlFor(kind);
+    events.detach();
+    IListBrowser->FreeListBrowserList(events.list);
+    IExec->NewList(events.list);
+    eventRows.clear();
+    if (ci) {
+        std::string id = n == &model.window ? model.window.get("name") : n->get("id");
+        std::vector<int> st = app.basicEventStates(path, id, kind);
+        for (size_t i = 0; i < ci->events.size(); i++) {
+            const basic::Member &e = ci->events[i];
+            int state = i < st.size() ? st[i] : 0;
+            std::string label = e.name + (e.params.empty() ? "" : "(...)");
+            if (e.name == ci->defaultEvent) label += "  (default)";
+            struct ::Node *row = events.add({ label, state == 2 ? "code" : state == 1 ? "empty" : "" });
+            if (row && state == 2 && app.penNote >= 0) events.setPens(row, app.penNote);
+            eventRows.push_back(e.name);
+        }
+    }
+    events.attach(-1);
+}
+
+std::string Designer::idOf(Node *n)
+{
+    if (!n || n == &model.window) return model.window.get("name");
+    if (!n->has("id")) {
+        n->set("id", model.uniqueId(n->kind));
+        changed(false);
+    }
+    return n->get("id");
+}
+
+bool Designer::selectId(const std::string &id)
+{
+    if (id.empty() || basic::equalsNoCase(id, model.window.get("name")) || basic::equalsNoCase(id, "form")) {
+        select(nullptr);
+        return true;
+    }
+    std::vector<std::pair<Node *, int>> all;
+    model.walk(all);
+    for (auto &p : all)
+        if (basic::equalsNoCase(p.first->get("id"), id)) {
+            select(p.first);
+            return true;
+        }
+    return false;
+}
+
+std::string Designer::selectedId() { return selected ? selected->get("id") : model.window.get("name"); }
+std::string Designer::selectedKind() { return kindInfo(nodeOf()->kind).name; }
+
+bool Designer::gotoEvent(const std::string &event)
+{
+    Node *n = nodeOf();
+    std::string kind = kindInfo(n->kind).name;
+    const basic::ControlInfo *ci = basic::controlFor(kind);
+    std::string ev = event.empty() && ci ? ci->defaultEvent : event;
+    if (!ci || ev.empty()) {
+        setStatus(std::string("A ") + kindInfo(n->kind).title + " has no events.");
+        return false;
+    }
+    std::string id = idOf(n);
+    if (modified) save();   // the program reads the .afg: keep it in step with the code
+    bool ok = app.basicGotoEvent(path, id, kind, ev);
+    refreshEvents();
+    return ok;
+}
+
+std::string Designer::eventsReport()
+{
+    Node *n = nodeOf();
+    std::string kind = kindInfo(n->kind).name;
+    const basic::ControlInfo *ci = basic::controlFor(kind);
+    std::string out;
+    if (!ci) return out;
+    std::string id = n == &model.window ? model.window.get("name") : n->get("id");
+    std::vector<int> st = app.basicEventStates(path, id, kind);
+    for (size_t i = 0; i < ci->events.size(); i++) {
+        int state = i < st.size() ? st[i] : 0;
+        out += ci->events[i].name + "\t" + (state == 2 ? "code" : state == 1 ? "empty" : "none") + "\t" +
+               ci->events[i].params + (ci->events[i].name == ci->defaultEvent ? "\tdefault" : "") + "\n";
+    }
+    return out;
 }
 
 void Designer::select(Node *n)
@@ -391,14 +524,33 @@ void Designer::applyValue()
     uint32 v = 0;
     IIntuition->GetAttr(STRINGA_TextVal, g[DG_VALUE], &v);
     std::string value = v ? (const char *)v : "";
-    const PropInfo *p = propRows[selectedProp];
+    std::string err;
+    if (!setProperty(propRows[selectedProp]->key, value, err)) setStatus(err);
+}
+
+bool Designer::setProperty(const std::string &key, const std::string &valueIn, std::string &err)
+{
+    Node *n = nodeOf();
+    const PropInfo *p = nullptr;
+    for (auto &pi : kindInfo(n->kind).props)
+        if (key == pi.key) p = &pi;
+    if (!p) { err = "A " + std::string(kindInfo(n->kind).title) + " has no property " + key; return false; }
+    std::string value = valueIn;
     if (p->type == PropType::Ident && !value.empty() && identifier(value) != value) {
-        setStatus("\"" + value + "\" isn't a valid C name: use letters, digits and _.");
-        return;
+        err = "\"" + value + "\" isn't a valid " + (basicMode ? "name" : "C name") + ": use letters, digits and _.";
+        return false;
     }
     if (p->type == PropType::Bool) value = (value == "1" || value == "Yes" || value == "yes" || value == "y") ? "1" : "0";
-    nodeOf()->set(p->key, value);
+    // --- basic --- a control's new name: its event subs follow (if the user wants)
+    std::string oldId = p->type == PropType::Ident ? n->get(p->key) : "";
+    n->set(p->key, value);
     changed(false);
+    if (basicMode && p->type == PropType::Ident && !oldId.empty() && oldId != value) {
+        if (!app.mcpQuiet && modified) save();
+        app.basicRenameControl(path, oldId, value, kindInfo(n->kind).name, !app.mcpQuiet);
+        refreshEvents();
+    }
+    return true;
 }
 
 void Designer::toggleOrCycle()
@@ -430,6 +582,14 @@ bool Designer::save()
 
 void Designer::generate()
 {
+    if (basicMode) {   // --- basic --- "View Code"
+        if (modified) save();
+        if (app.basicOpenCode(path, true) && app.win) {
+            IIntuition->WindowToFront(app.win);
+            IIntuition->ActivateWindow(app.win);
+        }
+        return;
+    }
     auto problems = model.validate();
     if (!problems.empty()) {
         app.info("The code can't be generated yet:\n" + problems.front());
@@ -668,8 +828,17 @@ void Designer::handle(uint32 got)
         }
         if (closePv) closePreview();
         else if (pick) {
+            // --- basic --- a second click on the same control in time is a double-click
+            uint32 secs = 0, micros = 0;
+            IIntuition->CurrentTime(&secs, &micros);
+            bool dbl = basicMode && pick == pvLastPick && IIntuition->DoubleClick(pvLastSecs, pvLastMicros, secs, micros);
+            pvLastPick = dbl ? nullptr : pick;
+            pvLastSecs = secs;
+            pvLastMicros = micros;
             select(pick);
-            setStatus("Selected " + pick->get("id") + " (clicked in the preview).");
+            if (dbl) gotoEvent("");
+            else setStatus("Selected " + pick->get("id") + (basicMode ? " (clicked in the preview; click again to write its code)."
+                                                                       : " (clicked in the preview)."));
         }
     }
     if (!winObj || !(got & ws)) return;
@@ -693,6 +862,15 @@ void Designer::handle(uint32 got)
                 selectedProp = -1;
                 refreshProps();
             }
+            // --- basic --- double-click: the default event's code (Form_Load for the window)
+            uint32 ev = 0;
+            IIntuition->GetAttr(LISTBROWSER_RelEvent, tree.obj, &ev);
+            if (basicMode && ev == LBRE_DOUBLECLICK) gotoEvent("");
+            break;
+        }
+        case DG_EVENTS: {   // --- basic ---
+            int i = events.indexOf(events.selected());
+            if (i >= 0 && i < (int)eventRows.size()) gotoEvent(eventRows[i]);
             break;
         }
         case DG_REMOVE: removeObject(); break;
@@ -771,6 +949,41 @@ void App::closeDesigner()
 }
 
 uint32_t App::designerSignals() { return designer ? designer->signals() : 0; }
+
+// --- basic ---
+std::string App::designerPath() { return designer ? designer->file() : ""; }
+void App::designerToFront() { if (designer) designer->toFront(); }
+
+// MCP/ARexx: DESIGNER commands on the open designer (McpPort.cpp). `what`: SELECT id,
+// SELECTED, EVENTS, GOTOEVENT [event], SET key value, SAVE. Returns false with err.
+bool App::designerCommand(const std::string &what, const std::string &arg1, const std::string &arg2,
+                          std::string &out, std::string &err)
+{
+    if (!designer) { err = "the GUI designer isn't open"; return false; }
+    if (what == "SELECT") {
+        if (!designer->selectId(arg1)) { err = "no object with the id " + arg1; return false; }
+        out = designer->selectedKind() + "\t" + designer->selectedId();
+        return true;
+    }
+    if (what == "SELECTED") { out = designer->selectedKind() + "\t" + designer->selectedId(); return true; }
+    if (what == "EVENTS") {
+        if (!designer->isBasic()) { err = "events are for Boing BASIC forms"; return false; }
+        out = designer->eventsReport();
+        return true;
+    }
+    if (what == "GOTOEVENT") {
+        if (!designer->isBasic()) { err = "events are for Boing BASIC forms"; return false; }
+        if (!designer->gotoEvent(arg1)) { err = trim(statusLeft); return false; }
+        int line = editor ? (int)editor->send(SCI_LINEFROMPOSITION, editor->send(SCI_GETCURRENTPOS)) + 1 : 0;
+        out = cur ? cur->path + "\t" + std::to_string(line) + "\t" + mcpLastSub : "";
+        return true;
+    }
+    if (what == "SET") return designer->setProperty(arg1, arg2, err);
+    if (what == "SAVE") { if (!designer->saveFile()) { err = "can't save"; return false; } return true; }
+    if (what == "FILE") { out = designer->file(); return true; }
+    err = "unknown DESIGNER command " + what;
+    return false;
+}
 
 void App::handleDesigner(uint32_t got)
 {

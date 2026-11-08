@@ -762,6 +762,24 @@ public:
     void basicRunEnded(const std::string &errorFile);   // RunControl: its runtime error into the build log
     int basicRuns = 0;
     std::string basicLastWhat;                   // the last buildBasic's `what`
+    // the VB-style designer (BasicDesign.cpp): forms and their code-behind modules
+    bool basicFormMode(const std::string &afg);  // the designer edits code-behind, not C
+    void loadFormsEvents();                      // Boing BASIC's docs/forms-events.md, once
+    bool formsEventsTried = false;
+    std::string formsEventsFile;                 // where the control table came from ("" = built in)
+    std::string basicCodeText(const std::string &bas);           // the open document's text, else the file's
+    void basicSetText(Document *d, const std::string &text);     // as one undoable edit
+    Document *basicOpenCode(const std::string &afg, bool activate);   // the form's .bas (made if missing)
+    bool basicGotoEvent(const std::string &afg, const std::string &id, const std::string &kind, const std::string &event);
+    std::vector<int> basicEventStates(const std::string &afg, const std::string &id, const std::string &kind);   // per event: 0 none, 1 empty sub, 2 code
+    int basicRenameControl(const std::string &afg, const std::string &oldId, const std::string &newId,
+                           const std::string &kind, bool askFirst);
+    void basicViewToggle();                      // View Form / View Code (Alt-F7)
+    std::string designerPath();                  // the designer's .afg ("" if it isn't open)
+    void designerToFront();
+    bool designerCommand(const std::string &what, const std::string &arg1, const std::string &arg2,
+                         std::string &out, std::string &err);   // MCP DESIGNER ... (Designer.cpp)
+    std::string mcpLastSub;                      // the sub the last event jump went to
     // --- end basic ---
 };
 

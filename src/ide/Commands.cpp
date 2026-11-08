@@ -21,6 +21,7 @@ void App::handleMenu(uint32_t cmd)
     // --- designer ---
     case CMD_NEW_FROM_TEMPLATE: newProjectFromTemplate(); break;
     case CMD_GUI_DESIGNER: openDesigner(); break;
+    case CMD_BASIC_VIEW_TOGGLE: basicViewToggle(); break;   // --- basic ---
     case CMD_PACKAGE_RELEASE: packageRelease(); break;
     // --- end designer ---
     case CMD_OPEN_PROJECT: openProject(); break;

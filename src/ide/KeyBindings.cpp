@@ -23,6 +23,7 @@ static const std::vector<Binding> table = {
     { RAW_F6, 0, CMD_RUN, "build and run" },
     { RAW_F7, 0, CMD_BUILD, "build" },
     { RAW_F7, SHIFT, CMD_PROFILE, "profile the program" },
+    { RAW_F7, ALT, CMD_BASIC_VIEW_TOGGLE, "Boing BASIC: switch between a form and its code" },   // --- basic ---
     { RAW_F8, 0, CMD_STEP_INSN, "step one instruction" },
     { RAW_F9, 0, CMD_TOGGLE_BP, "set / clear a breakpoint on the line" },
     { RAW_F9, SHIFT, CMD_QUICK_WATCH, "watch the word or selection at the cursor" },
