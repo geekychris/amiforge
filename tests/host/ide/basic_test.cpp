@@ -4,6 +4,10 @@
 #include "sci/BasicSyntax.h"
 #include "sci/Languages.h"
 #include "BasicModel.h"
+#include "GuiModel.h"
+#include "TemplateEngine.h"
+#include <fstream>
+#include <sstream>
 
 using namespace af;
 using namespace af::basic;
@@ -521,4 +525,82 @@ TEST(basic_forms_events_contract)
     }
     const ControlInfo *sl = find("slider");
     if (sl) CHECK(sl->event("Scroll") != nullptr && sl->defaultEvent == "Change");
+}
+
+// The steps of New Project > Boing BASIC Form App and the designer on its form, without the GUI:
+// the template's plan, the .afg the designer parses, the events of every object (what the
+// Events list shows), double-click targets, a new event sub, a rename.
+TEST(basic_form_template_to_designer_flow)
+{
+    auto slurp = [](const std::string &p, std::string &out) {
+        std::ifstream f(p, std::ios::binary);
+        if (!f) return false;
+        std::stringstream ss;
+        ss << f.rdbuf();
+        out = ss.str();
+        return true;
+    };
+    const std::string dir = "../../templates/basic-form";
+    std::string defText, err;
+    CHECK(slurp(dir + "/template.def", defText));
+    tmpl::Def def;
+    CHECK(tmpl::parseDef(defText, def, err));
+    tmpl::Vars v = tmpl::makeVars("FormTest", "", 8, 11, 2026);
+    tmpl::Plan plan = tmpl::plan(tmpl::instantiate(def, v), v, [&](const std::string &src, std::string &out) { return slurp(dir + "/" + src, out); });
+    CHECK(plan.errors.empty());
+    std::string afg, bas, bbp;
+    for (auto &f : plan.files) {
+        if (f.path == "main.afg") afg = f.content;
+        if (f.path == "main.bas") bas = f.content;
+        if (f.path == "FormTest.bbp") bbp = f.content;
+    }
+    CHECK(!afg.empty() && !bas.empty() && !bbp.empty());
+    Bbp b;
+    CHECK(parseBbp(bbp, b) && b.forms.size() == 1 && b.startup == "Form main");
+    gui::Model m;
+    CHECK(m.parse(afg, err));
+    std::vector<std::pair<gui::Node *, int>> all;
+    m.walk(all);
+    std::vector<Proc> procs = procedures(bas);
+    int withEvents = 0;
+    // the window and every object, as refreshEvents does it
+    std::vector<gui::Node *> nodes = { &m.window };
+    for (auto &p : all) nodes.push_back(p.first);
+    for (gui::Node *n : nodes) {
+        std::string kind = gui::kindInfo(n->kind).name;
+        const ControlInfo *ci = controlFor(kind);
+        if (!ci) continue;
+        bool isForm = n == &m.window;
+        std::string id = isForm ? n->get("name") : n->get("id");
+        std::set<std::string> subs = eventsWithSubs(procs, id, *ci, isForm);
+        std::set<std::string> code = eventsWithCode(procs, id, *ci, isForm);
+        for (auto &c : code) CHECK(subs.count(c) == 1);
+        if (!ci->events.empty()) withEvents++;
+        if (!ci->defaultEvent.empty()) CHECK(ci->event(ci->defaultEvent) != nullptr);
+    }
+    CHECK(withEvents >= 4);   // the form, who, greet, quit
+    // double-click on who, then Form_Unload from the Events list
+    SubPlace w;
+    std::string text = bas;
+    CHECK(!ensureSub(text, eventSubName("who", controlFor("string")->defaultEvent, false), "", w));
+    const Member *un = controlFor("window")->event("Unload");
+    CHECK(un != nullptr);
+    if (un) CHECK(ensureSub(text, eventSubName("main", un->name, true), un->params, w));
+    CHECK(text.find("Private Sub Form_Unload(Cancel As Integer)") != std::string::npos);
+    // rename greet -> hello
+    int subs = 0, refs = 0;
+    text = renameControl(text, "greet", "hello", true, &subs, &refs);
+    CHECK_EQ(subs, 1);
+    CHECK(text.find("hello_Click") != std::string::npos && text.find("greet_Click") == std::string::npos);
+    CHECK(text.find("hello.Enabled") != std::string::npos && text.find("greeting.Text") != std::string::npos);
+    // a Timer added in the designer stays out of the C code
+    gui::Node *t = m.root()->add(gui::Kind::Timer);
+    t->set("id", "tick");
+    t->set("interval", "500");
+    gui::Generated g = gui::generate(m, "");
+    CHECK(g.source.find("tick") == std::string::npos || g.source.find("TIMER") == std::string::npos);
+    std::string again = m.write();
+    gui::Model m2;
+    CHECK(m2.parse(again, err));
+    CHECK(m2.findById("tick") && m2.findById("tick")->kind == gui::Kind::Timer);
 }

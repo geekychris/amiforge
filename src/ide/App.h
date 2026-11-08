@@ -781,6 +781,10 @@ public:
     bool designerCommand(const std::string &what, const std::string &arg1, const std::string &arg2,
                          std::string &out, std::string &err);   // MCP DESIGNER ... (Designer.cpp)
     std::string mcpLastSub;                      // the sub the last event jump went to
+    // Work an ARexx/MCP command does after it has replied (MainWindow's event loop runs it):
+    // making a project or opening the designer can take longer than a caller waits (the
+    // bridge's ARexx timeout is 10 s on a busy Amiga), so those commands answer first.
+    std::vector<std::function<void()>> deferredWork;
     std::map<std::string, std::string> basicControlMap();   // the forms' controls: id -> kind (completion)
     std::map<std::string, std::pair<int64_t, std::map<std::string, std::string>>> formCache;
     // --- end basic ---

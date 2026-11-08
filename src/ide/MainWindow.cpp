@@ -957,6 +957,12 @@ void App::eventLoop()
             pendingCommands.erase(pendingCommands.begin());
             handleMenu(c);
         }
+        // --- basic --- work ARexx commands left for after their reply
+        while (!deferredWork.empty()) {
+            std::function<void()> w = deferredWork.front();
+            deferredWork.erase(deferredWork.begin());
+            w();
+        }
         integrationsIdle();   // --- integrations ---
         runIdle();            // --- robust ---
         // Weight-bar drags lay the window out on input.device's task, where the placeholder's

@@ -348,15 +348,28 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         if (!def) return fail(10, "there is no template " + want + " (see TEMPLATES)");
         std::string target = joinPath(mcp::unescape(a.str("DRAWER")), name);
         if (fileExists(joinPath(target, name + ".afp"))) return fail(10, target + " already has a project " + name);
-        std::string afp, err;
-        std::vector<std::string> toOpen;
-        if (!createFromTemplate(def->dir, name, target, afp, err, &toOpen)) return fail(10, "the project couldn't be made: " + err);
-        openProject(afp);
-        for (auto &f : toOpen)
-            if (fileExists(f) && extension(f) != "afg") openFile(f);
-        for (auto &f : toOpen)   // --- basic --- a form opens in the designer
-            if (fileExists(f) && extension(f) == "afg") { openDesigner(f); break; }
-        return afp;
+        // --- basic --- the copying, opening and the designer happen after the reply (they can
+        // take longer than the caller waits); GETSTATE shows the project when it's open, and
+        // its status says what went wrong if it couldn't be made
+        std::string dir = def->dir;
+        deferredWork.push_back([this, dir, name, target]() {
+            std::string afp, err;
+            std::vector<std::string> toOpen;
+            bool wasQuiet = mcpQuiet;
+            mcpQuiet = true;
+            if (!createFromTemplate(dir, name, target, afp, err, &toOpen)) {
+                setStatus("NEWPROJECT: the project couldn't be made: " + err);
+                mcpQuiet = wasQuiet;
+                return;
+            }
+            openProject(afp);
+            for (auto &f : toOpen)
+                if (fileExists(f) && extension(f) != "afg") openFile(f);
+            for (auto &f : toOpen)   // a form opens in the designer
+                if (fileExists(f) && extension(f) == "afg") { openDesigner(f); break; }
+            mcpQuiet = wasQuiet;
+        });
+        return joinPath(target, name + ".afp");
     }
 
     // --- files ---
@@ -725,10 +738,24 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
             if (!designerCommand("SAVE", "", "", o, e)) return fail(10, e);
             closeDesigner();
         }
-        openDesigner(f);
-        if (!designer) return fail(10, mcpMessages.empty() ? "the designer didn't open" : trim(mcpMessages));
-        designerToFront();
-        return designerPath() + "\t" + (basicFormMode(designerPath()) ? "basic" : "c");
+        if (designer && (f.empty() || sameFile(designerPath(), f))) {
+            designerToFront();
+            return designerPath() + "\t" + (basicFormMode(designerPath()) ? "basic" : "c");
+        }
+        // --- basic --- opening the windows happens after the reply (see deferredWork);
+        // DESIGNSELECT answers once it's open
+        if (f.empty())
+            for (auto &pf : project.files)
+                if (extension(pf) == "afg") { f = project.abs(pf); break; }
+        if (f.empty()) return fail(10, "no form: give FILE");
+        deferredWork.push_back([this, f]() {
+            bool wasQuiet = mcpQuiet;
+            mcpQuiet = true;
+            openDesigner(f);
+            designerToFront();
+            mcpQuiet = wasQuiet;
+        });
+        return f + "\t" + (basicFormMode(f) ? "basic" : "c");
     }
     if (cmd == "DESIGNSELECT" || cmd == "DESIGNEVENTS" || cmd == "GOTOEVENT" || cmd == "DESIGNSET" || cmd == "DESIGNSAVE") {
         std::string out, err;
