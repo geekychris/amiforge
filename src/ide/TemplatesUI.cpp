@@ -330,7 +330,10 @@ void App::newProjectFromTemplate()
     if (afp.empty()) return;
     openProject(afp);
     for (auto &f : toOpen)
-        if (fileExists(f)) openFile(f);
+        if (fileExists(f) && extension(f) != "afg") openFile(f);
+    // --- basic --- "open=x.afg": a form opens in the designer, like a new VB project's Form1
+    for (auto &f : toOpen)
+        if (fileExists(f) && extension(f) == "afg") { openDesigner(f); break; }
     lastDir = dirName(afp);
     setStatus("Created " + afp + " - F7 builds it, Ctrl-F5 runs it");
 }

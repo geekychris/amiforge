@@ -1,0 +1,10 @@
+# AmiForge GUI (a Boing BASIC form: its code is in main.bas)
+window name=main title="${NAME}" width=320
+vlayout id=root
+  hlayout id=whoGroup title="Who are you?"
+    string id=who label=_Name text=Amiga hint="Type your name"
+  label id=greeting text="Type your name and press Greet."
+  hlayout id=buttons even=1
+    button id=greet text=_Greet hint="Say hello"
+    space
+    button id=quit text=_Quit

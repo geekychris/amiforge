@@ -1,0 +1,13 @@
+[template]
+name=Boing BASIC Console App
+description=A Boing BASIC program that starts in Sub Main and prints to its console window. Run (Ctrl-F5) interprets it at once, Build makes a native program.
+order=17
+[project]
+language=basic
+bbp=${NAME}.bbp
+output=${LOWER}
+args=World
+[files]
+file=project.bbp -> ${NAME}.bbp
+file=Main.bas
+open=Main.bas
