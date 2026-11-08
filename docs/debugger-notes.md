@@ -102,6 +102,17 @@ was probably also the crash seen after stopping a GUI program that waits on its 
 A program that has returned (DOS cleaning it up) is left to finish running, with the same
 hand-over, if it is still there after 5 s.
 
+**The unwound task must be kicked (0.3.1).** After the kill rewrites the context and calls
+`RestartTask`, OS4 sometimes leaves the task marked `TS_READY` without dispatching it: the
+same lost wake-up as in `task_in_limbo`. On a loaded QEMU guest this happened on every kill,
+so Stop failed ("it didn't end after being unwound") and left the program suspended until a
+reboot. Waiting longer doesn't help: traced, the task sat ready for the whole 15 s. So
+`wait_death(..., kick)` suspends and restarts the task when it is ready but off the ready
+list, or still ready at the same address on two checks 100 ms apart. It waits up to
+`KILL_WAIT_MS` (5 s). It never kicks a process that has already returned, because suspending
+one in DOS's cleanup left it hanging. The Debug log traces how the wait ended: the time and
+number of kicks, an exception on the way out, or a timeout with the task state.
+
 `dbgtest DIR oskill` kills `pausetest` in `Wait()` (with and without a pause pending) and
 while it prints with `Delay()`. It checks the exit code and that no task is left over, and
 stops at the first failure.
