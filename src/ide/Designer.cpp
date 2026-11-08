@@ -242,7 +242,7 @@ bool Designer::open(const std::string &afg)
     palette.win = tree.win = props.win = win;
     events.win = win;   // --- basic ---
     palette.detach();
-    for (Kind k : paletteKinds = gui::paletteKinds()) palette.add({ kindInfo(k).title });
+    for (Kind k : paletteKinds = gui::paletteKinds(basicMode)) palette.add({ kindInfo(k).title });   // --- basic --- + Timer
     palette.attach(0);
     select(model.root());
     openPreview();

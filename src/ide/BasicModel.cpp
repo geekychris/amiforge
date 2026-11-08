@@ -2,6 +2,7 @@
 #include "BasicModel.h"
 #include "sci/BasicSyntax.h"
 #include "GuiModel.h"
+#include "BasicFormsEvents.h"
 
 #include <algorithm>
 #include <cctype>
@@ -62,61 +63,10 @@ int indentOf(const std::string &l)
 
 // --- the built-in control table --------------------------------------------------------
 
-Member P(const char *n, const char *type, const char *doc = "") { return { n, "", type, doc }; }
-Member M(const char *n, const char *params, const char *doc = "") { return { n, params, "", doc }; }
-Member E(const char *n, const char *params = "", const char *doc = "") { return { n, params, "", doc }; }
-
 std::vector<ControlInfo> builtinControls()
 {
-    const std::vector<Member> common = { P("Enabled", "Boolean", "False greys it out"),
-                                         P("Hint", "String", "the help bubble") };
-    const std::vector<Member> focus = { M("SetFocus", "", "makes it the active gadget") };
-    auto withCommon = [&](std::vector<Member> own) {
-        own.insert(own.end(), common.begin(), common.end());
-        return own;
-    };
-    std::vector<ControlInfo> t = {
-        { "window", "Form",
-          { P("Caption", "String", "the window title"), P("Width", "Long"), P("Height", "Long"),
-            P("Left", "Long"), P("Top", "Long"), P("Visible", "Boolean") },
-          { M("Show", "", "opens the window"), M("Hide", "", "closes the window, keeps the form"),
-            M("Refresh", "") },
-          { E("Load", "", "before the window opens"), E("Unload", "Cancel As Integer", "the window is closing; Cancel = 1 keeps it open"),
-            E("Resize"), E("Activate"), E("Deactivate"),
-            E("KeyDown", "KeyCode As Integer, Shift As Integer"), E("KeyUp", "KeyCode As Integer, Shift As Integer") },
-          "Load" },
-        { "button", "Button", withCommon({ P("Text", "String", "the label") }), focus, { E("Click") }, "Click" },
-        { "string", "TextBox", withCommon({ P("Text", "String"), P("MaxLength", "Integer") }), focus,
-          { E("Change", "", "the text was changed (Return or leaving the gadget)"), E("GotFocus"), E("LostFocus") },
-          "Change" },
-        { "integer", "IntegerBox", withCommon({ P("Value", "Long"), P("Min", "Long"), P("Max", "Long") }), focus,
-          { E("Change") }, "Change" },
-        { "checkbox", "CheckBox", withCommon({ P("Value", "Boolean", "True when ticked"), P("Text", "String") }), focus,
-          { E("Click") }, "Click" },
-        { "chooser", "ComboBox",
-          withCommon({ P("ListIndex", "Integer", "the chosen item, 0 = first"), P("Text", "String", "the chosen item's text"),
-                       P("ListCount", "Integer"), P("List", "String", "List(i): item i") }),
-          { M("AddItem", "Item As String"), M("RemoveItem", "Index As Integer"), M("Clear", "") },
-          { E("Click", "", "an item was chosen") }, "Click" },
-        { "radio", "OptionGroup", withCommon({ P("ListIndex", "Integer", "the chosen button, 0 = first") }), {},
-          { E("Click") }, "Click" },
-        { "slider", "Slider", withCommon({ P("Value", "Long"), P("Min", "Long"), P("Max", "Long") }), {},
-          { E("Change", "", "the knob was let go"), E("Scroll", "", "while it is dragged") }, "Change" },
-        { "scroller", "ScrollBar",
-          withCommon({ P("Value", "Long", "the top"), P("Max", "Long", "the total"), P("LargeChange", "Long", "the visible part") }), {},
-          { E("Change"), E("Scroll") }, "Change" },
-        { "listbrowser", "ListBox",
-          withCommon({ P("ListIndex", "Integer", "the selected row, -1 = none"), P("Text", "String", "the selected row's text"),
-                       P("ListCount", "Integer"), P("List", "String", "List(i): row i") }),
-          { M("AddItem", "Item As String"), M("RemoveItem", "Index As Integer"), M("Clear", "") },
-          { E("Click"), E("DblClick") }, "Click" },
-        { "label", "Label", { P("Text", "String") }, {}, {}, "" },
-        { "fuelgauge", "ProgressBar", { P("Value", "Long"), P("Min", "Long"), P("Max", "Long") }, {}, {}, "" },
-        { "getfile", "FileBox", withCommon({ P("FileName", "String"), P("Title", "String"), P("Pattern", "String") }),
-          { M("Request", "", "opens the file requester") }, { E("Change", "", "a file was chosen") }, "Change" },
-        { "texteditor", "TextEditor", withCommon({ P("Text", "String") }), focus, { E("Change") }, "Change" },
-        { "timer", "Timer", { P("Interval", "Long", "milliseconds"), P("Enabled", "Boolean") }, {}, { E("Timer") }, "Timer" },
-    };
+    std::vector<ControlInfo> t;
+    parseFormsEvents(kFormsEventsMd, t);
     return t;
 }
 
@@ -166,106 +116,193 @@ void setControls(const std::vector<ControlInfo> &t)
 
 void resetControls() { table() = builtinControls(); }
 
-// forms-events.md: a section per control kind, headed "## <kind>" (the .afg kind name, maybe
-// in `backquotes`, maybe followed by " - BasicType" or " (BasicType)"); in it, "Properties",
-// "Methods" and "Events" (a heading, a **bold** line or "Events:") followed by list items
-// "- Name(params) As Type - text" (or a table row "| Name(params) | ... |"). "(default)" in an
-// event's line marks the default event; otherwise the first event is.
+const char *builtinFormsEvents() { return kFormsEventsMd; }
+
+// forms-events.md (Boing BASIC's docs): a "## " section per control kind; the kind is the
+// `backquoted` .afg name in the heading ("## Check box (`checkbox`) - VB `CheckBox`"), else the
+// heading's first word ("## button"). In a section, tables or lists of properties, methods and
+// events: a table's header row ("| Property | Type | ...", "| Property / method |", "| Method |",
+// "| Event | Signature |") or a "Properties"/"Methods"/"Events" line says which. A row's first
+// cell is the name (several: "`Caption` / `Text`"); a property row whose second cell is
+// "method" is a method; an event's parameters come from its signature cell
+// ("`Form_Unload(Cancel As Integer)`"). "(default)" marks the default event, else it's the
+// first. "## Properties every control has" lists properties added to every control.
+namespace {
+
+std::vector<std::string> cells(const std::string &row)
+{
+    std::vector<std::string> out;
+    std::string cur;
+    bool tick = false;
+    for (size_t i = 1; i < row.size(); i++) {   // row[0] is the leading '|'
+        char c = row[i];
+        if (c == '`') tick = !tick;
+        if (c == '|' && !tick) { out.push_back(trimmed(cur)); cur.clear(); continue; }
+        cur.push_back(c);
+    }
+    if (!trimmed(cur).empty()) out.push_back(trimmed(cur));
+    return out;
+}
+
+// "`Caption` / `Text`" -> {Caption, Text}; "`List(i)`" -> {List(i)}; "Click" -> {Click}
+std::vector<std::string> namesIn(const std::string &cell)
+{
+    std::vector<std::string> out;
+    size_t p = 0;
+    bool any = false;
+    while ((p = cell.find('`', p)) != std::string::npos) {
+        size_t e = cell.find('`', p + 1);
+        if (e == std::string::npos) break;
+        out.push_back(cell.substr(p + 1, e - p - 1));
+        any = true;
+        p = e + 1;
+    }
+    if (!any) out.push_back(cell);
+    return out;
+}
+
+// "AddItem item [, index]" / "List(i)" / "Form_Load()" -> name and parameters
+void splitMember(const std::string &text, std::string &name, std::string &params)
+{
+    size_t i = 0;
+    name.clear();
+    params.clear();
+    while (i < text.size() && !identChar(text[i])) i++;
+    while (i < text.size() && (identChar(text[i]) || text[i] == '<' || text[i] == '>')) name.push_back(text[i++]);
+    while (i < text.size() && text[i] == ' ') i++;
+    if (i < text.size() && text[i] == '(') {
+        size_t e = text.rfind(')');
+        params = trimmed(text.substr(i + 1, e == std::string::npos || e < i ? std::string::npos : e - i - 1));
+    } else {
+        params = trimmed(text.substr(i));
+    }
+}
+
+} // namespace
+
 bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std::string *err)
 {
     out.clear();
-    ControlInfo *cur = nullptr;
-    int list = 0;   // 1 properties, 2 methods, 3 events
-    bool defaultMarked = false;
-    auto finish = [&]() {
-        if (cur && cur->defaultEvent.empty() && !cur->events.empty()) cur->defaultEvent = cur->events.front().name;
+    static const char *const known[] = { "window", "button", "string", "integer", "checkbox", "chooser",
+                                         "radio", "slider", "scroller", "listbrowser", "label", "space",
+                                         "fuelgauge", "getfile", "texteditor", "timer", nullptr };
+    auto isKnown = [](const std::string &k) {
+        for (const char *const *x = known; *x; x++) if (k == *x) return true;
+        return false;
     };
+    ControlInfo *cur = nullptr;
+    std::vector<Member> common;
+    bool inCommon = false;
+    int list = 0;   // 1 properties, 2 methods, 3 events
+    std::vector<bool> marked;
     for (const std::string &raw : splitLines(md)) {
         std::string l = trimmed(raw);
         if (l.empty()) continue;
         std::string ll = lower(l);
-        if (l.compare(0, 2, "##") == 0 && l.compare(0, 4, "####") != 0 && (l.size() < 3 || l[2] != '#')) {
-            // a control section
-            finish();
+        if (l.compare(0, 3, "## ") == 0) {
             cur = nullptr;
             list = 0;
-            defaultMarked = false;
-            std::string h = trimmed(l.substr(2));
-            std::string word, rest;
-            size_t i = 0;
-            while (i < h.size() && (h[i] == '`' || h[i] == ' ')) i++;
-            while (i < h.size() && identChar(h[i])) word.push_back(h[i++]);
-            rest = h.substr(i);
-            std::string kind = lower(word);
-            if (kind == "form") kind = "window";
-            std::string type;
-            // "button - Button", "button (CommandButton)", "`button` — Button"
-            for (size_t k = 0; k < rest.size(); k++)
-                if (std::isalpha((unsigned char)rest[k])) {
-                    while (k < rest.size() && identChar(rest[k])) type.push_back(rest[k++]);
-                    break;
-                }
-            if (kind.empty()) continue;
-            static const char *const known[] = { "window", "button", "string", "integer", "checkbox", "chooser",
-                                                 "radio", "slider", "scroller", "listbrowser", "label", "space",
-                                                 "fuelgauge", "getfile", "texteditor", "timer", "vlayout",
-                                                 "hlayout", nullptr };
-            bool ok = false;
-            for (const char *const *k = known; *k; k++) ok = ok || kind == *k;
-            if (!ok) continue;
+            inCommon = ll.find("every control") != std::string::npos;
+            if (inCommon) { list = 1; continue; }
+            std::string h = trimmed(l.substr(3)), kind;
+            size_t q = h.find('`');
+            if (q != std::string::npos && h.find('`', q + 1) != std::string::npos) {
+                size_t e = h.find('`', q + 1);
+                kind = lower(h.substr(q + 1, e - q - 1));
+            }
+            std::string first;
+            for (size_t i = 0; i < h.size() && (identChar(h[i]) || (first.empty() && h[i] == '`')); i++)
+                if (h[i] != '`') first.push_back(h[i]);
+            if (!isKnown(kind)) kind = lower(first) == "form" ? "window" : lower(first);
+            if (!isKnown(kind)) continue;
             out.push_back(ControlInfo());
             cur = &out.back();
+            marked.push_back(false);
             cur->kind = kind;
-            cur->basicType = type.empty() ? (kind == "window" ? "Form" : word) : type;
+            // the BASIC type: "VB `CommandButton`", else the heading's first word
+            size_t vb = h.find("VB `");
+            if (vb != std::string::npos) {
+                size_t e = h.find('`', vb + 4);
+                cur->basicType = h.substr(vb + 4, e == std::string::npos ? std::string::npos : e - vb - 4);
+            } else cur->basicType = kind == "window" ? "Form" : first;
             continue;
         }
-        if (!cur) continue;
-        // a list heading
+        if (!cur && !inCommon) continue;
+        std::vector<Member> &props = cur ? cur->properties : common;
+        // a list heading: "### Events", "**Events:**", "Events:"
         std::string bare = ll;
         bare.erase(std::remove_if(bare.begin(), bare.end(), [](char c) { return c == '#' || c == '*' || c == ':' || c == '_'; }), bare.end());
         bare = trimmed(bare);
         if (bare == "properties") { list = 1; continue; }
         if (bare == "methods") { list = 2; continue; }
         if (bare == "events") { list = 3; continue; }
-        if (l[0] == '#') { list = 0; continue; }   // another sub-heading
-        if (!list) continue;
+        if (l[0] == '#') continue;
+        std::vector<std::string> row;
         std::string item;
-        if (l[0] == '-' || l[0] == '*') item = trimmed(l.substr(1));
-        else if (l[0] == '|') {
-            // a table row: the first cell
-            size_t e = l.find('|', 1);
-            item = trimmed(l.substr(1, e == std::string::npos ? std::string::npos : e - 1));
-            if (item.find("---") != std::string::npos) continue;
-            std::string li = lower(item);
-            if (li == "name" || li == "property" || li == "method" || li == "event") continue;
-            item += " " + (e == std::string::npos ? "" : l.substr(e));
+        if (l[0] == '|') {
+            row = cells(l);
+            if (row.empty() || row[0].find("---") != std::string::npos) continue;
+            std::string h0 = lower(row[0]);
+            if (h0 == "property" || h0 == "property / method") { list = 1; continue; }
+            if (h0 == "method") { list = 2; continue; }
+            if (h0 == "event") { list = 3; continue; }
+        } else if (l[0] == '-' || l[0] == '*') {
+            item = trimmed(l.substr(1));
         } else continue;
-        // Name[(params)] [As Type] [- doc]
-        size_t i = 0;
-        while (i < item.size() && (item[i] == '`' || item[i] == '*')) i++;
-        Member m;
-        while (i < item.size() && identChar(item[i])) m.name.push_back(item[i++]);
-        if (m.name.empty()) continue;
-        // a "Form_" or "<id>_" prefix in the event's name isn't part of it
-        if (list == 3) {
-            size_t us = m.name.find('_');
-            if (us != std::string::npos && (lower(m.name.substr(0, us)) == "form" || m.name.substr(0, us) == "id" ||
-                                            lower(m.name.substr(0, us)) == cur->kind))
-                m.name = m.name.substr(us + 1);
-        }
-        while (i < item.size() && item[i] == ' ') i++;
-        if (i < item.size() && item[i] == '(') {
-            int depth = 0;
-            size_t s = i;
-            for (; i < item.size(); i++) {
-                if (item[i] == '(') depth++;
-                else if (item[i] == ')' && --depth == 0) break;
+        if (!list) continue;
+        if (!row.empty()) {
+            std::string second = row.size() > 1 ? row[1] : "", lsecond = lower(second);
+            for (const std::string &nm : namesIn(row[0])) {
+                Member m;
+                splitMember(nm, m.name, m.params);
+                if (m.name.empty()) continue;
+                if (list == 3) {
+                    // "Form_Load()" / "<id>_Click()" written as the name: the event is after the _
+                    size_t us = m.name.find('_');
+                    if (us != std::string::npos) {
+                        std::string pre = lower(m.name.substr(0, us));
+                        if (pre == "form" || pre == "<id>" || pre == "id" || (cur && pre == cur->kind)) m.name = m.name.substr(us + 1);
+                    }
+                    // the signature cell has the parameters: Form_Unload(Cancel As Integer), <id>_Click()
+                    for (size_t c = 1; c < row.size(); c++)
+                        if (row[c].find('(') != std::string::npos && row[c].find('_') != std::string::npos) {
+                            std::string sig = namesIn(row[c]).front(), sn, sp;
+                            splitMember(sig.substr(sig.find('_') + 1), sn, sp);
+                            m.params = sp;
+                            break;
+                        }
+                    m.doc = row.size() > 2 ? row[2] : "";
+                    bool def = lower(l).find("(default)") != std::string::npos;
+                    if (cur) {
+                        cur->events.push_back(m);
+                        if (def && !marked.back()) { cur->defaultEvent = m.name; marked.back() = true; }
+                    }
+                } else if (list == 2 || lsecond == "method") {
+                    m.doc = row.size() > 2 ? row[2] : "";
+                    if (cur) cur->methods.push_back(m);
+                } else {
+                    // "Long, R/O", "String (get and set)": the type's first word
+                    for (size_t k = 0; k < second.size() && identChar(second[k]); k++) m.type.push_back(second[k]);
+                    m.doc = row.size() > 3 ? row[3] : row.size() > 2 ? row[2] : "";
+                    m.params.clear();
+                    props.push_back(m);
+                }
             }
-            m.params = trimmed(item.substr(s + 1, i > s ? i - s - 1 : 0));
-            if (i < item.size()) i++;
+            continue;
         }
-        std::string rest = item.substr(std::min(i, item.size()));
-        while (!rest.empty() && (rest[0] == '`' || rest[0] == '*')) rest.erase(0, 1);
+        // a list item: "Name(params) [As Type] [- doc]"
+        Member m;
+        std::string nm = namesIn(item).front();
+        size_t rp = item.find(')');
+        splitMember(nm, m.name, m.params);
+        if (m.name.empty()) continue;
+        size_t us = m.name.find('_');
+        if (list == 3 && us != std::string::npos) m.name = m.name.substr(us + 1);
+        std::string rest = item;
+        size_t tickEnd = item.find('`') != std::string::npos ? item.find('`', item.find('`') + 1) : std::string::npos;
+        if (tickEnd != std::string::npos) rest = item.substr(tickEnd + 1);
+        else if (rp != std::string::npos) rest = item.substr(rp + 1);
+        else rest = item.substr(std::min(item.size(), m.name.size()));
         rest = trimmed(rest);
         std::string lr = lower(rest);
         if (lr.compare(0, 3, "as ") == 0) {
@@ -275,19 +312,36 @@ bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std:
             rest = trimmed(rest.substr(k));
             lr = lower(rest);
         }
-        bool isDefault = lr.find("(default)") != std::string::npos || lower(item).find("default event") != std::string::npos;
-        // the doc text: after a dash or a table separator
-        size_t d = rest.find_first_not_of(" -|:\xe2\x80\x93\x94`*");
+        bool def = lr.find("(default)") != std::string::npos;
+        if (def) { size_t d = rest.find("(default)"); rest.erase(d, 9); rest = trimmed(rest); }
+        size_t d = rest.find_first_not_of(" -|:`*");
         m.doc = d == std::string::npos ? "" : trimmed(rest.substr(d));
-        while (!m.doc.empty() && (m.doc.back() == '|' || m.doc.back() == ' ')) m.doc.pop_back();
-        if (list == 1) cur->properties.push_back(m);
-        else if (list == 2) cur->methods.push_back(m);
-        else {
+        if (list == 1) { m.params.clear(); props.push_back(m); }
+        else if (list == 2 && cur) cur->methods.push_back(m);
+        else if (cur) {
             cur->events.push_back(m);
-            if (isDefault && !defaultMarked) { cur->defaultEvent = m.name; defaultMarked = true; }
+            if (def && !marked.back()) { cur->defaultEvent = m.name; marked.back() = true; }
         }
     }
-    finish();
+    // the common properties and gadget methods
+    for (auto &c : out) {
+        const bool gadget = c.kind != "label" && c.kind != "space" && c.kind != "fuelgauge" && c.kind != "timer" &&
+                            c.kind != "window";
+        if (c.kind != "window" && c.kind != "timer")
+            for (auto &m : common) {
+                if (!gadget && (m.name == "Enabled" || m.name == "ToolTipText")) continue;
+                bool have = false;
+                for (auto &p : c.properties) have = have || equalsNoCase(p.name, m.name);
+                if (!have) c.properties.push_back(m);
+            }
+        if (gadget)
+            for (const char *mm : { "SetFocus", "Refresh" }) {
+                bool have = false;
+                for (auto &p : c.methods) have = have || equalsNoCase(p.name, mm);
+                if (!have) c.methods.push_back({ mm, "", "", "" });
+            }
+        if (c.defaultEvent.empty() && !c.events.empty()) c.defaultEvent = c.events.front().name;
+    }
     if (out.empty() && err) *err = "no control sections (## button ...) found";
     return !out.empty();
 }

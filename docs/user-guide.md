@@ -1200,25 +1200,32 @@ The window is `Me` in its code and is called by its **Code name** elsewhere (`ma
   **Tools > View Form / View Code** (Alt-F7) switches between a form and its code, from the
   editor or the designer.
 
-| Control | BASIC type | Default event | Events |
+| Control | BASIC (VB) type | Default event | Events |
 |---|---|---|---|
-| window | Form | Load | Load, Unload(Cancel), Resize, Activate, Deactivate, KeyDown, KeyUp |
-| button | Button | Click | Click |
-| string | TextBox | Change | Change, GotFocus, LostFocus |
-| integer | IntegerBox | Change | Change |
+| window | Form | Load | Load, Activate, Deactivate, Resize, KeyDown, KeyUp, KeyPress, QueryUnload, Unload |
+| button | CommandButton | Click | Click |
+| string | TextBox | Change | Change, KeyPress |
+| integer | (number field) | Change | Change |
 | checkbox | CheckBox | Click | Click |
 | chooser | ComboBox | Click | Click |
-| radio | OptionGroup | Click | Click |
+| radio | (OptionButton group) | Click | Click |
 | slider | Slider | Change | Change, Scroll |
-| scroller | ScrollBar | Change | Change, Scroll |
+| scroller | HScrollBar / VScrollBar | Change | Change, Scroll |
 | listbrowser | ListBox | Click | Click, DblClick |
-| getfile | FileBox | Change | Change |
-| texteditor | TextEditor | Change | Change |
+| getfile | (file chooser) | Change | Change |
+| texteditor | (multi-line TextBox) | Change | Change |
+| timer | Timer | Timer | Timer |
 
-This is AmiForge's built-in table. The real list comes from Boing BASIC's
-`docs/forms-events.md`, which AmiForge reads when it finds it: in the drawer named by the
-variable `AmiForge/BoingDocs`, in `docs/` beside the `boing` command (or one drawer up), or
-in `PROGDIR:Docs`. The ARexx command `BASICCONTROLS` says which one is in use.
+Labels, spaces and fuel gauges have no events. The palette has a **Timer (BASIC)** in a Boing
+BASIC form: it takes no space in the window (the preview leaves it out) and has an
+**Interval** in milliseconds and **Enabled**; `<id>_Timer` runs every Interval.
+
+The table, with each control's properties and methods (which completion offers after `ok.`),
+comes from Boing BASIC's `docs/forms-events.md`, the contract between its forms runtime and
+the designer. AmiForge has a copy built in, and reads a newer one when it finds it: in the
+drawer named by the variable `AmiForge/BoingDocs`, in `docs/` beside the `boing` command (or
+one drawer up), or in `PROGDIR:Docs`. The ARexx command `BASICCONTROLS` says which one is in
+use.
 
 ### Debugging BASIC
 

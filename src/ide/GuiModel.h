@@ -26,7 +26,9 @@ namespace gui {
 
 enum class Kind {
     Window, VLayout, HLayout, Button, String, Integer, CheckBox, Chooser, Radio, Slider, Scroller,
-    ListBrowser, Label, Space, FuelGauge, GetFile, TextEditor, Count
+    ListBrowser, Label, Space, FuelGauge, GetFile, TextEditor,
+    Timer,      // --- basic --- Boing BASIC only: no gadget, the runtime fires <id>_Timer
+    Count
 };
 
 // A property of an object kind, as the property editor shows it.
@@ -51,7 +53,9 @@ struct KindInfo {
 
 const KindInfo &kindInfo(Kind k);
 const KindInfo *kindByName(const std::string &name);
-std::vector<Kind> paletteKinds();    // the kinds the designer's palette offers, in order
+// The kinds the designer's palette offers, in order; the Timer only for Boing BASIC forms
+// (the C code generator has nothing to make of it).
+std::vector<Kind> paletteKinds(bool basic = false);
 
 struct Node {
     Kind kind = Kind::Button;

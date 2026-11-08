@@ -351,6 +351,7 @@ TEST(basic_member_completion)
 {
     std::map<std::string, std::string> ctl = { { "ok", "button" }, { "names", "listbrowser" }, { "main", "window" } };
     std::vector<std::string> m = memberCompletions("OK", ctl);
+    CHECK(std::find(m.begin(), m.end(), "Caption") != m.end());
     CHECK(std::find(m.begin(), m.end(), "Text") != m.end());
     CHECK(std::find(m.begin(), m.end(), "SetFocus") != m.end());
     m = memberCompletions("names", ctl);
@@ -365,7 +366,7 @@ TEST(basic_forms_events_md)
     const char *md =
         "# Forms: properties, methods, events\n"
         "Intro text.\n"
-        "## `button` - Button\n"
+        "## Button (`button`) - VB `Button`\n"
         "### Properties\n"
         "- `Text` As String - the label\n"
         "- `Enabled` As Boolean\n"
@@ -373,7 +374,7 @@ TEST(basic_forms_events_md)
         "- `SetFocus()`\n"
         "### Events\n"
         "- `Click()` (default) - pressed\n"
-        "## string (TextBox)\n"
+        "## String (`string`) - VB `TextBox`\n"
         "**Events:**\n"
         "- Enter()\n"
         "- Change() (default)\n"
@@ -392,9 +393,10 @@ TEST(basic_forms_events_md)
     CHECK_EQ(t[0].kind, std::string("button"));
     CHECK_EQ(t[0].basicType, std::string("Button"));
     CHECK_EQ(t[0].properties.size(), (size_t)2);
+    if (t[0].properties.size() < 2) return;
     CHECK_EQ(t[0].properties[0].type, std::string("String"));
     CHECK_EQ(t[0].properties[0].doc, std::string("the label"));
-    CHECK_EQ(t[0].methods.size(), (size_t)1);
+    CHECK_EQ(t[0].methods.size(), (size_t)2);   // SetFocus, and Refresh (every gadget has it)
     CHECK_EQ(t[0].defaultEvent, std::string("Click"));
     CHECK_EQ(t[1].basicType, std::string("TextBox"));
     CHECK_EQ(t[1].events.size(), (size_t)2);
@@ -437,4 +439,78 @@ TEST(basic_completion_words_and_form_controls)
     CHECK_EQ(c["who"], std::string("string"));
     CHECK_EQ(c["root"], std::string("vlayout"));
     CHECK_EQ(c.size(), (size_t)4);
+}
+
+// Boing BASIC's own docs/forms-events.md (the copy built in, BasicFormsEvents.h)
+TEST(basic_forms_events_contract)
+{
+    std::string md = builtinFormsEvents();
+    std::vector<ControlInfo> t;
+    std::string err;
+    CHECK(parseFormsEvents(md, t, &err));
+    auto find = [&](const char *k) -> const ControlInfo * {
+        for (auto &c : t) if (c.kind == k) return &c;
+        return nullptr;
+    };
+    for (const char *k : { "window", "button", "string", "integer", "checkbox", "chooser", "radio", "slider",
+                           "scroller", "listbrowser", "label", "space", "fuelgauge", "getfile", "texteditor", "timer" })
+        if (!find(k)) aftest::fail(__FILE__, __LINE__, std::string("no section for ") + k);
+    const ControlInfo *w = find("window");
+    if (w) {
+        CHECK_EQ(w->basicType, std::string("Form"));
+        CHECK_EQ(w->defaultEvent, std::string("Load"));
+        CHECK(w->event("Unload") && w->event("Unload")->params == "Cancel As Integer");
+        CHECK(w->event("QueryUnload") && w->event("QueryUnload")->params == "Cancel As Integer, UnloadMode As Integer");
+        CHECK(w->event("KeyDown") && w->event("KeyDown")->params == "KeyCode As Integer, Shift As Integer");
+        bool caption = false, show = false;
+        for (auto &p : w->properties) caption = caption || p.name == "Caption";
+        for (auto &m : w->methods) show = show || m.name == "Show";
+        CHECK(caption && show);
+    }
+    const ControlInfo *b = find("button");
+    if (b) {
+        CHECK_EQ(b->basicType, std::string("CommandButton"));
+        CHECK_EQ(b->defaultEvent, std::string("Click"));
+        CHECK(b->event("Click") && b->event("Click")->params.empty());
+        bool enabled = false, focus = false;
+        for (auto &p : b->properties) enabled = enabled || p.name == "Enabled";
+        for (auto &m : b->methods) focus = focus || m.name == "SetFocus";
+        CHECK(enabled && focus);
+    }
+    const ControlInfo *s = find("string");
+    if (s) {
+        CHECK_EQ(s->defaultEvent, std::string("Change"));
+        CHECK(s->event("KeyPress") && s->event("KeyPress")->params == "KeyAscii As Integer");
+    }
+    const ControlInfo *c = find("checkbox");
+    if (c) {
+        bool caption = false, text = false;
+        for (auto &p : c->properties) { caption = caption || p.name == "Caption"; text = text || p.name == "Text"; }
+        CHECK(caption && text);
+    }
+    const ControlInfo *ch = find("chooser");
+    if (ch) {
+        bool add = false, list = false;
+        for (auto &m : ch->methods) add = add || m.name == "AddItem";
+        for (auto &p : ch->properties) list = list || p.name == "List";
+        CHECK(add && list);
+    }
+    const ControlInfo *lb = find("listbrowser");
+    if (lb) CHECK(lb->event("DblClick") != nullptr);
+    const ControlInfo *lab = find("label");
+    if (lab) {
+        CHECK(lab->events.empty() && lab->defaultEvent.empty());
+        bool enabled = false;
+        for (auto &p : lab->properties) enabled = enabled || p.name == "Enabled";
+        CHECK(!enabled);
+    }
+    const ControlInfo *tm = find("timer");
+    if (tm) {
+        CHECK_EQ(tm->defaultEvent, std::string("Timer"));
+        bool interval = false;
+        for (auto &p : tm->properties) interval = interval || p.name == "Interval";
+        CHECK(interval);
+    }
+    const ControlInfo *sl = find("slider");
+    if (sl) CHECK(sl->event("Scroll") != nullptr && sl->defaultEvent == "Change");
 }

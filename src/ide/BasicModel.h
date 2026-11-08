@@ -45,6 +45,7 @@ const ControlInfo *controlFor(const std::string &kind);   // "" / unknown -> nul
 bool parseFormsEvents(const std::string &markdown, std::vector<ControlInfo> &out, std::string *err = nullptr);
 void setControls(const std::vector<ControlInfo> &table);   // replaces the built-in one
 void resetControls();                                      // back to the built-in one
+const char *builtinFormsEvents();                          // the copy of forms-events.md built in
 
 // --- procedures ------------------------------------------------------------------------------
 

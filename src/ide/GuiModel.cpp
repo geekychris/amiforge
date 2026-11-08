@@ -89,6 +89,11 @@ static const std::vector<KindInfo> &kinds()
                        { "save", "Save mode", PropType::Bool, "0", nullptr } }, true) },
         { Kind::TextEditor, "texteditor", "Text Editor", false, true, "editor",
           withCommon({ { "text", "Text", PropType::Text, "", nullptr } }, true) },
+        // --- basic --- no space in the window: Boing BASIC's runtime runs it on timer.device
+        { Kind::Timer, "timer", "Timer (BASIC)", false, false, "timer",
+          { { "id", "ID name", PropType::Ident, "", nullptr },
+            { "interval", "Interval (ms, 0 = off)", PropType::Int, "0", nullptr },
+            { "enabled", "Enabled", PropType::Bool, "1", nullptr } } },
     };
     return k;
 }
@@ -102,10 +107,11 @@ const KindInfo *kindByName(const std::string &name)
     return nullptr;
 }
 
-std::vector<Kind> paletteKinds()
+std::vector<Kind> paletteKinds(bool basic)
 {
     std::vector<Kind> v;
-    for (int i = (int)Kind::VLayout; i < (int)Kind::Count; i++) v.push_back((Kind)i);
+    for (int i = (int)Kind::VLayout; i < (int)Kind::Count; i++)
+        if (basic || (Kind)i != Kind::Timer) v.push_back((Kind)i);
     return v;
 }
 
@@ -502,6 +508,7 @@ struct Gen {
             if (n->getBool("even")) tag("LAYOUT_EvenSize", "TRUE");
             for (auto &c : n->children) {
                 Node *ch = c.get();
+                if (ch->kind == Kind::Timer) continue;   // --- basic --- not part of the window
                 bool image = ch->kind == Kind::Label;
                 s += I + (image ? "LAYOUT_AddImage, " : "LAYOUT_AddChild, ") + object(ch, ind + 4);
                 if (ch->has("label"))
@@ -614,6 +621,7 @@ struct Gen {
 
     void collect(Node *n)
     {
+        if (n->kind == Kind::Timer) return;   // --- basic ---
         kindsUsed.insert(n->kind);
         if (n->has("label")) kindsUsed.insert(Kind::Label);
         if (!n->get("id").empty()) nodes.push_back(n);
