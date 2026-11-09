@@ -1,6 +1,8 @@
 // AmiForge - the application: main window, documents, project, build and debug.
 #pragma once
 
+#include "BasicModel.h"   // --- basic --- RuntimeMembers
+
 #include <string>
 #include <vector>
 #include <memory>
@@ -793,6 +795,15 @@ public:
     std::vector<std::function<void()>> deferredWork;
     std::map<std::string, std::string> basicControlMap();   // the forms' controls: id -> kind (completion)
     std::map<std::string, std::pair<int64_t, std::map<std::string, std::string>>> formCache;
+    // the runtime classes' members (Engine3D, Canvas, Audio...), from `boing members` once per
+    // boing; empty for a boing without the command (BasicUI.cpp)
+    const basic::RuntimeMembers &basicRuntimeMembers();
+    basic::RuntimeMembers runtimeMembers;
+    std::string runtimeMembersOf;                // the boing they came from
+    bool runtimeMembersTried = false;
+    // completion after "name.": a control's or form's members, else the runtime class name is
+    // declared as in `code`; `what` says which ("ok is a CommandButton", "v is a Canvas")
+    std::vector<std::string> basicMemberWords(const std::string &name, const std::string &code, std::string *what = nullptr);
     // --- end basic ---
 };
 

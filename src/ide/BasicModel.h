@@ -166,5 +166,24 @@ std::map<std::string, std::string> formControls(const std::string &afgText);
 // in `controls` (id -> kind; the form's own name maps to "window"; "Me" too in a code-behind).
 std::vector<std::string> memberCompletions(const std::string &name, const std::map<std::string, std::string> &controls);
 
+// --- the runtime classes (Engine3D, Canvas, Audio...): `boing members` ---------------------
+// Its output, one member per line: class<TAB>name<TAB>kind[<TAB>signature[<TAB>type]] (kind
+// method or property; more fields may follow and are kept when there). Keyed by the class in
+// lower case; members in the case declared, aliases included.
+struct ClassMember {
+    std::string name, kind, signature, type;
+};
+using RuntimeMembers = std::map<std::string, std::vector<ClassMember>>;
+RuntimeMembers parseMembers(const std::string &output);
+std::string membersCommand(const std::string &boing);   // "boing members"
+// The class a variable is declared as in BASIC code: Dim/Private/Public/Global/Static/Const
+// lists and procedure parameters, "As [New] [Boing.]Class". Lower-case variable -> class as
+// written without "Boing.". Comments and strings don't count.
+std::map<std::string, std::string> declaredTypes(const std::string &code);
+// Completion after "name.": the members of the runtime class `name` is declared as in `code`
+// (empty if it isn't one of `members`' classes); `cls` gets the class's name.
+std::vector<std::string> classMemberCompletions(const std::string &name, const std::string &code,
+                                                const RuntimeMembers &members, std::string *cls = nullptr);
+
 } // namespace basic
 } // namespace af

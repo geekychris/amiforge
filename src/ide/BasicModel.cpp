@@ -1109,5 +1109,97 @@ std::vector<std::string> memberCompletions(const std::string &name, const std::m
     return out;
 }
 
+// --- the runtime classes --------------------------------------------------------------------
+
+RuntimeMembers parseMembers(const std::string &output)
+{
+    RuntimeMembers out;
+    for (const std::string &raw : splitLines(output)) {
+        std::string l = raw;
+        if (!l.empty() && l.back() == '\r') l.pop_back();
+        std::vector<std::string> f;
+        size_t a = 0;
+        for (;;) {
+            size_t t = l.find('\t', a);
+            f.push_back(l.substr(a, t == std::string::npos ? std::string::npos : t - a));
+            if (t == std::string::npos) break;
+            a = t + 1;
+        }
+        if (f.size() < 3 || trimmed(f[0]).empty() || trimmed(f[1]).empty()) continue;
+        ClassMember m;
+        m.name = trimmed(f[1]);
+        m.kind = lower(trimmed(f[2]));
+        if (f.size() > 3) m.signature = trimmed(f[3]);
+        if (f.size() > 4) m.type = trimmed(f[4]);
+        std::string cls = lower(trimmed(f[0]));
+        if (cls.compare(0, 6, "boing.") == 0) cls = cls.substr(6);
+        out[cls].push_back(m);
+    }
+    return out;
+}
+
+std::string membersCommand(const std::string &boing) { return quoteArg(boing) + " members"; }
+
+std::map<std::string, std::string> declaredTypes(const std::string &code)
+{
+    std::map<std::string, std::string> out;
+    std::string t = maskCode(code);
+    // every "<name> As [New] <type>" (declarations and parameters look the same)
+    size_t n = t.size();
+    for (size_t i = 0; i + 2 < n; i++) {
+        if (!(tolower((unsigned char)t[i]) == 'a' && tolower((unsigned char)t[i + 1]) == 's')) continue;
+        if (i > 0 && (identChar(t[i - 1]) || t[i - 1] == '.')) continue;
+        if (i + 2 < n && identChar(t[i + 2])) continue;
+        // the name before: skip blanks, an array's () and a type suffix
+        size_t e = i;
+        while (e > 0 && (t[e - 1] == ' ' || t[e - 1] == '\t')) e--;
+        if (e > 0 && t[e - 1] == ')') {
+            int depth = 0;
+            while (e > 0) {
+                char c = t[--e];
+                if (c == ')') depth++;
+                else if (c == '(' && --depth == 0) break;
+            }
+            while (e > 0 && (t[e - 1] == ' ' || t[e - 1] == '\t')) e--;
+        }
+        size_t b = e;
+        while (b > 0 && identChar(t[b - 1])) b--;
+        if (b == e) continue;
+        std::string var = t.substr(b, e - b);
+        // the type after
+        size_t k = i + 2;
+        auto blanks = [&] { while (k < n && (t[k] == ' ' || t[k] == '\t')) k++; };
+        blanks();
+        size_t w = k;
+        while (k < n && identChar(t[k])) k++;
+        std::string type = t.substr(w, k - w);
+        if (lower(type) == "new") { blanks(); w = k; while (k < n && identChar(t[k])) k++; type = t.substr(w, k - w); }
+        if (lower(type) == "boing" && k < n && t[k] == '.') {
+            w = ++k;
+            while (k < n && identChar(t[k])) k++;
+            type = t.substr(w, k - w);
+        }
+        if (type.empty() || isKeyword(var)) continue;
+        out[lower(var)] = type;
+    }
+    return out;
+}
+
+std::vector<std::string> classMemberCompletions(const std::string &name, const std::string &code,
+                                                const RuntimeMembers &members, std::string *cls)
+{
+    std::vector<std::string> out;
+    auto types = declaredTypes(code);
+    auto it = types.find(lower(name));
+    if (it == types.end()) return out;
+    auto mt = members.find(lower(it->second));
+    if (mt == members.end()) return out;
+    if (cls) *cls = it->second;
+    for (auto &m : mt->second) out.push_back(m.name);
+    std::sort(out.begin(), out.end(), [](const std::string &a, const std::string &b) { return lower(a) < lower(b); });
+    out.erase(std::unique(out.begin(), out.end()), out.end());
+    return out;
+}
+
 } // namespace basic
 } // namespace af

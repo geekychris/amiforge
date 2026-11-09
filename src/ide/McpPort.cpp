@@ -43,7 +43,7 @@ static const char *const kCommands[] = {
     "CRASH", "SYMBOLS", "REFERENCES", "GITSTATUS",
     // --- basic ---
     "DESIGN", "DESIGNSELECT", "DESIGNEVENTS", "GOTOEVENT", "DESIGNSET", "DESIGNSAVE", "DESIGNADD", "DESIGNMENUS", "VIEWTOGGLE", "BASICSUBS",
-    "BASICCONTROLS",
+    "BASICCONTROLS", "BASICMEMBERS",
 };
 
 bool App::mcpHandles(const std::string &cmd)
@@ -788,6 +788,14 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         for (auto &pr : basic::procedures(t))
             s += mcp::record({ kinds[(int)pr.kind], pr.name, std::to_string(pr.line), std::to_string(pr.endLine),
                                pr.hasCode ? "code" : "empty", pr.params }) + "\n";
+        return s;
+    }
+    if (cmd == "BASICMEMBERS") {   // --- basic --- what completion offers after "NAME." in FILE (the current file)
+        std::string p = a.has("FILE") ? resolvePath(this, a.str("FILE")) : cur ? cur->path : "";
+        std::string what;
+        std::vector<std::string> w = basicMemberWords(mcp::unescape(a.str("NAME")), p.empty() ? "" : basicCodeText(p), &what);
+        std::string s = what + "\n";
+        for (auto &x : w) s += x + "\n";
         return s;
     }
     if (cmd == "BASICCONTROLS") {

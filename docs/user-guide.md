@@ -1265,6 +1265,11 @@ files on buttons, columns, widths, multiple selection and sorting on lists, a fi
 font on text editors, Context menu on every control, and the grid's rows, columns, title
 rows and columns, headers, column width and Editable.
 
+Completion after `v.` also knows Boing BASIC's runtime classes: for a variable declared
+`As Canvas`, `As Engine3D`, `As Audio` (or `As Boing.Canvas`, `As New ...`, a parameter
+`ByVal v As Canvas`) it offers that class's methods and properties. AmiForge asks `boing members`
+for them once per session (an older boing without that command just gives no list).
+
 The table, with each control's properties and methods (which completion offers after `ok.`),
 comes from Boing BASIC's `docs/forms-events.md`, the contract between its forms runtime and
 the designer. AmiForge has a copy built in, and reads a newer one when it finds it: in the
@@ -1310,6 +1315,7 @@ These work like the other MCP commands (see [Commands for assistants and scripts
 | `DESIGNSAVE` | Save the `.afg` |
 | `DESIGNADD [ID] KIND` | Add an object (as the palette's Add does) after the selected object or into the selected group. RESULT `kind<tab>id` |
 | `DESIGNMENUS` | Open the Menu Editor (after the reply: the dialog is modal) |
+| `BASICMEMBERS NAME [FILE]` | What completion offers after `NAME.` in FILE: a control's members, or those of the Boing class NAME is declared as. RESULT: `NAME is a Canvas`, then one member per line |
 | `VIEWTOGGLE` | View Form / View Code |
 | `BASICSUBS [FILE]` | The procedures of a module or of a form's code: kind, name, line, end line, code/empty, parameters |
 | `BASICCONTROLS` | The control table: kind, BASIC type, default event, events |

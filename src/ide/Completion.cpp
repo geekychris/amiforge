@@ -119,16 +119,16 @@ void App::showCompletion(bool explicitRequest)
         }
         std::map<std::string, std::string> ctl = basicControlMap();
         if (!obj.empty()) {
-            for (auto &m : basic::memberCompletions(obj, ctl)) words.insert(m);
+            // a control or form, else a variable declared As a runtime class (Canvas, Engine3D...)
+            intptr_t dlen = S(editor, SCI_GETLENGTH);
+            std::vector<char> text(dlen + 1);
+            S(editor, SCI_GETTEXT, dlen + 1, (intptr_t)text.data());
+            std::string what;
+            for (auto &m : basicMemberWords(obj, std::string(text.data(), dlen), &what)) words.insert(m);
             if (words.empty()) {
                 if (!explicitRequest) return;
-                setStatus(obj + " isn't a control of a form in this project");
-            } else {
-                auto it = ctl.end();
-                for (auto i = ctl.begin(); i != ctl.end(); ++i) if (basic::equalsNoCase(i->first, obj)) it = i;
-                const basic::ControlInfo *ci = it == ctl.end() ? nullptr : basic::controlFor(it->second);
-                if (ci) setStatus(obj + " is a " + ci->basicType);
-            }
+                setStatus(obj + " isn't a control of a form in this project, nor declared as a Boing class");
+            } else if (!what.empty()) setStatus(what);
         } else {
             if (!explicitRequest && len < 3) return;
             intptr_t dlen = S(editor, SCI_GETLENGTH);

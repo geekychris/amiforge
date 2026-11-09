@@ -232,4 +232,50 @@ void App::basicRunEnded(const std::string &errorFile)
     }
 }
 
+// --- the runtime classes' members, for completion --------------------------------------------
+
+const basic::RuntimeMembers &App::basicRuntimeMembers()
+{
+    std::string boing = boingCommand();
+    if (runtimeMembersTried && runtimeMembersOf == boing) return runtimeMembers;
+    runtimeMembersTried = true;
+    runtimeMembersOf = boing;
+    runtimeMembers.clear();
+    // a boing on a volume that isn't there would pop an "insert volume" requester
+    if (boing.empty() || (boing.find(':') != std::string::npos && !existsQuietly(boing))) return runtimeMembers;
+    const char *outFile = "T:AmiForge-members.txt";
+    BPTR out = IDOS->Open(outFile, MODE_NEWFILE);
+    BPTR in = IDOS->Open("NIL:", MODE_OLDFILE);
+    if (out && in) {
+        // synchronous: the handles stay ours; an old boing without the command just prints an error
+        IDOS->SystemTags(basic::membersCommand(boing).c_str(), SYS_Input, in, SYS_Output, out,
+                         SYS_StackSize, 256 * 1024, NP_Name, (uint32)"AmiForge boing members", TAG_END);
+    }
+    if (out) IDOS->Close(out);
+    if (in) IDOS->Close(in);
+    std::string text;
+    if (readFile(outFile, text)) runtimeMembers = basic::parseMembers(text);
+    IDOS->Delete(outFile);
+    return runtimeMembers;
+}
+
+std::vector<std::string> App::basicMemberWords(const std::string &name, const std::string &code, std::string *what)
+{
+    std::map<std::string, std::string> ctl = basicControlMap();
+    std::vector<std::string> words = basic::memberCompletions(name, ctl);
+    if (!words.empty()) {
+        if (what)
+            for (auto &kv : ctl)
+                if (basic::equalsNoCase(kv.first, name)) {
+                    const basic::ControlInfo *ci = basic::controlFor(kv.second);
+                    *what = ci ? name + " is a " + ci->basicType : "";
+                }
+        return words;
+    }
+    std::string cls;
+    words = basic::classMemberCompletions(name, code, basicRuntimeMembers(), &cls);
+    if (what) *what = words.empty() ? "" : name + " is a " + cls;
+    return words;
+}
+
 } // namespace af

@@ -799,3 +799,58 @@ TEST(basic_bbp_sync_keeps_unknown_lines)
     n.modules = { "a.bas" };
     CHECK_EQ(updateBbp("", n), writeBbp(n));
 }
+
+// --- basic --- completion on the runtime classes: `boing members` output and declarations
+TEST(basic_runtime_class_members)
+{
+    const std::string out =
+        "Audio\tPlay\tmethod\n"
+        "Canvas\tCls\tmethod\n"
+        "Canvas\tLine\tmethod\n"
+        "Canvas\tPenColor\tproperty\n"
+        "Canvas\tPenColour\tproperty\n"
+        "Engine3D\tAttach\tmethod\tobj As Long\tLong\n"
+        "Engine3D\tSub\tproperty\r\n"
+        "bad line\n"
+        "\n";
+    RuntimeMembers rm = parseMembers(out);
+    CHECK_EQ((int)rm.size(), 3);
+    CHECK_EQ((int)rm["canvas"].size(), 4);
+    CHECK_EQ(rm["engine3d"][0].signature, std::string("obj As Long"));
+    CHECK_EQ(rm["engine3d"][0].type, std::string("Long"));
+    CHECK_EQ(rm["engine3d"][1].kind, std::string("property"));
+    CHECK_EQ(membersCommand("DH1:Boing BASIC/boing"), std::string("\"DH1:Boing BASIC/boing\" members"));
+
+    const std::string code =
+        "Option Explicit\n"
+        "Dim eng As Engine3D, n As Long\n"
+        "Private snd As New Boing.Audio\n"
+        "Public views(3) As Canvas\n"
+        "' Dim fake As Canvas\n"
+        "Dim s As String: s = \"x As Canvas\"\n"
+        "Sub Draw(ByVal pic As Canvas, Optional k As Integer = 2)\n"
+        "    Static lastPic As Boing.Canvas\n"
+        "End Sub\n";
+    auto types = declaredTypes(code);
+    CHECK_EQ(types["eng"], std::string("Engine3D"));
+    CHECK_EQ(types["n"], std::string("Long"));
+    CHECK_EQ(types["snd"], std::string("Audio"));
+    CHECK_EQ(types["views"], std::string("Canvas"));
+    CHECK_EQ(types["pic"], std::string("Canvas"));
+    CHECK_EQ(types["k"], std::string("Integer"));
+    CHECK_EQ(types["lastpic"], std::string("Canvas"));
+    CHECK(!types.count("fake"));
+    CHECK(!types.count("x"));
+    std::string cls;
+    auto mc = classMemberCompletions("PIC", code, rm, &cls);
+    CHECK_EQ(cls, std::string("Canvas"));
+    CHECK_EQ((int)mc.size(), 4);
+    CHECK(std::find(mc.begin(), mc.end(), "PenColour") != mc.end());
+    CHECK_EQ(mc[0], std::string("Cls"));
+    mc = classMemberCompletions("eng", code, rm, &cls);
+    CHECK(mc.size() == 2 && cls == "Engine3D");
+    CHECK(classMemberCompletions("snd", code, rm).size() == 1);
+    CHECK(classMemberCompletions("n", code, rm).empty());        // Long isn't a class
+    CHECK(classMemberCompletions("nobody", code, rm).empty());
+    CHECK(classMemberCompletions("eng", code, RuntimeMembers()).empty());   // an old boing: no list
+}
