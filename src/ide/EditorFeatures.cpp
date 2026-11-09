@@ -462,6 +462,7 @@ bool App::editorIdcmp(struct IntuiMessage *im, uint32_t &result)
     case IDCMP_INTUITICKS:
         tickViews();
         if (outlineDelay > 0 && --outlineDelay == 0) queueCommand(CMD_REFRESH_OUTLINE);
+        mdTick();   // --- markdown ---
         return true;
     default:
         return false;
@@ -728,6 +729,7 @@ void App::editorModified(const Scintilla::NotificationData &n)
         queueCommand(CMD_SNIPPET_PAINT);
     }
     outlineDelay = 8;   // ~0.8 s after typing stops
+    mdEdited();         // --- markdown --- the preview, 0.3 s after
     if (miniView && n.linesAdded) queueCommand(CMD_MINIMAP_UPDATE);
 }
 

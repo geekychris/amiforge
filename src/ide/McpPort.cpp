@@ -44,6 +44,8 @@ static const char *const kCommands[] = {
     // --- basic ---
     "DESIGN", "DESIGNSELECT", "DESIGNEVENTS", "GOTOEVENT", "DESIGNSET", "DESIGNSAVE", "DESIGNADD", "DESIGNMENUS", "VIEWTOGGLE", "BASICSUBS",
     "BASICCONTROLS", "BASICMEMBERS",
+    // --- markdown ---
+    "PREVIEWMARKDOWN", "MDBLOCKS", "MDLINKS", "MDSTATE", "MDCLICK", "MDSCROLL",
 };
 
 bool App::mcpHandles(const std::string &cmd)
@@ -224,6 +226,20 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         return std::to_string((long)mcpSlots[slot].size());
     }
 
+    // --- markdown --- the Markdown preview (MarkdownView.cpp)
+    if (cmd == "PREVIEWMARKDOWN" || cmd == "MDBLOCKS" || cmd == "MDLINKS" || cmd == "MDSTATE" || cmd == "MDCLICK" ||
+        cmd == "MDSCROLL") {
+        std::string out, err, arg;
+        if (cmd == "PREVIEWMARKDOWN" || cmd == "MDBLOCKS") arg = a.has("FILE") ? resolvePath(this, a.str("FILE")) : "";
+        else if (cmd == "MDCLICK") arg = a.str("LINK");
+        else if (cmd == "MDSCROLL") arg = a.str("Y");
+        static const char *what[][2] = { { "PREVIEWMARKDOWN", "PREVIEW" }, { "MDBLOCKS", "BLOCKS" }, { "MDLINKS", "LINKS" },
+                                         { "MDSTATE", "STATE" }, { "MDCLICK", "CLICK" }, { "MDSCROLL", "SCROLL" } };
+        std::string w;
+        for (auto &p : what) if (cmd == p[0]) w = p[1];
+        if (!mdCommand(w, arg, out, err)) return fail(10, err);
+        return out;
+    }
     if (cmd == "GETSTATE") {
         std::vector<std::string> l;
         int modified = 0;

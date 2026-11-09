@@ -104,6 +104,8 @@ Document *App::openFile(const std::string &pathIn, bool doActivate)
     rebuildTabs();
     updateTitle();
     if (!doActivate && docs.size() > 1) activate(docs[docs.size() - 2].get());
+    // --- markdown --- a Markdown file opened by the user shows rendered beside it
+    if (doActivate && isMarkdownFile(path) && !mdPreview) mdShow(path);
     return p;
 }
 
@@ -142,6 +144,7 @@ void App::activate(Document *d)
         refreshMarkers();
         syncViews();   // --- editor features ---
         integrationsActivated(d);   // --- integrations ---
+        mdActivated();              // --- markdown ---
     }
     rebuildTabs();
     updateTitle();

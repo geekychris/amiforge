@@ -606,6 +606,22 @@ public:
     uint32_t designerSignals();
     void handleDesigner(uint32_t got);
     class Designer *designer = nullptr;
+    // --- markdown --- View > Markdown Preview (MarkdownView.cpp)
+    class MdPreview *mdPreview = nullptr;
+    std::vector<int> deferredMd;                 // links clicked in the preview, followed after its input
+    int mdDelay = 0;                             // INTUITICKS until the preview follows an edit
+    bool isMarkdownFile(const std::string &path);
+    bool mdShow(const std::string &path);
+    void mdClose();
+    void mdToggle();
+    uint32_t mdSignals();
+    void mdHandle();
+    void mdEdited();
+    void mdTick();
+    void mdRefresh();
+    void mdActivated();
+    bool mdCommand(const std::string &what, const std::string &arg, std::string &out, std::string &err);
+    // --- end markdown ---
     // release packaging (ReleaseUI.cpp)
     void packageRelease();
     void continuePackaging(bool buildOk);

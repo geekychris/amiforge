@@ -41,6 +41,13 @@ const std::vector<CommandDef> &commands()
         { "MCP", "COMMAND/A/F", "Run a command; RESULT = \"AF1 rc more length payload\" (always RC 0)" },
         { "MCPMORE", "", "The next part of the last MCP result" },
         { "MCPBUF", "SLOT/N/A,CLEAR/S,TEXT", "Append text to slot 1-9 (refer to it as \\@1); CLEAR empties it first" },
+        // --- markdown ---
+        { "PREVIEWMARKDOWN", "FILE", "Show FILE (or the current .md file) in the Markdown preview; RESULT = its state lines" },
+        { "MDBLOCKS", "FILE", "The Markdown block tree of FILE (or the preview's file), one block per line, then its links and images" },
+        { "MDLINKS", "", "The links visible in the preview: index<tab>href<tab>screen x<tab>y<tab>w<tab>h<tab>text" },
+        { "MDSTATE", "", "The preview's state: file, blocks, links, images, pictures drawn/loaded/failed, size, scroll" },
+        { "MDCLICK", "LINK/A", "Follow link number LINK as a click on it would" },
+        { "MDSCROLL", "Y/A", "Scroll the preview to Y pixels from the top" },
         { "GETSTATE", "", "RESULT = key=value lines: project, file, build and debugger state" },
         { "DOCUMENTS", "", "RESULT = the open files: path, modified, current, lines" },
         { "PROJECTINFO", "", "RESULT = key=value lines of the project's settings" },

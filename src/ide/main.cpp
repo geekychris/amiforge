@@ -84,6 +84,7 @@ int App::run(int argc, char **argv)
     closeFindWindow();
     closeDocWindow();
     closeDesigner();   // designer
+    mdClose();         // --- markdown ---
     freePens(this);
     closeMainWindow();
     return 0;

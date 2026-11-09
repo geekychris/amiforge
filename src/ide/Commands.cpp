@@ -212,6 +212,8 @@ void App::handleMenu(uint32_t cmd)
     case CMD_EDIT_SNIPPETS: editSnippets(); break;
     case CMD_SPLIT_VIEW: toggleSplit(); break;
     case CMD_MINIMAP: toggleMinimap(); break;
+    case CMD_MD_PREVIEW: mdToggle(); break;   // --- markdown ---
+    case CMD_MD_REFRESH: mdRefresh(); break;
     case CMD_SHOW_SYMBOLS:
         if (gad[GID_LEFT_TABS] && win)
             IIntuition->RefreshSetGadgetAttrs((struct Gadget *)gad[GID_LEFT_TABS], win, nullptr, CLICKTAB_Current, 1, TAG_DONE);
