@@ -871,6 +871,94 @@ std::string writeBbp(const Bbp &b)
     return s;
 }
 
+void bbpFromFiles(const std::vector<std::string> &files, Bbp &b)
+{
+    auto ext = [](const std::string &f) {
+        size_t dot = f.rfind('.'), slash = f.find_last_of("/:");
+        return dot == std::string::npos || (slash != std::string::npos && dot < slash) ? std::string() : lower(f.substr(dot + 1));
+    };
+    std::vector<std::string> forms, modules, classes;
+    for (auto &f : files) {
+        if (ext(f) == "afg") forms.push_back(f);
+        else if (ext(f) == "cls") classes.push_back(f);
+    }
+    for (auto &m : b.modules)
+        if (ext(m) != "bas" && ext(m) != "bi") modules.push_back(m);
+    for (auto &f : files)
+        if ((ext(f) == "bas" && formOf(f, forms).empty()) || ext(f) == "bi") modules.push_back(f);
+    b.forms = forms;
+    b.modules = modules;
+    b.classes = classes;
+}
+
+std::string updateBbp(const std::string &text, const Bbp &want)
+{
+    if (trimmed(text).empty()) return writeBbp(want);
+    struct Line { std::string text, key, value; };
+    std::vector<Line> lines;
+    for (const std::string &raw : splitLines(text)) {
+        Line ln{ raw, "", "" };
+        std::string l = trimmed(raw);
+        size_t eq = l.find('=');
+        if (!l.empty() && l[0] != '#' && l[0] != '\'' && l[0] != ';' && eq != std::string::npos) {
+            ln.key = lower(trimmed(l.substr(0, eq)));
+            std::string v = trimmed(l.substr(eq + 1));
+            size_t c = v.find(" '");
+            if (c != std::string::npos) v = trimmed(v.substr(0, c));
+            if (v.size() >= 2 && v.front() == '"' && v.back() == '"') v = v.substr(1, v.size() - 2);
+            ln.value = v;
+        }
+        lines.push_back(ln);
+    }
+    if (!lines.empty() && lines.back().text.empty() && text.back() == '\n') lines.pop_back();
+    const std::vector<std::string> *lists[3] = { &want.modules, &want.forms, &want.classes };
+    const char *keys[3] = { "module", "form", "class" }, *names[3] = { "Module", "Form", "Class" };
+    auto has = [](const std::vector<std::string> &v, const std::string &x) {
+        for (auto &e : v) if (equalsNoCase(e, x)) return true;
+        return false;
+    };
+    // drop the entries no longer wanted
+    std::vector<Line> out;
+    std::vector<std::string> kept[3];
+    for (auto &ln : lines) {
+        int k = -1;
+        for (int i = 0; i < 3; i++) if (ln.key == keys[i]) k = i;
+        if (k >= 0) {
+            if (!has(*lists[k], ln.value) || has(kept[k], ln.value)) continue;
+            kept[k].push_back(ln.value);
+        }
+        out.push_back(ln);
+    }
+    // Name and Startup if they're missing
+    auto find = [&](const char *key) {
+        int at = -1;
+        for (size_t i = 0; i < out.size(); i++) if (out[i].key == key) at = (int)i;
+        return at;
+    };
+    if (find("name") < 0 && !want.name.empty()) {
+        size_t at = 0;
+        while (at < out.size() && trimmed(out[at].text).compare(0, 1, "#") == 0) at++;
+        out.insert(out.begin() + at, Line{ "Name=" + want.name, "name", want.name });
+    }
+    if (find("startup") < 0 && !want.startup.empty())
+        out.insert(out.begin() + find("name") + 1, Line{ "Startup=" + want.startup, "startup", want.startup });
+    // the new entries: after the last line of their kind (or of the kind before it, or Startup)
+    for (int k = 0; k < 3; k++)
+        for (auto &f : *lists[k]) {
+            if (has(kept[k], f)) continue;
+            int at = -1;
+            for (int j = k; j >= 0 && at < 0; j--) at = find(keys[j]);
+            if (at < 0) at = std::max(find("startup"), find("name"));
+            Line ln{ std::string(names[k]) + "=" + f, keys[k], f };
+            if (at < 0) out.push_back(ln);
+            else out.insert(out.begin() + at + 1, ln);
+            kept[k].push_back(f);
+        }
+    std::string s;
+    for (auto &ln : out) s += ln.text + "\n";
+    return s;
+}
+
 std::string codeBehindOf(const std::string &afg)
 {
     size_t dot = afg.rfind('.');

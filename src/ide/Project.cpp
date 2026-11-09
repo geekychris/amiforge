@@ -265,23 +265,16 @@ bool Project::syncBbp(std::string &err)
     basic::Bbp b;
     if (readFile(abs(target), text)) basic::parseBbp(text, b);
     if (b.name.empty()) b.name = name;
-    std::vector<std::string> forms, modules, classes;
-    for (auto &f : files) {
-        std::string e = extension(f);
-        if (e == "afg") forms.push_back(f);
-        else if (e == "cls") classes.push_back(f);
-    }
-    for (auto &f : files)
-        if (extension(f) == "bas" && basic::formOf(f, forms).empty()) modules.push_back(f);
-    if (forms == b.forms && modules == b.modules && classes == b.classes) return true;
-    b.forms = forms;
-    b.modules = modules;
-    b.classes = classes;
+    basic::Bbp was = b;
+    basic::bbpFromFiles(files, b);
+    if (b.forms == was.forms && b.modules == was.modules && b.classes == was.classes) return true;
+    std::vector<std::string> &forms = b.forms;
     if (b.startup.empty()) {
         std::string first = forms.empty() ? "" : fileName(forms[0]);
         b.startup = forms.empty() ? "Sub Main" : "Form " + first.substr(0, first.size() - 4);
     }
-    if (!writeFile(abs(target), basic::writeBbp(b))) { err = "Can't write " + abs(target); return false; }
+    // only the Module/Form/Class lines change: comments and the keys AmiForge doesn't know stay
+    if (!writeFile(abs(target), basic::updateBbp(text, b))) { err = "Can't write " + abs(target); return false; }
     return true;
 }
 // --- end basic ---

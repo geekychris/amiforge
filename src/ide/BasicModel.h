@@ -127,6 +127,13 @@ struct Bbp {
 };
 bool parseBbp(const std::string &text, Bbp &out);
 std::string writeBbp(const Bbp &b);
+// The .bbp text with its Module=/Form=/Class= lines made `want`'s (and Name=/Startup= added if
+// missing): every other line (comments, keys AmiForge doesn't know, their order) is kept as it
+// is, entries still wanted keep their line, new ones go after the last line of their kind.
+std::string updateBbp(const std::string &text, const Bbp &want);
+// A project's file list into b's Forms (.afg), Classes (.cls) and Modules: .bas files that aren't
+// a form's code-behind and .bi includes; b's Module= entries of other kinds stay first.
+void bbpFromFiles(const std::vector<std::string> &files, Bbp &b);
 // The code-behind module of a form ("forms/main.afg" -> "forms/main.bas").
 std::string codeBehindOf(const std::string &afg);
 // The form a code-behind module belongs to, if `files` has it ("main.bas" -> "main.afg"), else "".

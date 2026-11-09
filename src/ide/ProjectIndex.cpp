@@ -1,6 +1,8 @@
 // The project browser's model (see ProjectIndex.h). No OS calls: compiles on the host too.
 #include "ProjectIndex.h"
 
+#include <cstdint>
+
 #include <algorithm>
 #include <cctype>
 
@@ -123,6 +125,35 @@ std::string readmeLine(const std::string &text, size_t max)
     return "";
 }
 
+std::string toLatin1(const std::string &t)
+{
+    std::string o;
+    for (size_t i = 0; i < t.size();) {
+        unsigned char c = (unsigned char)t[i];
+        int len = c < 0x80 ? 1 : (c & 0xE0) == 0xC0 ? 2 : (c & 0xF0) == 0xE0 ? 3 : (c & 0xF8) == 0xF0 ? 4 : 0;
+        bool ok = len > 1 && i + len <= t.size();
+        for (int k = 1; ok && k < len; k++) ok = ((unsigned char)t[i + k] & 0xC0) == 0x80;
+        if (len == 1 || !ok) {   // ASCII, or not UTF-8: already Latin-1
+            o += (char)c;
+            i++;
+            continue;
+        }
+        uint32_t cp = c & (0xFF >> (len + 1));
+        for (int k = 1; k < len; k++) cp = (cp << 6) | ((unsigned char)t[i + k] & 0x3F);
+        i += len;
+        if (cp < 0x100) o += (char)cp;
+        else if (cp == 0x2013 || cp == 0x2014 || cp == 0x2212) o += '-';
+        else if (cp == 0x2018 || cp == 0x2019 || cp == 0x2032) o += '\'';
+        else if (cp == 0x201C || cp == 0x201D) o += '"';
+        else if (cp == 0x2026) o += "...";
+        else if (cp == 0x2022) o += '*';
+        else if (cp == 0x2192) o += "->";
+        else if (cp == 0x00A0 || cp == 0x2009 || cp == 0x202F) o += ' ';
+        else o += '?';
+    }
+    return o;
+}
+
 bool isReadme(const std::string &name)
 {
     std::string n = lower(name);
@@ -156,6 +187,8 @@ Project describe(const std::string &afp, const std::vector<DirItem> &items, cons
             if (read(join(parent(afp), r), t) && !(p.description = readmeLine(t)).empty()) break;
         }
     }
+    p.name = toLatin1(p.name);   // the browser's list is Latin-1
+    p.description = toLatin1(p.description);
     if (p.description.size() > 200) p.description.resize(200);
     return p;
 }

@@ -6,6 +6,7 @@
 #include "BasicModel.h"
 #include "GuiModel.h"
 #include "TemplateEngine.h"
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -726,4 +727,71 @@ TEST(basic_debugger_names)
     CHECK_EQ(basicTypeName("bb_long"), std::string("Long"));
     CHECK_EQ(basicTypeName("bb_str *"), std::string("String"));
     CHECK_EQ(basicTypeName("int"), std::string("int"));
+}
+
+// --- basic --- editing a project's files keeps the .bbp's .bi modules and every line AmiForge
+// doesn't know (bb-kit: DeclareGfx's binding includes were dropped)
+TEST(basic_bbp_sync_keeps_unknown_lines)
+{
+    const std::string orig =
+        "# Boing BASIC project\n"
+        "' made by hand\n"
+        "Name=DeclareGfx\n"
+        "Startup=Sub Main\n"
+        "Module=main.bas   ' the program\n"
+        "Module=bindings/graphics.bi\n"
+        "Module=extra.xyz\n"
+        "Stack=1048576\n"
+        "Icon=\"PROGDIR:gfx.info\"\n"
+        "Version=1.2\n";
+    Bbp b;
+    CHECK(parseBbp(orig, b));
+    CHECK_EQ((int)b.modules.size(), 3);
+    // the file list AmiForge has (loadBbp put every module in it) plus a new module
+    std::vector<std::string> files = b.allFiles();
+    files.insert(files.begin(), "DeclareGfx.bbp");
+    CHECK(std::find(files.begin(), files.end(), "bindings/graphics.bi") != files.end());
+    // unchanged: the same modules, nothing to write
+    Bbp same = b;
+    bbpFromFiles(files, same);
+    CHECK(same.modules == b.modules || (same.modules.size() == 3));
+    CHECK_EQ(updateBbp(orig, same), orig);
+    // a module added
+    files.push_back("util.bas");
+    Bbp now = b;
+    bbpFromFiles(files, now);
+    CHECK(std::find(now.modules.begin(), now.modules.end(), "bindings/graphics.bi") != now.modules.end());
+    CHECK(std::find(now.modules.begin(), now.modules.end(), "extra.xyz") != now.modules.end());
+    std::string out = updateBbp(orig, now);
+    CHECK(out.find("Module=bindings/graphics.bi\n") != std::string::npos);
+    CHECK(out.find("Module=main.bas   ' the program\n") != std::string::npos);
+    CHECK(out.find("' made by hand\n") != std::string::npos);
+    CHECK(out.find("Stack=1048576\nIcon=\"PROGDIR:gfx.info\"\nVersion=1.2\n") != std::string::npos);
+    CHECK(out.find("Module=util.bas\n") != std::string::npos);
+    CHECK(out.find("Module=util.bas") > out.find("Module=extra.xyz"));
+    CHECK(out.find("Module=util.bas") < out.find("Stack="));
+    Bbp again;
+    CHECK(parseBbp(out, again));
+    CHECK_EQ((int)again.modules.size(), 4);
+    CHECK_EQ(again.other.size(), b.other.size());
+    // a module removed (the .bi): only its line goes
+    files.erase(std::find(files.begin(), files.end(), "bindings/graphics.bi"));
+    Bbp less = again;
+    bbpFromFiles(files, less);
+    std::string out2 = updateBbp(out, less);
+    CHECK(out2.find("graphics.bi") == std::string::npos);
+    CHECK(out2.find("Stack=1048576") != std::string::npos && out2.find("Module=extra.xyz") != std::string::npos);
+    // a form added to a console project: after the modules, its code-behind isn't a module
+    files.push_back("win.afg");
+    files.push_back("win.bas");
+    Bbp f = less;
+    bbpFromFiles(files, f);
+    CHECK(std::find(f.modules.begin(), f.modules.end(), "win.bas") == f.modules.end());
+    std::string out3 = updateBbp(out2, f);
+    CHECK(out3.find("Form=win.afg\n") != std::string::npos && out3.find("Form=win.afg") > out3.find("Module=util.bas"));
+    // an empty file: a whole new one
+    Bbp n;
+    n.name = "X";
+    n.modules = { "a.bas" };
+    CHECK_EQ(updateBbp("", n), writeBbp(n));
 }
