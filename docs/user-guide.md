@@ -1189,10 +1189,29 @@ no C code. The form's code is its code-behind module, and every object with an *
 is a control of that name in BASIC: `who.Text`, `greet.Enabled = False`, `names.AddItem "x"`.
 The window is `Me` in its code and is called by its **Code name** elsewhere (`main.Show`).
 
-- The **palette** is laid out like Visual Basic's Toolbox, with VB's names: Label, TextBox,
-  CommandButton, CheckBox, OptionButtons, ComboBox, ListBox, ScrollBar, Slider, Number field,
-  Timer, Canvas (PictureBox), multi-line TextBox, File chooser, ProgressBar, then the frames
-  (vertical and horizontal groups) and Space.
+- The **palette** is laid out like Visual Basic's Toolbox, with VB's names: Canvas
+  (PictureBox), Label, TextBox, multi-line TextBox, the frames (vertical and horizontal
+  groups), CommandButton, CheckBox, OptionButtons, ComboBox, ListBox, ScrollBar, Timer, File
+  chooser, Image, then the components: TabStrip, Toolbar, Toolbar button, StatusBar,
+  ProgressBar, TreeView, Slider, CommonDialog, MSFlexGrid (Grid), and last Number field and
+  Space. Add puts an object where it may go: a Toolbar button into the selected toolbar,
+  a control into the first page of selected tabs, a group into tabs as a new page. New tabs
+  start with two pages, a new toolbar with one button.
+- The **Menu Editor...** button (BASIC forms) makes the form's menus, as in VB:
+  one list of every menu, titles at the left and their items indented under them (sub-items
+  once more). For the selected menu: its **Caption** (`-` is a separator bar), **Name** (made
+  from the caption if left empty: `Say hello` is `mnuSayHello`, and its event Sub is
+  `mnuSayHello_Click`), **Shortcut** (one character: Amiga + that key) and **Checkable**,
+  **Checked**, **Radio**, **Enabled**, **Visible** (a hidden title is a context menu, for a
+  control's **Context menu** property or `Me.PopupMenu`). The arrows change the level and the
+  order; **Next** goes to the next menu (a new item at the end), **Insert** adds one before
+  the selected one. OK puts the menus into the form. The menus are also rows of the Layout
+  tree: double-click one there, or choose it from the preview's menu strip, to write its
+  `Click` Sub.
+- The **preview** shows the menus as its menu strip, a toolbar as a row of buttons, a status
+  bar as its panels, tabs as a clicktab with its pages, a grid as a list with its columns, a
+  tree view as a list with sample nodes, and an image as a box with the picture's name.
+  Timers and CommonDialogs take no space.
 - **Double-click a control** in the Layout tree, or click it twice in the preview, and the
   editor opens the form's `.bas` at its default event's Sub: `Sub greet_Click()` for a
   button, `who_Change` for a text field, `Form_Load` for the window. A Sub that isn't there yet
@@ -1226,13 +1245,25 @@ The window is `Me` in its code and is called by its **Code name** elsewhere (`ma
 | getfile | (file chooser) | Change | Change |
 | texteditor | (multi-line TextBox) | Change | Change |
 | timer | Timer | Timer | Timer |
-| canvas | (PictureBox) | - | none: the form's KeyDown/KeyUp and a Timer drive it |
+| canvas | (PictureBox) | MouseDown | MouseDown, MouseUp, MouseMove, DblClick, MouseWheel, OLEDragDrop |
+| menu | Menu | Click | Click |
+| tool | (Toolbar button) | Click | Click |
+| tabs | TabStrip | Click | Click |
+| treeview | TreeView | NodeClick | NodeClick, DblClick, Expand, Collapse |
+| grid | MSFlexGrid | AfterEdit | EnterCell, LeaveCell, BeforeEdit, AfterEdit, Click, DblClick, KeyDown, Scroll |
+| toolbar, statusbar, image, commondialog | Toolbar, StatusBar, Image, CommonDialog | - | none |
 
-Labels, spaces and fuel gauges have no events. The palette has a **Timer (BASIC)** in a Boing
+Labels, spaces and fuel gauges have no events (nor toolbars, status bars, images and
+CommonDialogs: double-clicking one opens `Form_Load`). The palette has a **Timer (BASIC)** in a Boing
 BASIC form: it takes no space in the window (the preview leaves it out) and has an
 **Interval** in milliseconds and **Enabled**; `<id>_Timer` runs every Interval. **Canvas
 (BASIC)** is a drawing surface for graphics and games (`view.Cls`, `view.Line`,
 `view.Refresh`...) of **Width** x **Height** pixels; the preview shows a box of that size.
+The properties of Boing BASIC's newer keys are in the property list too: the window's
+Remember, Iconify, Tool window and Accept dropped icons, Splitter bars on groups, Picture
+files on buttons, columns, widths, multiple selection and sorting on lists, a fixed-width
+font on text editors, Context menu on every control, and the grid's rows, columns, title
+rows and columns, headers, column width and Editable.
 
 The table, with each control's properties and methods (which completion offers after `ok.`),
 comes from Boing BASIC's `docs/forms-events.md`, the contract between its forms runtime and
@@ -1278,6 +1309,7 @@ These work like the other MCP commands (see [Commands for assistants and scripts
 | `DESIGNSET [ID] KEY VALUE` | Set a property; a new `id` renames the control's event Subs without asking |
 | `DESIGNSAVE` | Save the `.afg` |
 | `DESIGNADD [ID] KIND` | Add an object (as the palette's Add does) after the selected object or into the selected group. RESULT `kind<tab>id` |
+| `DESIGNMENUS` | Open the Menu Editor (after the reply: the dialog is modal) |
 | `VIEWTOGGLE` | View Form / View Code |
 | `BASICSUBS [FILE]` | The procedures of a module or of a form's code: kind, name, line, end line, code/empty, parameters |
 | `BASICCONTROLS` | The control table: kind, BASIC type, default event, events |

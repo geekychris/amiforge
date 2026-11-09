@@ -185,3 +185,199 @@ TEST(user_sections_survive_regeneration)
     std::string back = generate(m, parked).source;
     CHECK(contains(back, "/* USER-BEGIN DEMO_OK */\n        gui->quit = TRUE;   /* my code */\n"));
 }
+
+// --- basic --- Boing BASIC's docs/ui.md kinds and keys
+
+static const char *UI_SAMPLE =
+    "# AmiForge GUI\n"
+    "window name=paint title=Paint width=400 height=300 remember=1 iconify=1 toolwindow=1 dropfiles=1 contextmenu=mnuCtx\n"
+    "vlayout id=root splitter=1\n"
+    "  toolbar id=tb weight=0 textonly=1 imagesonly=1 vertical=1 hint=Tools\n"
+    "    tool id=tbOpen text=Open image=TBImages:open selimage=TBImages:open_s hint=\"Open a file\" menu=mnuOpen\n"
+    "    tool separator=1\n"
+    "    tool id=tbGrid text=Grid toggle=1 checked=1 disabled=1\n"
+    "  hlayout id=row splitter=1\n"
+    "    canvas id=view width=320 height=200 scale=2 mousemove=1 dropfiles=1 contextmenu=mnuCtx\n"
+    "    button id=save text=Save image=PROGDIR:save.png selimage=PROGDIR:save2.png contextmenu=mnuCtx\n"
+    "  listbrowser id=files columns=\"Name|Size\" widths=\"60|40\" multiselect=1 sortable=1\n"
+    "  texteditor id=notes fixedfont=1\n"
+    "  tabs id=pages selected=1\n"
+    "    vlayout title=General\n"
+    "      treeview id=tree\n"
+    "    vlayout title=Sheet\n"
+    "      grid id=sheet rows=100 cols=27 fixedrows=2 fixedcols=0 colwidth=80 editable=0 headers=1\n"
+    "  image id=logo file=PROGDIR:logo.png frame=1\n"
+    "  commondialog id=dlg title=\"Open a picture\" filter=\"Pictures|#?.png\" initdir=RAM: flags=4096\n"
+    "  statusbar id=sb panels=\"Ready|Ln 1|100%\" widths=\"0|60|50\"\n"
+    "menu id=mnuFile text=Project\n"
+    "  menu id=mnuOpen text=Open... key=O\n"
+    "  menu text=-\n"
+    "  menu id=mnuRecent text=\"Open recent\"\n"
+    "    menu id=mnuRecent0 text=(empty) disabled=1\n"
+    "  menu id=mnuQuit text=Quit key=Q\n"
+    "menu id=mnuView text=View\n"
+    "  menu id=mnuGridOn text=Grid checkable=1 checked=1\n"
+    "  menu id=mnuZoom1 text=\"Zoom 100%\" radio=1 checked=1\n"
+    "menu id=mnuCtx text=Canvas hidden=1\n"
+    "  menu id=mnuClear text=Clear\n";
+
+TEST(basic_ui_kinds_parse_and_round_trip)
+{
+    Model m;
+    std::string err;
+    CHECK(m.parse(UI_SAMPLE, err));
+    CHECK_EQ(err, std::string());
+    // every new kind, where it belongs
+    CHECK(m.findById("tb")->kind == Kind::Toolbar);
+    CHECK_EQ((int)m.findById("tb")->children.size(), 3);
+    CHECK(m.findById("tbOpen")->kind == Kind::Tool && m.findById("tbOpen")->parent == m.findById("tb"));
+    CHECK(m.findById("pages")->kind == Kind::Tabs);
+    CHECK_EQ(m.findById("pages")->children[1]->get("title"), std::string("Sheet"));
+    CHECK(m.findById("tree")->kind == Kind::TreeView);
+    CHECK(m.findById("sheet")->kind == Kind::Grid);
+    CHECK(m.findById("logo")->kind == Kind::Image);
+    CHECK(m.findById("dlg")->kind == Kind::CommonDialog);
+    CHECK(m.findById("sb")->kind == Kind::StatusBar);
+    CHECK(m.findById("mnuOpen")->kind == Kind::Menu);
+    CHECK(m.findById("mnuRecent0")->parent == m.findById("mnuRecent"));
+    CHECK_EQ((int)m.menus().size(), 3);
+    CHECK(m.menus()[2]->getBool("hidden"));
+    CHECK(m.root()->kind == Kind::VLayout);
+    CHECK(m.validate().empty());
+    // every new key is kept
+    CHECK(m.window.getBool("remember") && m.window.getBool("iconify") && m.window.getBool("toolwindow"));
+    CHECK(m.window.getBool("dropfiles") && m.window.get("contextmenu") == "mnuCtx");
+    CHECK(m.root()->getBool("splitter") && m.findById("row")->getBool("splitter"));
+    CHECK_EQ(m.findById("save")->get("image"), std::string("PROGDIR:save.png"));
+    CHECK_EQ(m.findById("save")->get("selimage"), std::string("PROGDIR:save2.png"));
+    CHECK_EQ(m.findById("files")->get("columns"), std::string("Name|Size"));
+    CHECK_EQ(m.findById("files")->get("widths"), std::string("60|40"));
+    CHECK(m.findById("files")->getBool("multiselect") && m.findById("files")->getBool("sortable"));
+    CHECK(m.findById("notes")->getBool("fixedfont"));
+    CHECK(m.findById("view")->getBool("mousemove") && m.findById("view")->getBool("dropfiles"));
+    CHECK_EQ(m.findById("sheet")->getInt("rows"), 100);
+    CHECK_EQ(m.findById("sheet")->getInt("fixedcols"), 0);
+    CHECK(!m.findById("sheet")->getBool("editable") && m.findById("sheet")->getBool("headers"));
+    CHECK_EQ(m.findById("sb")->get("widths"), std::string("0|60|50"));
+    CHECK_EQ(m.findById("dlg")->get("filter"), std::string("Pictures|#?.png"));
+    CHECK_EQ(m.findById("dlg")->get("initdir"), std::string("RAM:"));
+    CHECK_EQ(m.findById("dlg")->getInt("flags"), 4096);
+    CHECK_EQ(m.findById("mnuOpen")->get("key"), std::string("O"));
+    // written and read again: the same file
+    std::string out = m.write();
+    Model m2;
+    CHECK(m2.parse(out, err));
+    CHECK_EQ(m2.write(), out);
+    CHECK(contains(out, "\nmenu id=mnuFile text=Project\n  menu id=mnuOpen text=Open... key=O\n  menu text=-\n"));
+    CHECK(contains(out, "    tool id=tbOpen text=Open image=TBImages:open selimage=TBImages:open_s hint=\"Open a file\" menu=mnuOpen\n"));
+    CHECK(contains(out, "grid id=sheet rows=100 cols=27 fixedrows=2 fixedcols=0 headers=1 colwidth=80 editable=0\n"));
+    CHECK(contains(out, "window name=paint title=Paint width=400 height=300 remember=1 iconify=1 toolwindow=1 dropfiles=1 contextmenu=mnuCtx\n"));
+    // the menus come after the root layout in the file
+    CHECK(out.find("\nmenu ") > out.find("statusbar"));
+    // defaults (the runtime's) are not written
+    Node *g = m.root()->add(Kind::Grid);
+    g->set("rows", "10");
+    g->set("editable", "1");
+    CHECK(g->props.empty());
+    CHECK_EQ(g->getInt("cols"), 5);
+    CHECK_EQ(g->getInt("colwidth"), 64);
+    CHECK_EQ(m.root()->add(Kind::StatusBar)->get("panels"), std::string("Ready"));
+    CHECK_EQ(m.findById("mnuClear")->get("checked"), std::string("0"));
+}
+
+TEST(basic_ui_kinds_rules)
+{
+    Model m;
+    std::string err;
+    CHECK(!m.parse("window\nmenu id=m text=File\nvlayout id=root\n", err));
+    CHECK(contains(err, "menus come after the root layout"));
+    CHECK(!m.parse("window\nvlayout id=root\n  menu id=m\n", err));
+    CHECK(contains(err, "menus hold menus only"));
+    CHECK(!m.parse("window\nvlayout id=root\nmenu id=m\n  button id=b\n", err));
+    CHECK(contains(err, "menus hold menus only"));
+    CHECK(!m.parse("window\nvlayout id=root\n  tool id=t\n", err));
+    CHECK(contains(err, "tools go in a toolbar"));
+    CHECK(!m.parse("window\nvlayout id=root\n  toolbar id=tb\n    button id=b\n", err));
+    CHECK(contains(err, "a toolbar holds tools only"));
+    CHECK(!m.parse("window\nvlayout id=root\n  tabs id=t\n    button id=b\n", err));
+    CHECK(contains(err, "every page of tabs"));
+    CHECK(!m.parse("window\ntabs id=t\n", err));
+    CHECK(contains(err, "the root must be a vlayout or hlayout"));
+    CHECK(!m.parse("window\nvlayout id=root\nhlayout id=two\n", err));
+    CHECK(contains(err, "only one root layout"));
+    CHECK(!m.parse("window\nvlayout id=root\n  grid id=g\n    button id=b\n", err));
+    // canHold, as the designer uses it
+    CHECK(m.parse(UI_SAMPLE, err));
+    CHECK(canHold(m.findById("tb"), Kind::Tool));
+    CHECK(!canHold(m.findById("tb"), Kind::Button));
+    CHECK(canHold(m.findById("pages"), Kind::HLayout));
+    CHECK(!canHold(m.findById("pages"), Kind::Grid));
+    CHECK(canHold(&m.window, Kind::Menu));
+    CHECK(!canHold(&m.window, Kind::VLayout));
+    CHECK(canHold(m.findById("mnuFile"), Kind::Menu));
+    CHECK(!canHold(m.root(), Kind::Menu));
+    CHECK(!canHold(m.root(), Kind::Tool));
+    CHECK(canHold(m.root(), Kind::Tabs));
+    // the C designer: none of the new kinds, and no BASIC-only property
+    for (Kind k : paletteKinds(false)) CHECK(!basicOnly(k));
+    for (int k = (int)Kind::Menu; k < (int)Kind::Count; k++) CHECK(basicOnly((Kind)k));
+    bool basicProp = false;
+    for (auto &p : kindInfo(Kind::Button).props) basicProp = basicProp || (std::string(p.key) == "image" && p.basic);
+    CHECK(basicProp);
+    for (auto &p : kindInfo(Kind::Button).props)
+        if (std::string(p.key) == "text") CHECK(!p.basic);
+    // C code ignores the BASIC objects
+    Generated gc = generate(m, "");
+    CHECK(!contains(gc.source, "SHEET") && !contains(gc.source, "MNUOPEN") && !contains(gc.source, "TBOPEN"));
+    CHECK(contains(gc.source, "PAINT_FILES"));
+}
+
+TEST(basic_menu_rows)
+{
+    Model m;
+    std::string err;
+    CHECK(m.parse(UI_SAMPLE, err));
+    std::vector<MenuRow> rows = m.menuRows();
+    CHECK_EQ((int)rows.size(), 11);
+    CHECK_EQ(rows[0].level, 0);
+    CHECK_EQ(rows[0].props["id"], std::string("mnuFile"));
+    CHECK_EQ(rows[2].props["text"], std::string("-"));
+    CHECK_EQ(rows[4].level, 2);
+    CHECK_EQ(rows[4].props["id"], std::string("mnuRecent0"));
+    CHECK_EQ(rows[9].props["hidden"], std::string("1"));
+    // unchanged rows give the same file
+    std::string before = m.write();
+    CHECK(m.setMenuRows(rows, err));
+    CHECK_EQ(m.write(), before);
+    // the editor's operations: a new item under Quit, indent Quit into Open recent, delete View
+    MenuRow about;
+    about.level = 1;
+    about.props["id"] = "mnuAbout";
+    about.props["text"] = "About...";
+    rows.insert(rows.begin() + 6, about);
+    rows[5].level = 2;                       // Quit -> under Open recent
+    rows.erase(rows.begin() + 7, rows.begin() + 10);   // View and its two items
+    CHECK(m.setMenuRows(rows, err));
+    CHECK_EQ((int)m.menus().size(), 2);
+    CHECK(m.findById("mnuQuit")->parent == m.findById("mnuRecent"));
+    CHECK(m.findById("mnuAbout")->parent == m.findById("mnuFile"));
+    CHECK(!m.findById("mnuView") && !m.findById("mnuGridOn"));
+    CHECK(m.findById("sheet") != nullptr);   // the layout is untouched
+    Model m2;
+    CHECK(m2.parse(m.write(), err));
+    CHECK_EQ(m2.write(), m.write());
+    // levels that don't make a tree
+    std::vector<MenuRow> bad(2);
+    bad[0].level = 1;
+    CHECK(!m.setMenuRows(bad, err));
+    CHECK(contains(err, "title"));
+    bad[0].level = 0;
+    bad[1].level = 2;
+    CHECK(!m.setMenuRows(bad, err));
+    CHECK(contains(err, "one level below"));
+    CHECK(m.findById("mnuAbout") != nullptr);   // a refused change leaves the menus alone
+    // no menus at all
+    CHECK(m.setMenuRows({}, err));
+    CHECK(m.menus().empty());
+    CHECK(!contains(m.write(), "\nmenu "));
+}

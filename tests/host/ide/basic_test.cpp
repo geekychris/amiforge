@@ -526,7 +526,10 @@ TEST(basic_forms_events_contract)
     const ControlInfo *cv = find("canvas");
     CHECK(cv != nullptr);
     if (cv) {
-        CHECK(cv->events.empty() && cv->defaultEvent.empty());
+        // mouse events (docs/ui.md) and drops from Workbench
+        CHECK_EQ(cv->defaultEvent, std::string("MouseDown"));
+        CHECK(cv->event("MouseMove") && cv->event("MouseMove")->params == "Button As Integer, Shift As Integer, X As Long, Y As Long");
+        CHECK(cv->event("OLEDragDrop") && cv->event("OLEDragDrop")->params == "Count As Integer, X As Integer, Y As Integer");
         bool cls = false, line = false, b = false, setFocus = false;
         for (auto &m : cv->methods) {
             cls = cls || m.name == "Cls"; line = line || m.name == "Line"; b = b || m.name == "B" || m.name == "BF";
@@ -537,6 +540,81 @@ TEST(basic_forms_events_contract)
     }
     const ControlInfo *sl = find("slider");
     if (sl) CHECK(sl->event("Scroll") != nullptr && sl->defaultEvent == "Change");
+}
+
+// --- basic --- docs/ui.md's controls in the contract: their kinds, default events (what a
+// double-click opens), members for completion
+TEST(basic_ui_controls_contract)
+{
+    struct { const char *kind, *type, *ev; } want[] = {
+        { "menu", "Menu", "Click" }, { "toolbar", "Toolbar", "" }, { "tool", "Button", "Click" },
+        { "statusbar", "StatusBar", "" }, { "image", "Image", "" }, { "commondialog", "CommonDialog", "" },
+        { "tabs", "TabStrip", "Click" }, { "treeview", "TreeView", "NodeClick" }, { "grid", "MSFlexGrid", "AfterEdit" },
+    };
+    for (auto &w : want) {
+        const ControlInfo *c = controlFor(w.kind);
+        if (!c) { aftest::fail(__FILE__, __LINE__, std::string("no section for ") + w.kind); continue; }
+        CHECK_EQ(c->basicType, std::string(w.type));
+        CHECK_EQ(c->defaultEvent, std::string(w.ev));
+    }
+    auto has = [](const std::vector<Member> &v, const char *n) {
+        for (auto &m : v) if (m.name == n) return true;
+        return false;
+    };
+    const ControlInfo *g = controlFor("grid");
+    if (g) {
+        CHECK(has(g->properties, "TextMatrix") && has(g->properties, "FixedRows") && has(g->properties, "CellBold"));
+        CHECK(has(g->methods, "AddItem") && has(g->methods, "EditCell") && has(g->methods, "SetFocus"));
+        CHECK(g->event("BeforeEdit") && g->event("BeforeEdit")->params == "Row As Long, Col As Long, Cancel As Integer");
+        CHECK(g->event("AfterEdit") && g->event("AfterEdit")->params == "Row As Long, Col As Long");
+        CHECK(g->event("Click") && g->event("KeyDown"));
+        CHECK(has(g->properties, "ContextMenu") && has(g->properties, "Enabled"));
+    }
+    const ControlInfo *tv = controlFor("treeview");
+    if (tv) {
+        CHECK(has(tv->methods, "AddNode") && has(tv->methods, "NodeText") && has(tv->methods, "Expand"));
+        CHECK(!has(tv->properties, "NodeText"));
+        CHECK(has(tv->properties, "SelectedKey") && has(tv->properties, "EventKey"));
+        CHECK(tv->event("Collapse") != nullptr);
+    }
+    const ControlInfo *mn = controlFor("menu");
+    if (mn) {
+        CHECK(has(mn->properties, "Checked") && has(mn->properties, "Shortcut") && has(mn->properties, "Caption"));
+        CHECK(has(mn->properties, "Name") && has(mn->properties, "Tag"));
+        CHECK(!has(mn->properties, "Left") && !has(mn->methods, "SetFocus") && !has(mn->properties, "ContextMenu"));
+    }
+    const ControlInfo *tb = controlFor("toolbar");
+    if (tb) CHECK(has(tb->properties, "ButtonCount") && tb->events.empty());
+    const ControlInfo *tl = controlFor("tool");
+    if (tl) CHECK(has(tl->properties, "Picture") && has(tl->properties, "Value") && !has(tl->methods, "SetFocus"));
+    const ControlInfo *sb = controlFor("statusbar");
+    if (sb) CHECK(has(sb->properties, "Panel") && has(sb->properties, "SimpleText") && !has(sb->methods, "SetFocus"));
+    const ControlInfo *cd = controlFor("commondialog");
+    if (cd) {
+        CHECK(has(cd->methods, "ShowOpen") && has(cd->methods, "ShowFont") && has(cd->methods, "ShowMessage"));
+        CHECK(has(cd->properties, "FileName") && has(cd->properties, "Filter") && !has(cd->properties, "Visible"));
+    }
+    const ControlInfo *tabs = controlFor("tabs");
+    if (tabs) CHECK(has(tabs->properties, "Tab") && has(tabs->properties, "TabCaption"));
+    const ControlInfo *lb = controlFor("listbrowser");
+    if (lb) CHECK(has(lb->properties, "ColumnTitle") && has(lb->methods, "Sort") && lb->event("ColumnClick"));
+    const ControlInfo *te = controlFor("texteditor");
+    if (te) CHECK(has(te->methods, "Find") && has(te->properties, "FixedFont") && te->event("CursorMove"));
+    const ControlInfo *w = controlFor("window");
+    if (w) {
+        CHECK(has(w->methods, "PopupMenu") && has(w->methods, "AddMenu") && has(w->properties, "ContextControl"));
+        CHECK(w->event("OLEDragDrop") != nullptr);
+        CHECK_EQ(w->defaultEvent, std::string("Load"));
+    }
+    // completion after "sheet." / "mnuOpen." in a form's code
+    std::string afg = "window name=main\nvlayout id=root\n  grid id=sheet\nmenu id=mnuFile text=File\n"
+                      "  menu id=mnuOpen text=Open\n";
+    auto ctls = formControls(afg);
+    CHECK_EQ(ctls["mnuOpen"], std::string("menu"));
+    auto mc = memberCompletions("SHEET", ctls);
+    CHECK(std::find(mc.begin(), mc.end(), "TextMatrix") != mc.end());
+    mc = memberCompletions("mnuopen", ctls);
+    CHECK(std::find(mc.begin(), mc.end(), "Checked") != mc.end());
 }
 
 // The steps of New Project > Boing BASIC Form App and the designer on its form, without the GUI:
@@ -616,7 +694,10 @@ TEST(basic_form_template_to_designer_flow)
     cv->set("width", "400");
     g = gui::generate(m, "");
     CHECK(g.source.find("VIEW") == std::string::npos);
-    CHECK(gui::paletteKinds(false).size() + 2 == gui::paletteKinds(true).size());
+    // the BASIC palette: the C one, the Timer and Canvas, and docs/ui.md's controls (menus are
+    // made in the Menu Editor)
+    CHECK(gui::paletteKinds(false).size() + 2 + 8 == gui::paletteKinds(true).size());
+    for (gui::Kind k : gui::paletteKinds(true)) CHECK(k != gui::Kind::Menu);
     // the BASIC palette is VB's Toolbox: every kind once, CommandButton named so
     std::set<int> seen;
     for (gui::Kind k : gui::paletteKinds(true)) CHECK(seen.insert((int)k).second);

@@ -159,7 +159,7 @@ void App::runBasic()
         : project.runcmd;
     BPTR dir = IDOS->Lock(project.dir.c_str(), SHARED_LOCK);
     BPTR old = dir ? IDOS->SetCurrentDir(dir) : 0;
-    runStack = 256 * 1024;
+    runStack = 1024 * 1024;   // forms with grids and menus need more than 256 KB
     int32 rc = runSystem(cmd, in, fileName(target));
     runStack = 0;
     if (dir) {

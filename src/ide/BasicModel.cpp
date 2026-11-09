@@ -185,14 +185,17 @@ bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std:
     out.clear();
     static const char *const known[] = { "window", "button", "string", "integer", "checkbox", "chooser",
                                          "radio", "slider", "scroller", "listbrowser", "label", "space",
-                                         "fuelgauge", "getfile", "texteditor", "timer", "canvas", nullptr };
+                                         "fuelgauge", "getfile", "texteditor", "timer", "canvas",
+                                         // docs/ui.md's kinds
+                                         "menu", "toolbar", "tool", "statusbar", "image", "commondialog",
+                                         "tabs", "treeview", "grid", nullptr };
     auto isKnown = [](const std::string &k) {
         for (const char *const *x = known; *x; x++) if (k == *x) return true;
         return false;
     };
     ControlInfo *cur = nullptr;
-    std::vector<Member> common;
-    bool inCommon = false;
+    std::vector<Member> common, dropEvents;
+    bool inCommon = false, inDrop = false;   // "## Drag and drop": events of the form and the canvas
     int list = 0;   // 1 properties, 2 methods, 3 events
     std::vector<bool> marked;
     for (const std::string &raw : splitLines(md)) {
@@ -203,7 +206,9 @@ bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std:
             cur = nullptr;
             list = 0;
             inCommon = ll.find("every control") != std::string::npos;
+            inDrop = ll.find("drag and drop") != std::string::npos;
             if (inCommon) { list = 1; continue; }
+            if (inDrop) continue;
             std::string h = trimmed(l.substr(3)), kind;
             size_t q = h.find('`');
             if (q != std::string::npos && h.find('`', q + 1) != std::string::npos) {
@@ -225,6 +230,18 @@ bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std:
                 size_t e = h.find('`', vb + 4);
                 cur->basicType = h.substr(vb + 4, e == std::string::npos ? std::string::npos : e - vb - 4);
             } else cur->basicType = kind == "window" ? "Form" : first;
+            continue;
+        }
+        if (inDrop) {   // its event table: OLEDragDrop for the form and for canvases with dropfiles=1
+            if (l[0] != '|') continue;
+            std::vector<std::string> r = cells(l);
+            if (r.size() < 2 || r[0].find("---") != std::string::npos || lower(r[0]) == "event") continue;
+            Member m;
+            splitMember(namesIn(r[0]).front(), m.name, m.params);
+            std::string sig = namesIn(r[1]).front(), sn;
+            if (sig.find('_') != std::string::npos) splitMember(sig.substr(sig.find('_') + 1), sn, m.params);
+            m.doc = r.size() > 2 ? r[2] : "";
+            if (!m.name.empty()) dropEvents.push_back(m);
             continue;
         }
         if (!cur && !inCommon) continue;
@@ -301,7 +318,7 @@ bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std:
                         cur->events.push_back(m);
                         if (def && !marked.back()) { cur->defaultEvent = m.name; marked.back() = true; }
                     }
-                } else if (list == 2 || lsecond == "method") {
+                } else if (list == 2 || lsecond.compare(0, 6, "method") == 0) {
                     m.doc = row.size() > 2 ? row[2] : "";
                     if (cur) cur->methods.push_back(m);
                 } else {
@@ -349,11 +366,15 @@ bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std:
     }
     // the common properties and gadget methods
     for (auto &c : out) {
-        const bool gadget = c.kind != "label" && c.kind != "space" && c.kind != "fuelgauge" && c.kind != "timer" &&
-                            c.kind != "window" && c.kind != "canvas";
-        if (c.kind != "window" && c.kind != "timer")
+        const std::string &k = c.kind;
+        // not in the window's layout (menus, tools, dialogs): only Name and Tag of the common ones
+        const bool placed = k != "window" && k != "timer" && k != "menu" && k != "tool" && k != "commondialog";
+        const bool gadget = placed && k != "label" && k != "space" && k != "fuelgauge" && k != "canvas" &&
+                            k != "statusbar" && k != "image";
+        if (k != "window" && k != "timer")
             for (auto &m : common) {
                 if (!gadget && (m.name == "Enabled" || m.name == "ToolTipText")) continue;
+                if (!placed && m.name != "Name" && m.name != "Tag") continue;
                 bool have = false;
                 for (auto &p : c.properties) have = have || equalsNoCase(p.name, m.name);
                 if (!have) c.properties.push_back(m);
@@ -364,6 +385,12 @@ bool parseFormsEvents(const std::string &md, std::vector<ControlInfo> &out, std:
                 for (auto &p : c.methods) have = have || equalsNoCase(p.name, mm);
                 if (!have) c.methods.push_back({ mm, "", "", "" });
             }
+        if (k == "window" || k == "canvas")
+            for (auto &e : dropEvents)
+                if (!c.event(e.name)) c.events.push_back(e);
+        // a default event that isn't the first one: the grid's is AfterEdit (it's for editing
+        // cells) - unless the document marks one "(default)"
+        if (k == "grid" && c.defaultEvent.empty() && c.event("AfterEdit")) c.defaultEvent = "AfterEdit";
         if (c.defaultEvent.empty() && !c.events.empty()) c.defaultEvent = c.events.front().name;
     }
     if (out.empty() && err) *err = "no control sections (## button ...) found";
