@@ -357,7 +357,10 @@ struct MenuEditor {
                 case ME_VISIBLE:
                     commit();
                     refreshList();
-                    if (id == ME_CAPTION) load();   // a name may have been made
+                    if (id == ME_CAPTION) {
+                        load();   // a name may have been made
+                        say("Next: another menu (an item after a title); -> and <- change the level.");
+                    }
                     break;
                 case ME_OK: {
                     commit();
