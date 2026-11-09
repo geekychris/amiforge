@@ -892,8 +892,9 @@ Object *Designer::build(Node *n)
                 tag(CHILD_WeightedWidth, 0);
                 continue;
             }
+            // the runtime shows the text when a picture is missing: the preview shows it always
             std::string text = tl->get("text");
-            if (n->getBool("imagesonly") || text.empty()) {
+            if (text.empty()) {
                 std::string img = tl->get("image");
                 size_t sl = img.find_last_of(":/");
                 text = img.empty() ? (text.empty() ? std::string("Tool") : text) : "[" + img.substr(sl == std::string::npos ? 0 : sl + 1) + "]";

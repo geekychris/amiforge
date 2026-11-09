@@ -531,6 +531,10 @@ TEST(basic_forms_events_contract)
         CHECK_EQ(cv->defaultEvent, std::string("MouseDown"));
         CHECK(cv->event("MouseMove") && cv->event("MouseMove")->params == "Button As Integer, Shift As Integer, X As Long, Y As Long");
         CHECK(cv->event("OLEDragDrop") && cv->event("OLEDragDrop")->params == "Count As Integer, X As Integer, Y As Integer");
+        CHECK(cv->event("Resize") && cv->event("Resize")->params.empty());   // fill=1 canvases
+        bool rb = false, fill = false;
+        for (auto &p : cv->properties) { rb = rb || p.name == "RightButton"; fill = fill || p.name == "Fill"; }
+        CHECK(rb && fill);
         bool cls = false, line = false, b = false, setFocus = false;
         for (auto &m : cv->methods) {
             cls = cls || m.name == "Cls"; line = line || m.name == "Line"; b = b || m.name == "B" || m.name == "BF";

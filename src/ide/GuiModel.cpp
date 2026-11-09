@@ -37,6 +37,14 @@ static PropInfo B(const char *key, const char *title, PropType type, const char 
     return { key, title, type, def, choices, true };
 }
 
+// --- basic --- bars take their own height unless given a weight (the runtime's default)
+static std::vector<PropInfo> weightZero(std::vector<PropInfo> p)
+{
+    for (auto &x : p)
+        if (std::string(x.key) == "weight") x.def = "0";
+    return p;
+}
+
 static const std::vector<KindInfo> &kinds()
 {
     static std::vector<KindInfo> k = {
@@ -124,6 +132,8 @@ static const std::vector<KindInfo> &kinds()
             { "weight", "Weight (0 = minimum size)", PropType::Int, "", nullptr },
             B("scale", "Scale (1 = a pixel per pixel)", PropType::Int, "1"),
             B("mousemove", "MouseMove without a button down", PropType::Bool, "0"),
+            B("rmb", "Right button paints (not the menus)", PropType::Bool, "0"),
+            B("fill", "Fill the window (width/height = minimum)", PropType::Bool, "0"),
             B("dropfiles", "Accept dropped icons", PropType::Bool, "0"),
             B("contextmenu", "Context menu (a hidden menu's ID)", PropType::Ident, "") } },
         // --- basic --- docs/ui.md's kinds; the defaults are the runtime's (src/runtime/afg.c)
@@ -137,9 +147,9 @@ static const std::vector<KindInfo> &kinds()
             B("disabled", "Disabled", PropType::Bool, "0"),
             B("hidden", "Hidden (a title: a context menu)", PropType::Bool, "0") } },
         { Kind::Toolbar, "toolbar", "Toolbar", true, true, "toolbar",
-          withCommon({ B("textonly", "Texts only", PropType::Bool, "0"),
-                       B("imagesonly", "Pictures only", PropType::Bool, "0"),
-                       B("vertical", "Vertical", PropType::Bool, "0") }, true) },
+          weightZero(withCommon({ B("textonly", "Texts only", PropType::Bool, "0"),
+                                  B("imagesonly", "Pictures only", PropType::Bool, "0"),
+                                  B("vertical", "Vertical", PropType::Bool, "0") }, true)) },
         { Kind::Tool, "tool", "Toolbar Button", false, false, "tool",
           { { "id", "ID name", PropType::Ident, "", nullptr },
             B("text", "Text", PropType::Text, ""),
@@ -152,8 +162,8 @@ static const std::vector<KindInfo> &kinds()
             B("separator", "Separator", PropType::Bool, "0"),
             B("disabled", "Disabled", PropType::Bool, "0") } },
         { Kind::StatusBar, "statusbar", "Status Bar", false, false, "status",
-          withCommon({ B("panels", "Panel texts (separate with |)", PropType::Items, "Ready"),
-                       B("widths", "Panel widths (|, 0 = the rest)", PropType::Items, "") }, false) },
+          weightZero(withCommon({ B("panels", "Panel texts (separate with |)", PropType::Items, "Ready"),
+                                  B("widths", "Panel widths (|, 0 = the rest)", PropType::Items, "") }, false)) },
         { Kind::Image, "image", "Image", false, false, "image",
           withCommon({ B("file", "Picture file", PropType::Text, ""),
                        B("frame", "Recessed frame", PropType::Bool, "0") }, false) },

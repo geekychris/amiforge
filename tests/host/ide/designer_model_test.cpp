@@ -197,7 +197,7 @@ static const char *UI_SAMPLE =
     "    tool separator=1\n"
     "    tool id=tbGrid text=Grid toggle=1 checked=1 disabled=1\n"
     "  hlayout id=row splitter=1\n"
-    "    canvas id=view width=320 height=200 scale=2 mousemove=1 dropfiles=1 contextmenu=mnuCtx\n"
+    "    canvas id=view width=320 height=200 scale=2 mousemove=1 rmb=1 fill=1 dropfiles=1 contextmenu=mnuCtx\n"
     "    button id=save text=Save image=PROGDIR:save.png selimage=PROGDIR:save2.png contextmenu=mnuCtx\n"
     "  listbrowser id=files columns=\"Name|Size\" widths=\"60|40\" multiselect=1 sortable=1\n"
     "  texteditor id=notes fixedfont=1\n"
@@ -255,6 +255,11 @@ TEST(basic_ui_kinds_parse_and_round_trip)
     CHECK(m.findById("files")->getBool("multiselect") && m.findById("files")->getBool("sortable"));
     CHECK(m.findById("notes")->getBool("fixedfont"));
     CHECK(m.findById("view")->getBool("mousemove") && m.findById("view")->getBool("dropfiles"));
+    CHECK(m.findById("view")->getBool("rmb") && m.findById("view")->getBool("fill"));
+    // bars: weight 0 is the default (not written), a weight is kept
+    m.findById("sb")->set("weight", "0");
+    CHECK(!m.findById("sb")->props.count("weight"));
+    CHECK_EQ(m.findById("tb")->getInt("weight"), 0);
     CHECK_EQ(m.findById("sheet")->getInt("rows"), 100);
     CHECK_EQ(m.findById("sheet")->getInt("fixedcols"), 0);
     CHECK(!m.findById("sheet")->getBool("editable") && m.findById("sheet")->getBool("headers"));

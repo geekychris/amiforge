@@ -98,7 +98,9 @@ struct MenuEditor {
     }
     void set(int id, uint32 tag, uint32 value)
     {
-        IIntuition->SetGadgetAttrs((struct Gadget *)g[id], w, nullptr, tag, value, TAG_DONE);
+        // a non-zero result means the gadget must be redrawn (checkbox.gadget's state)
+        if (IIntuition->SetGadgetAttrs((struct Gadget *)g[id], w, nullptr, tag, value, TAG_DONE))
+            IIntuition->RefreshGList((struct Gadget *)g[id], w, nullptr, 1);
     }
     void say(const std::string &s)
     {

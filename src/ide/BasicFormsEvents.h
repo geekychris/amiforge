@@ -103,7 +103,15 @@ Closing the window with its close gadget is `Unload Me` (the program can refuse 
 
 `KeyCode` uses VB's `vbKey*` values for letters, digits, F1-F10, cursor keys, Return (13),
 Esc (27), Tab (9), Backspace (8), Delete (46), Help (`vbKeyHelp` = 47). `Shift` is a bit set:
-1 = Shift, 2 = Ctrl, 4 = Alt, 8 = Amiga (either).
+1 = Shift, 2 = Ctrl, 4 = Alt, 8 = Amiga (either). Other keys (punctuation, the numeric keypad)
+are 256 + the raw key code: keymap independent, the keypad apart from the main keys (good for
+trackers). Held keys repeat `KeyDown`.
+
+The qualifier keys alone also arrive as `KeyDown`/`KeyUp`, side by side: `vbKeyLShift` (160),
+`vbKeyRShift` (161), `vbKeyControl` (17), `vbKeyLMenu` (164) / `vbKeyRMenu` (165) for left/right
+Alt, `vbKeyLWin` (91) / `vbKeyRWin` (92) for left/right Amiga, `vbKeyCapital` (20). A canvas's
+`view.KeyDown(k)` poll (the GetKeyState of Boing BASIC) knows those codes and also the generic
+`vbKeyShift` (16) and `vbKeyMenu` (18): down while either side is.
 
 ## Button (`button`) — VB `CommandButton`
 
@@ -257,6 +265,8 @@ No properties beyond the common ones, no events.
 | `Value` | Long | `level` |
 | `Min` | Long | `min` |
 | `Max` | Long | `max` |
+| `Text` | String | — (a label shown instead of the percentage; "" = the percentage again) |
+| `ShowPercent` | Boolean | — |
 
 No events.
 
@@ -358,7 +368,19 @@ the control and scaled by `scale`; while dragging, X and Y may be outside the pi
 | `MouseWheel` | `<id>_MouseWheel(Delta As Integer)` | the wheel turned over the canvas (positive = away from the user) |
 
 The right button opens the menus (or the canvas's `contextmenu=`) when the form has any, as on
-every Amiga window, so `Button = 2` only arrives in forms without menus.
+every Amiga window, so `Button = 2` only arrives in forms without menus — or over a canvas with
+`rmb=1` (`RightButton`): there the right button goes to the canvas (paint programs).
+
+| Property | Type | Design-time key | Notes |
+|---|---|---|---|
+| `RightButton` | Boolean | `rmb` | the right button paints instead of opening the menus while the pointer is over the canvas |
+| `Fill` | Boolean | `fill` | the picture takes the control's whole size and follows the window (`width`/`height` are then the minimum); `<id>_Resize()` after each change, the old picture kept at the top left |
+| `MouseX`, `MouseY` | Long, R/O | — | the last mouse position over the canvas, in its pixels |
+| `MouseButtons` | Long, R/O | — | the buttons held now (1 left, 2 right, 4 middle) |
+
+| Event | Signature | When |
+|---|---|---|
+| `Resize` | `<id>_Resize()` | a `fill=1` canvas got a new size (window opened or resized) |
 
 The form gets the same events (`Form_MouseDown(Button, Shift, X, Y)` ...) for clicks outside
 any canvas and gadget, X and Y inside the window's border.
