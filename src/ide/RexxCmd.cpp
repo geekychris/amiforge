@@ -90,6 +90,7 @@ const std::vector<CommandDef> &commands()
         { "DESIGNSET", "ID,KEY/A,VALUE/A/F", "Set a property of the selected (or ID's) object; a new id renames its event subs" },
         { "DESIGNSAVE", "", "Save the designer's .afg" },
         { "DESIGNADD", "ID,KIND/A", "Add an object (button, string, timer...) after the selected (or ID's) one, or into the selected group; RESULT = kind<tab>id" },
+        { "DESIGNMENUS", "", "Open the designer's Menu Editor (Boing BASIC forms; after the reply, the dialog is modal)" },
         { "VIEWTOGGLE", "", "View Form / View Code (Alt-F7); RESULT = current file<tab>designer's file" },
         { "BASICSUBS", "FILE", "RESULT = the procedures of a Boing BASIC module (or a form's code): kind, name, line, end, code|empty, params" },
         { "BASICCONTROLS", "", "RESULT = source=..., then per control kind: kind, BASIC type, default event, events" },

@@ -93,7 +93,7 @@ struct MenuEditor {
     bool checked(int id)
     {
         uint32 v = 0;
-        IIntuition->GetAttr(GA_Selected, g[id], &v);
+        IIntuition->GetAttr(CHECKBOX_Checked, g[id], &v);
         return v != 0;
     }
     void set(int id, uint32 tag, uint32 value)
@@ -160,11 +160,11 @@ struct MenuEditor {
         set(ME_CAPTION, STRINGA_TextVal, (uint32)caption.c_str());
         set(ME_NAME, STRINGA_TextVal, (uint32)name.c_str());
         set(ME_KEY, STRINGA_TextVal, (uint32)key.c_str());
-        set(ME_CHECKABLE, GA_Selected, flag(r, "checkable"));
-        set(ME_CHECKED, GA_Selected, flag(r, "checked"));
-        set(ME_RADIO, GA_Selected, flag(r, "radio"));
-        set(ME_ENABLED, GA_Selected, !flag(r, "disabled"));
-        set(ME_VISIBLE, GA_Selected, !flag(r, "hidden"));
+        set(ME_CHECKABLE, CHECKBOX_Checked, flag(r, "checkable"));
+        set(ME_CHECKED, CHECKBOX_Checked, flag(r, "checked"));
+        set(ME_RADIO, CHECKBOX_Checked, flag(r, "radio"));
+        set(ME_ENABLED, CHECKBOX_Checked, !flag(r, "disabled"));
+        set(ME_VISIBLE, CHECKBOX_Checked, !flag(r, "hidden"));
         for (int id : { ME_CAPTION, ME_NAME, ME_KEY, ME_CHECKABLE, ME_CHECKED, ME_RADIO, ME_ENABLED, ME_VISIBLE,
                         ME_LEFT, ME_RIGHT, ME_UP, ME_DOWN, ME_DELETE })
             set(id, GA_Disabled, !any);
