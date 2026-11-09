@@ -13,6 +13,7 @@
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <dos/var.h>
+#include <string.h>
 #include <strings.h>
 
 namespace af {
@@ -259,6 +260,12 @@ const basic::RuntimeMembers &App::basicRuntimeMembers()
     return runtimeMembers;
 }
 
+// "a Canvas", "an Engine3D", "an Audio"
+static std::string aOrAn(const std::string &noun)
+{
+    return (!noun.empty() && strchr("AEIOUaeiou", noun[0]) ? "an " : "a ") + noun;
+}
+
 std::vector<std::string> App::basicMemberWords(const std::string &name, const std::string &code, std::string *what)
 {
     std::map<std::string, std::string> ctl = basicControlMap();
@@ -268,13 +275,13 @@ std::vector<std::string> App::basicMemberWords(const std::string &name, const st
             for (auto &kv : ctl)
                 if (basic::equalsNoCase(kv.first, name)) {
                     const basic::ControlInfo *ci = basic::controlFor(kv.second);
-                    *what = ci ? name + " is a " + ci->basicType : "";
+                    *what = ci ? name + " is " + aOrAn(ci->basicType) : "";
                 }
         return words;
     }
     std::string cls;
     words = basic::classMemberCompletions(name, code, basicRuntimeMembers(), &cls);
-    if (what) *what = words.empty() ? "" : name + " is a " + cls;
+    if (what) *what = words.empty() ? "" : name + " is " + aOrAn(cls);
     return words;
 }
 
