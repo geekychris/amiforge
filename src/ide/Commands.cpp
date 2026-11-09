@@ -214,6 +214,7 @@ void App::handleMenu(uint32_t cmd)
     case CMD_MINIMAP: toggleMinimap(); break;
     case CMD_MD_PREVIEW: mdToggle(); break;   // --- markdown ---
     case CMD_MD_REFRESH: mdRefresh(); break;
+    case CMD_MD_SHOW_PENDING: if (!mdPending.empty()) { std::string p = mdPending; mdPending.clear(); mdShow(p); } break;
     case CMD_SHOW_SYMBOLS:
         if (gad[GID_LEFT_TABS] && win)
             IIntuition->RefreshSetGadgetAttrs((struct Gadget *)gad[GID_LEFT_TABS], win, nullptr, CLICKTAB_Current, 1, TAG_DONE);

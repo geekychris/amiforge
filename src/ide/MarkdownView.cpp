@@ -6,6 +6,7 @@
 #include "App.h"
 #include "Markdown.h"
 #include "Scintilla.h"
+#include "Commands.h"
 
 #include <map>
 #include <string.h>
@@ -716,10 +717,14 @@ void App::mdActivated()
 bool App::mdCommand(const std::string &what, const std::string &arg, std::string &out, std::string &err)
 {
     if (what == "PREVIEW") {
+        // loading the pictures can take longer than a caller waits (the bridge's ARexx timeout
+        // is 10 s on a busy Amiga): reply first, show it from the main loop; MDSTATE says when
         std::string p = arg.empty() ? (cur ? cur->path : "") : absolutePath(arg);
         if (p.empty()) { err = "no file"; return false; }
-        if (!mdShow(p)) { err = "the preview window didn't open"; return false; }
-        out = mdPreview->state();
+        if (!fileExists(p) && !(cur && cur->path == p)) { err = "no file " + p; return false; }
+        mdPending = p;
+        queueCommand(CMD_MD_SHOW_PENDING);
+        out = p;
         return true;
     }
     if (what == "BLOCKS") {

@@ -1525,7 +1525,7 @@ without FILE, the current file.
 | MCP | COMMAND/A/F | Runs a command without requesters; always RC 0, RESULT `AF1 rc more length payload` |
 | MCPMORE | | The next part of a long MCP result |
 | MCPBUF | SLOT/N/A,CLEAR/S,TEXT | Appends text to slot 1-9, used as `\@1` in a later command |
-| PREVIEWMARKDOWN | FILE | Show FILE (or the current `.md`) in the Markdown preview; RESULT = its state |
+| PREVIEWMARKDOWN | FILE | Show FILE (or the current `.md`) in the Markdown preview. It replies first and loads afterwards: poll MDSTATE (its `file=`). RESULT = the file |
 | MDBLOCKS | FILE | The Markdown block tree, one block per line (`h1 "Title"`, `li [x] "done"`, `td align=r "2"`...), then `link N href` and `image N src` lines |
 | MDLINKS | | The links visible in the preview: `index<tab>href<tab>x<tab>y<tab>w<tab>h<tab>text` (screen coordinates) |
 | MDSTATE | | `key=value`: file, blocks, links, images, pictures_drawn, alt_boxes, pictures_loaded, pictures_failed, width, height, view, scroll, truncated |

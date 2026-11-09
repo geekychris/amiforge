@@ -610,6 +610,7 @@ public:
     class MdPreview *mdPreview = nullptr;
     std::vector<int> deferredMd;                 // links clicked in the preview, followed after its input
     int mdDelay = 0;                             // INTUITICKS until the preview follows an edit
+    std::string mdPending;                       // PREVIEWMARKDOWN's file, shown after the reply
     bool isMarkdownFile(const std::string &path);
     bool mdShow(const std::string &path);
     void mdClose();
