@@ -1,0 +1,5 @@
+# AmiForge build output
+obj/
+obj-release/
+release/
+wordcount

@@ -1,0 +1,19 @@
+# AmiForge project
+[project]
+name=compute
+output=compute
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=
+console=
+stopatmain=0
+description=Manual, exercise 4: changing a function while the program runs (Edit and Continue)
+
+[files]
+file=compute.c
