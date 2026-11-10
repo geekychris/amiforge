@@ -264,6 +264,7 @@ static struct NewMenu menus[] = {
     TITLE("Help"),
     ITEM("AutoDoc for Word at Cursor  (F1)", 0, CMD_DOC_LOOKUP),
     ITEM("AutoDocs Browser...", 0, CMD_DOC_BROWSER),
+    ITEM("User Manual", 0, CMD_USER_MANUAL),
     ITEM("SDK Documentation", 0, CMD_SDK_DOCS),
     ITEM("Keyboard Shortcuts...", 0, CMD_SHORTCUTS),
     BAR,

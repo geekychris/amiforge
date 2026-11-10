@@ -2,3 +2,4 @@ build/
 .DS_Store
 compile_flags.txt
 dist/
+__pycache__/

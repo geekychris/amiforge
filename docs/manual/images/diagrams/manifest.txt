@@ -1,0 +1,8 @@
+# tools/manual-diagrams.py: diagram name and the hash of its source
+01-introduction-1 fa6cb9d82444
+02-tour-1 e0fcc9883509
+05-projects-1 c32a28446bd3
+06-building-1 d9e339b9666e
+08-debugging-1 738d96e3140a
+11-git-1 22dfe3d599e2
+13-arexx-mcp-1 00a942ee1455

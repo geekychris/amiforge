@@ -6,6 +6,7 @@
 // usually after a form feed). References to other entries in the text ("exec.library/AllocVec",
 // "AllocVec()") are shown as links.
 #include "App.h"
+#include "HelpManual.h"
 #include "sci/Theme.h"
 
 #include <string.h>
@@ -457,6 +458,21 @@ void App::openSdkDocs()
     }
     if (!IWorkbench->OpenWorkbenchObjectA("SDK:Documentation", nullptr))
         info("Workbench couldn't open SDK:Documentation.");
+}
+
+// Help > User Manual: the AmigaGuide (or the text version) in AmiForge's Docs drawer, opened by
+// Workbench with its default tool (MultiView), as a double-click on its icon would
+void App::openUserManual()
+{
+    std::string m = help::findManual([](const std::string &p) { return fileExists(p); });
+    if (m.empty()) {
+        info("The user manual isn't in AmiForge's Docs drawer (Docs/AmiForge-Manual.guide).\n\n"
+             "It's also at github.com/geekychris/amiforge, in docs/manual.");
+        return;
+    }
+    // Workbench runs in its own process, where PROGDIR: means something else (or nothing)
+    m = absolutePath(m);
+    if (!IWorkbench->OpenWorkbenchObjectA(m.c_str(), nullptr)) info("Workbench couldn't open " + m + ".");
 }
 
 // F1 in the editor: the identifier under the caret (including "IExec->" style prefixes)

@@ -62,7 +62,7 @@ all: $(B)/AmiForge $(B)/QEMUCopyFix tests check-cpu
 check-cpu: $(B)/AmiForge $(B)/QEMUCopyFix tests
 	@tools/check-cpu.sh $(B)/AmiForge $(B)/QEMUCopyFix $(TESTS) $(TARGETS)
 
-# for the QEMU sam460ex guest (see docs/user-guide.md)
+# for the QEMU sam460ex guest (see docs/manual/14-qemu.md)
 $(B)/QEMUCopyFix: tools/os4/QEMUCopyFix.c
 	@mkdir -p $(@D); $(CC) -mcrt=newlib $(CPU) -O2 -Wall -o $@ $< && $(STRIP) $@
 
@@ -139,6 +139,22 @@ $(O)/%.cpp.o: %.cpp
 	@mkdir -p $(@D); $(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 $(O)/%.c.o: %.c
 	@mkdir -p $(@D); $(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
+# --- the user manual (docs/manual): the checks, the PDF, the AmigaGuide and text versions ---
+manual-test:
+	python3 tools/manual-check.py
+	python3 tools/manual-diagrams.py --check
+manual-pdf:
+	sh tools/manual-pdf.sh $(PDF_ARGS)
+manual-pdf-test:
+	python3 tools/manual-pdf-test.py
+manual-diagrams:
+	python3 tools/manual-diagrams.py
+manual-ref:
+	python3 tools/manual-ref.py
+manual-guide:
+	python3 tools/manual-guide.py
+.PHONY: manual-test manual-pdf manual-pdf-test manual-diagrams manual-ref manual-guide
 
 # --- host-side unit tests (run on the Mac/Linux host, not in Docker) ---
 HOSTCC ?= cc

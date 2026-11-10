@@ -1,0 +1,5 @@
+# Boing BASIC project: dice rolls, counted by a class written in C (the AmiForge manual's exercise 5)
+Name=Dice
+Startup=Sub Main
+Module=Main.bas
+Extension=dice
