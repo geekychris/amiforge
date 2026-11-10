@@ -35,8 +35,8 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
   Form / View Code. Highlighting, folding, auto-indent, outline, and completion of control
   properties after `ok.`. Templates for a form app and a console app.
 - **Navigation**: Ctrl-click (or F12) opens an `#include`d header or goes to a definition. A
-  context menu on the right mouse button has everything that applies to the word under the
-  pointer.
+  context menu on Shift (or Ctrl) + the right mouse button has everything that applies to the
+  word under the pointer; the right button alone is the menu bar, as on any Amiga window.
 - **AutoDocs**: F1 on an OS function opens its AutoDoc. The browser searches all of them, and
   references between entries are links.
 - **Building**: the AmigaOS 4.1 SDK's native GCC 11.5 (C, C++, assembler).
@@ -85,7 +85,7 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
 | ![AutoDocs](docs/images/autodocs.png) | ![Completion of SDK struct members](docs/images/completion-struct.png) |
 | *F1 opens the AutoDoc; references are links* | *`win->` lists the fields of `struct Window` from the SDK headers* |
 | ![Context menu](docs/images/context-menu.png) | ![Registers and disassembly](docs/images/registers-disassembly.png) |
-| *Right-click: headers, definitions, docs, debugging* | *Registers, and disassembly with source lines* |
+| *Shift-right-click: headers, definitions, docs, debugging* | *Registers, and disassembly with source lines* |
 | ![Dark theme, split view and minimap](docs/images/editor-dark-split-minimap.png) | ![The GUI designer](docs/images/designer-window.png) |
 | *Dark theme, split view and minimap* | *The GUI designer with its live preview* |
 | ![Edit and Continue](docs/images/hotpatch-applied.png) | ![The leak tracker](docs/images/debugtools-leaks.png) |

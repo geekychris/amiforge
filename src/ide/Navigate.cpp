@@ -1,5 +1,5 @@
 // Getting around the code: open the header of an #include, go to a definition, the editor's
-// context menu (right mouse button) and Ctrl-click.
+// context menu (Shift or Ctrl + the right mouse button; the button alone is the menu bar) and Ctrl-click.
 #include "App.h"
 #include "Commands.h"
 #include "KeyBindings.h"   // --- lang ---
@@ -348,7 +348,7 @@ void App::showShortcuts()
         "  (               after an OS function: shows its prototype\n"
         "  F1 / Help       AutoDoc for the word under the cursor\n"
         "  Ctrl-click      open an #include / go to a definition\n"
-        "  Right button    menu with all of these\n"
+        "  Shift+right btn menu with all of these (or Ctrl; the button alone: the menu bar)\n"
         "  Amiga-F/R/H/L   find / replace / find in files / go to line\n"
         "  Amiga-/         comment or uncomment lines\n"
         "  Shift-F12       find all references   F2   rename everywhere\n"

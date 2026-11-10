@@ -544,6 +544,7 @@ public:
     void styleView(SciView *v);                // theme + view settings for the current document
     bool layoutViews(int left, int top, int width, int height, bool reblit);   // true if a view moved
     SciView *viewAt(int x, int y);             // an edit view (or the minimap) under a window point
+    void updateRmbTrap(const struct IntuiMessage *im);   // Shift/Ctrl + right button: the context menu
     void setActiveView(SciView *v);
     void tickViews();
     void updateMinimap();

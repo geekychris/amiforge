@@ -74,7 +74,7 @@ int App::run(int argc, char **argv)
     // the AutoDoc index (for F1 and completion): read it now rather than on the first keystroke
     setStatus("Reading the AutoDocs index...");
     loadDocIndex();
-    setStatus("Ready - F1 docs, Ctrl-Space complete, right-click for more; F7 build, F5 debug");
+    setStatus("Ready - F1 docs, Ctrl-Space complete, Shift-right-click for more; F7 build, F5 debug");
 
     eventLoop();
 
