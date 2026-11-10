@@ -1,6 +1,7 @@
 // The debugger in the GUI: start/stop/step, the execution marker, and the panels
 // (locals, watches, registers, call stack, breakpoints, memory, disassembly, log).
 #include "App.h"
+#include "BasicModel.h"   // --- basic ---
 
 #include <string.h>
 #include <stdlib.h>
@@ -176,6 +177,9 @@ void App::debugStep(int kind)
         }
         return;
     }
+    // --- basic --- a step that starts on a BASIC line ends on a BASIC line (see onStopped)
+    basicStepKind = project.isBasic() && basic::isBasicFile(execFile) && (kind == 0 || kind == 1) ? kind : -1;
+    basicStepGuard = 0;
     int ok;
     switch (kind) {
     case 0: ok = dbg_step_over(dbg); break;
@@ -244,6 +248,7 @@ void App::pollDebugger()
     dbg_event ev;
     if (dbg) dtPoll();                 // --- debugtools ---
     while (dbg && dbg_poll(dbg, &ev)) {
+        if (ev.type == DBG_EV_STOPPED && basicAutoStep(ev)) continue;   // --- basic ---
         mcpDebugEvent(ev);             // --- mcp ---
         switch (ev.type) {
         case DBG_EV_MESSAGE:
@@ -269,8 +274,21 @@ void App::pollDebugger()
     }
 }
 
+// --- basic --- stepping from a BASIC line went into the generated C, an inline runtime helper
+// (boing.h) or the runtime: keep stepping (over inside the BASIC procedure, out of anything
+// else) until it's on a BASIC line again. True if it stepped again (no stop to show).
+bool App::basicAutoStep(const dbg_event &ev)
+{
+    if (basicStepKind < 0 || ev.reason != DBG_STOP_STEP || ++basicStepGuard >= 200) return false;
+    if (ev.file && basic::isBasicFile(ev.file)) return false;
+    std::string fn = ev.function ? ev.function : "";
+    bool inProc = basic::basicProcName(fn) != fn;   // p1_main: still in the BASIC procedure
+    return inProc ? dbg_step_over(dbg) != 0 : dbg_step_out(dbg) != 0;
+}
+
 void App::onStopped(const dbg_event &ev)
 {
+    basicStepKind = -1;   // --- basic ---
     selectedFrame = 0;
     dbg_select_frame(dbg, 0);
     const char *src = ev.file ? dbg_resolve_source(dbg, ev.file) : nullptr;
@@ -279,8 +297,14 @@ void App::onStopped(const dbg_event &ev)
     frameFile.clear();
     frameLine = 0;
     bool crash = ev.reason == DBG_STOP_EXCEPTION;
-    debugLog(ev.text, crash ? penError : -1);
-    setStatus(ev.text);
+    std::string text = ev.text;
+    if (ev.function && ev.file && basic::isBasicFile(ev.file)) {   // --- basic --- p0_twice() -> twice()
+        std::string fn = ev.function, bn = basic::basicProcName(fn);
+        size_t at = text.find(fn);
+        if (bn != fn && at != std::string::npos) text.replace(at, fn.size(), bn);
+    }
+    debugLog(text, crash ? penError : -1);
+    setStatus(text);
     // the program's console may be in front: come back
     if (win) {
         IIntuition->WindowToFront(win);
@@ -355,7 +379,9 @@ void App::refreshStack()
         auto &f = frames[i];
         std::string where = f.file ? strprintf("%s:%d", fileName(f.file).c_str(), f.line)
                                    : strprintf("%s 0x%08lx", f.module ? f.module : "", (unsigned long)f.pc);
-        stack.add({strprintf("%d", i), f.function ? f.function : "??", where}, (void *)(intptr_t)i);
+        std::string fn = f.function ? f.function : "??";
+        if (f.file && basic::isBasicFile(f.file)) fn = basic::basicProcName(fn);   // --- basic --- p1_main -> main
+        stack.add({strprintf("%d", i), fn, where}, (void *)(intptr_t)i);
     }
     stack.attach(selectedFrame);
 }
@@ -373,11 +399,17 @@ static bool changed(App *a, const std::string &key, const std::string &value)
     return false;
 }
 
-static void addVarRow(App *a, ListView &lv, dbg_var *v, int generation, const std::string &key, struct Node *after = nullptr)
+static void addVarRow(App *a, ListView &lv, dbg_var *v, int generation, const std::string &key, struct Node *after = nullptr,
+                      bool basicFrame = false)
 {
     uint32_t flags = v->has_children ? LBFLG_HASCHILDREN : 0;
-    struct Node *n = lv.add({v->name ? v->name : "", v->value ? v->value : "", v->type ? v->type : ""},
-                            v, generation, flags, false, after);
+    std::string name = v->name ? v->name : "", type = v->type ? v->type : "";
+    if (basicFrame) {   // --- basic --- l_total -> total, bb_long -> Long; the compiler's temporaries hidden
+        name = basic::basicVarName(name);
+        if (name.empty()) return;
+        type = basic::basicTypeName(type);
+    }
+    struct Node *n = lv.add({name, v->value ? v->value : "", type}, v, generation, flags, false, after);
     if (n && changed(a, key + "/" + (v->name ? v->name : ""), v->value ? v->value : ""))
         lv.setPens(n, a->penChanged);
 }
@@ -390,7 +422,14 @@ void App::refreshLocals()
     int n = dbg_locals(dbg, &vars);
     if (n > 0) varAllocs.push_back({vars, n});
     locals.detach();
-    for (int i = 0; i < n; i++) addVarRow(this, locals, vars[i], 0, strprintf("L%d", selectedFrame));
+    // --- basic --- a frame in a .bas file shows BASIC names
+    bool basicFrame = false;
+    {
+        dbg_frame frames[64];
+        int nf = dbg_stack(dbg, frames, 64);
+        if (selectedFrame < nf && frames[selectedFrame].file) basicFrame = basic::isBasicFile(frames[selectedFrame].file);
+    }
+    for (int i = 0; i < n; i++) addVarRow(this, locals, vars[i], 0, strprintf("L%d", selectedFrame), nullptr, basicFrame);
     if (n == 0) locals.add({"(no locals here)", "", ""});
     locals.attach();
 }

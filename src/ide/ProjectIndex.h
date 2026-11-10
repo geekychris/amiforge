@@ -55,6 +55,10 @@ std::string afpName(const std::string &afpText);
 // The first line of a README worth showing: skips blank lines and Markdown rules/underlines,
 // takes "#" off headings. Cut to `max` characters (with "...").
 std::string readmeLine(const std::string &text, size_t max = 100);
+// Text for the GUI, which shows Latin-1: UTF-8 (READMEs, .afp files written on another
+// machine) becomes Latin-1, with the usual punctuation (dashes, quotes, ...) in ASCII and
+// anything else as '?'. Bytes that aren't valid UTF-8 are taken as Latin-1 already.
+std::string toLatin1(const std::string &text);
 // Is this file name a README (README, README.txt, ReadMe.md, readme.txt ...)?
 bool isReadme(const std::string &name);
 

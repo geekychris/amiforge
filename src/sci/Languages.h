@@ -10,6 +10,7 @@ namespace af {
 enum class Language {
     Text, C, Asm, Make, Props, Diff,
     Python, Lua, Perl, Shell, AmigaDOS, ARexx, JSON, YAML, Markdown,
+    Basic,      // --- basic --- Boing BASIC (.bas, .cls)
 };
 
 // The language of a file, by its name; `firstLine` (optional) catches "#!/usr/bin/env python3",
@@ -32,7 +33,7 @@ CommentStyle commentStyle(Language l);
 enum class IndentRule {
     Braces,     // one level more after a line ending in '{'; a '}' typed first is outdented
     Colon,      // Python: one level more after ':', one less after return/pass/break/continue/raise
-    Keywords,   // Lua, ARexx, AmigaDOS: one level more after a line opening a block (then, do...)
+    Keywords,   // Lua, ARexx, AmigaDOS, BASIC: one level more after a line opening a block (then, do...)
     Keep,       // just keep the previous line's indentation
 };
 IndentRule indentRule(Language l);

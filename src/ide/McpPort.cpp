@@ -6,6 +6,7 @@
 // Every command here returns at once: a build or a debugger step is started, and the
 // assistant polls GETSTATE until it has finished.
 #include "App.h"
+#include "BasicModel.h"   // --- basic ---
 #include "Commands.h"
 #include "RexxCmd.h"
 #include "McpCmd.h"
@@ -40,6 +41,9 @@ static const char *const kCommands[] = {
     "BUILDLOG", "RUNPROGRAM", "RUNOUTPUT", "STOPPROGRAM", "DEBUGSTART", "DEBUGSTOP", "CONTINUE", "STEP", "NEXT",
     "STEPOUT", "PAUSE", "RUNTO", "BREAK", "UNBREAK", "BREAKS", "LOCALS", "STACK", "FRAME", "EVAL", "REGS",
     "CRASH", "SYMBOLS", "REFERENCES", "GITSTATUS",
+    // --- basic ---
+    "DESIGN", "DESIGNSELECT", "DESIGNEVENTS", "GOTOEVENT", "DESIGNSET", "DESIGNSAVE", "DESIGNADD", "DESIGNMENUS", "VIEWTOGGLE", "BASICSUBS",
+    "BASICCONTROLS", "BASICMEMBERS",
 };
 
 bool App::mcpHandles(const std::string &cmd)
@@ -344,13 +348,28 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         if (!def) return fail(10, "there is no template " + want + " (see TEMPLATES)");
         std::string target = joinPath(mcp::unescape(a.str("DRAWER")), name);
         if (fileExists(joinPath(target, name + ".afp"))) return fail(10, target + " already has a project " + name);
-        std::string afp, err;
-        std::vector<std::string> toOpen;
-        if (!createFromTemplate(def->dir, name, target, afp, err, &toOpen)) return fail(10, "the project couldn't be made: " + err);
-        openProject(afp);
-        for (auto &f : toOpen)
-            if (fileExists(f)) openFile(f);
-        return afp;
+        // --- basic --- the copying, opening and the designer happen after the reply (they can
+        // take longer than the caller waits); GETSTATE shows the project when it's open, and
+        // its status says what went wrong if it couldn't be made
+        std::string dir = def->dir;
+        deferredWork.push_back([this, dir, name, target]() {
+            std::string afp, err;
+            std::vector<std::string> toOpen;
+            bool wasQuiet = mcpQuiet;
+            mcpQuiet = true;
+            if (!createFromTemplate(dir, name, target, afp, err, &toOpen)) {
+                setStatus("NEWPROJECT: the project couldn't be made: " + err);
+                mcpQuiet = wasQuiet;
+                return;
+            }
+            openProject(afp);
+            for (auto &f : toOpen)
+                if (fileExists(f) && extension(f) != "afg") openFile(f);
+            for (auto &f : toOpen)   // a form opens in the designer
+                if (fileExists(f) && extension(f) == "afg") { openDesigner(f); break; }
+            mcpQuiet = wasQuiet;
+        });
+        return joinPath(target, name + ".afp");
     }
 
     // --- files ---
@@ -433,11 +452,12 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         if (debugging()) return fail(10, "stop debugging before building (DEBUGSTOP)");
         if (project.path.empty()) return fail(10, "no project is open");
         bool clean = a.has("CLEAN");
-        if (!clean && !sdkInstalled()) return fail(10, "the AmigaOS 4.1 SDK isn't installed (no SDK: assign)");
+        bool check = a.has("CHECK") && project.isBasic();   // --- basic --- boing check only
+        if (!clean && !check && !sdkInstalled()) return fail(10, "the AmigaOS 4.1 SDK isn't installed (no SDK: assign)");
         for (auto &d : docs)
             if (d->modified && d->path.empty()) return fail(10, d->title + " has never been saved: SAVEAS it first");
         pendingAfterBuild = 0;
-        build(clean ? "clean" : a.has("REBUILD") ? "rebuild" : "build");
+        build(clean ? "clean" : check ? "check" : a.has("REBUILD") ? "rebuild" : "build");
         if (!builder.busy()) return fail(10, mcpMessages.empty() ? "the build didn't start" : trim(mcpMessages));
         return "";
     }
@@ -479,7 +499,14 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
             runPython();
             return mcpMessages.empty() ? "" : fail(10, trim(mcpMessages));
         }
-        if (project.runcmd.empty() && !fileExists(project.outputPath()))
+        // --- basic --- RUNPROGRAM runs boing run (interpreted); CAPTURE sends its output to the file
+        const bool bas = project.isBasic();
+        if (bas && !a.has("CAPTURE")) {
+            runBasic();
+            return mcpMessages.empty() ? "" : fail(10, trim(mcpMessages));
+        }
+        if (bas && boingCommand().empty()) return fail(10, "the Boing BASIC compiler (boing) isn't found");
+        if (!bas && project.runcmd.empty() && !fileExists(project.outputPath()))
             return fail(10, "the program isn't built: " + project.outputPath());
         if (!a.has("CAPTURE")) {
             runProgram();
@@ -496,6 +523,7 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         }
         std::string cmdline = project.runcmd.empty()
             ? "\"" + project.outputPath() + "\"" + (project.args.empty() ? "" : " " + project.args) : project.runcmd;
+        if (bas && project.runcmd.empty()) cmdline = basic::runCommand(boingCommand(), project.basicTarget(), project.args);
         mcpRunTask = "AmiForge MCP run " + project.name;
         BPTR dir = IDOS->Lock(project.dir.c_str(), SHARED_LOCK);
         BPTR old = dir ? IDOS->SetCurrentDir(dir) : 0;
@@ -700,6 +728,84 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         std::string s;
         for (auto &sym : outlineSymbols(t, languageFor(p.empty() ? std::string("untitled.c") : p, t.substr(0, t.find('\n')))))   // --- lang ---
             s += mcp::record({ symKindName(sym.kind), sym.name, std::to_string(sym.line), sym.detail }) + "\n";
+        return s;
+    }
+    // --- basic --- the VB-style designer and Boing BASIC code-behind modules
+    if (cmd == "DESIGN") {
+        std::string f = a.has("FILE") ? resolvePath(this, a.str("FILE")) : "";
+        if (!f.empty() && extension(f) != "afg") f += ".afg";
+        if (designer && !f.empty() && !sameFile(designerPath(), f)) {
+            std::string o, e;   // another form: save it (no requester under MCP), then switch
+            if (!designerCommand("SAVE", "", "", o, e)) return fail(10, e);
+            closeDesigner();
+        }
+        if (designer && (f.empty() || sameFile(designerPath(), f))) {
+            designerToFront();
+            return designerPath() + "\t" + (basicFormMode(designerPath()) ? "basic" : "c");
+        }
+        // --- basic --- opening the windows happens after the reply (see deferredWork);
+        // DESIGNSELECT answers once it's open
+        if (f.empty())
+            for (auto &pf : project.files)
+                if (extension(pf) == "afg") { f = project.abs(pf); break; }
+        if (f.empty()) return fail(10, "no form: give FILE");
+        deferredWork.push_back([this, f]() {
+            bool wasQuiet = mcpQuiet;
+            mcpQuiet = true;
+            openDesigner(f);
+            designerToFront();
+            mcpQuiet = wasQuiet;
+        });
+        return f + "\t" + (basicFormMode(f) ? "basic" : "c");
+    }
+    if (cmd == "DESIGNSELECT" || cmd == "DESIGNEVENTS" || cmd == "GOTOEVENT" || cmd == "DESIGNSET" || cmd == "DESIGNSAVE" ||
+        cmd == "DESIGNADD" || cmd == "DESIGNMENUS") {
+        std::string out, err;
+        if (a.has("ID") && !designerCommand("SELECT", mcp::unescape(a.str("ID")), "", out, err)) return fail(10, err);
+        bool ok = true;
+        if (cmd == "DESIGNSELECT") ok = designerCommand("SELECTED", "", "", out, err);
+        else if (cmd == "DESIGNEVENTS") ok = designerCommand("EVENTS", "", "", out, err);
+        else if (cmd == "GOTOEVENT") ok = designerCommand("GOTOEVENT", mcp::unescape(a.str("EVENT")), "", out, err);
+        else if (cmd == "DESIGNSET") ok = designerCommand("SET", a.str("KEY"), mcp::unescape(a.str("VALUE")), out, err);
+        else if (cmd == "DESIGNADD") ok = designerCommand("ADD", a.str("KIND"), "", out, err);
+        else if (cmd == "DESIGNMENUS") ok = designerCommand("MENUEDITOR", "", "", out, err);
+        else ok = designerCommand("SAVE", "", "", out, err);
+        if (!ok) return fail(10, err);
+        return out;
+    }
+    if (cmd == "VIEWTOGGLE") {
+        basicViewToggle();
+        if (!mcpMessages.empty()) return fail(10, trim(mcpMessages));
+        return std::string(cur ? cur->path : "") + "\t" + designerPath();
+    }
+    if (cmd == "BASICSUBS") {
+        std::string p = a.has("FILE") ? resolvePath(this, a.str("FILE")) : cur ? cur->path : "";
+        if (p.empty()) return fail(10, "no file");
+        if (extension(p) == "afg") p = basic::codeBehindOf(p);
+        std::string t = basicCodeText(p);
+        static const char *const kinds[] = { "sub", "function", "property-get", "property-let", "property-set" };
+        std::string s;
+        for (auto &pr : basic::procedures(t))
+            s += mcp::record({ kinds[(int)pr.kind], pr.name, std::to_string(pr.line), std::to_string(pr.endLine),
+                               pr.hasCode ? "code" : "empty", pr.params }) + "\n";
+        return s;
+    }
+    if (cmd == "BASICMEMBERS") {   // --- basic --- what completion offers after "NAME." in FILE (the current file)
+        std::string p = a.has("FILE") ? resolvePath(this, a.str("FILE")) : cur ? cur->path : "";
+        std::string what;
+        std::vector<std::string> w = basicMemberWords(mcp::unescape(a.str("NAME")), p.empty() ? "" : basicCodeText(p), &what);
+        std::string s = what + "\n";
+        for (auto &x : w) s += x + "\n";
+        return s;
+    }
+    if (cmd == "BASICCONTROLS") {
+        loadFormsEvents();
+        std::string s = "source=" + (formsEventsFile.empty() ? std::string("built in") : formsEventsFile) + "\n";
+        for (auto &c : basic::controls()) {
+            std::string ev;
+            for (auto &e : c.events) ev += (ev.empty() ? "" : ",") + e.name;
+            s += mcp::record({ c.kind, c.basicType, c.defaultEvent, ev }) + "\n";
+        }
         return s;
     }
     if (cmd == "REFERENCES") {

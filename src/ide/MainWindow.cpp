@@ -257,6 +257,7 @@ static struct NewMenu menus[] = {
     // --- designer ---
     TITLE("Tools"),
     ITEM("GUI Designer...", 0, CMD_GUI_DESIGNER),
+    ITEM("View Form / View Code  (Alt-F7)", 0, CMD_BASIC_VIEW_TOGGLE),   // --- basic ---
     // --- end designer ---
 
     TITLE("Help"),
@@ -955,6 +956,12 @@ void App::eventLoop()
             uint32_t c = pendingCommands.front();
             pendingCommands.erase(pendingCommands.begin());
             handleMenu(c);
+        }
+        // --- basic --- work ARexx commands left for after their reply
+        while (!deferredWork.empty()) {
+            std::function<void()> w = deferredWork.front();
+            deferredWork.erase(deferredWork.begin());
+            w();
         }
         integrationsIdle();   // --- integrations ---
         runIdle();            // --- robust ---

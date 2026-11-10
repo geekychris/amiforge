@@ -14,6 +14,10 @@
 // One object per line: its kind and key=value properties (values with spaces in "quotes",
 // with \" \\ and \n escapes). Two spaces of indentation per level of nesting. The first line
 // after the comments is the window, the second the root layout.
+// --- basic --- Boing BASIC forms may have `menu` trees at the top level after the root layout
+// (the menu bar; a top-level menu with hidden=1 is a context menu), and the kinds of its
+// docs/ui.md: toolbar (holds tools only), statusbar, image, commondialog (no gadget, like the
+// timer), tabs (holds layouts: the pages, each one's title is its tab), treeview and grid.
 #pragma once
 
 #include <map>
@@ -26,7 +30,20 @@ namespace gui {
 
 enum class Kind {
     Window, VLayout, HLayout, Button, String, Integer, CheckBox, Chooser, Radio, Slider, Scroller,
-    ListBrowser, Label, Space, FuelGauge, GetFile, TextEditor, Count
+    ListBrowser, Label, Space, FuelGauge, GetFile, TextEditor,
+    Timer,      // --- basic --- Boing BASIC only: no gadget, the runtime fires <id>_Timer
+    Canvas,     // --- basic --- Boing BASIC only: a drawing surface of width x height
+    // --- basic --- Boing BASIC's docs/ui.md (forms-events.md has their members)
+    Menu,       // a menu title, item or sub-item: top level after the root layout, nests
+    Toolbar,    // speedbar.gadget: holds Tool objects only
+    Tool,       // a toolbar button (or separator)
+    StatusBar,  // a row of text panels
+    Image,      // a picture (bitmap.image)
+    CommonDialog,   // no gadget, like the Timer: ShowOpen, ShowSave, ShowFont...
+    Tabs,       // clicktab.gadget: its children (layouts) are the pages
+    TreeView,   // a hierarchical list
+    Grid,       // an editable cell grid (MSFlexGrid)
+    Count
 };
 
 // A property of an object kind, as the property editor shows it.
@@ -37,6 +54,7 @@ struct PropInfo {
     PropType type;
     const char *def;        // default value ("" = unset)
     const char *choices;    // PropType::Choice: "a|b|c"
+    bool basic = false;     // --- basic --- only Boing BASIC forms have it (the C designer hides it)
 };
 
 struct KindInfo {
@@ -51,7 +69,12 @@ struct KindInfo {
 
 const KindInfo &kindInfo(Kind k);
 const KindInfo *kindByName(const std::string &name);
-std::vector<Kind> paletteKinds();    // the kinds the designer's palette offers, in order
+// The kinds the designer's palette offers, in order; the Timer and the Canvas only for Boing
+// BASIC forms (the C code generator has nothing to make of them).
+bool basicOnly(Kind k);
+// For BASIC the order and names are Visual Basic's Toolbox (CommandButton, TextBox, ...).
+std::vector<Kind> paletteKinds(bool basic = false);
+const char *paletteTitle(Kind k, bool basic);
 
 struct Node {
     Kind kind = Kind::Button;
@@ -71,19 +94,37 @@ struct Node {
 
 std::vector<std::string> splitItems(const std::string &items);   // "a|b|c" -> {a, b, c}
 
+// --- basic --- whether a `child` may go into `parent` (the rules the parser and Boing BASIC's
+// runtime use): menus hold menus, toolbars tools, tabs layouts; the window holds the root
+// layout, then menus. `why` gets the reason when it may not.
+bool canHold(const Node *parent, Kind child, std::string *why = nullptr);
+
+// --- basic --- the Menu Editor's view of the menus (as VB's): one row per menu, in order, with
+// its level (0 = a title, 1 = an item, 2 = a sub-item...) and its properties.
+struct MenuRow {
+    int level = 0;
+    std::map<std::string, std::string> props;
+};
+
 struct Model {
     Node window;       // kind Window: name, title, width, height
-    Node *root();      // the window's one child, a layout (created if missing)
+    Node *root();      // the window's first child, a layout (created if missing)
+    std::vector<Node *> menus();   // --- basic --- the top-level menus (the window's other children)
 
     bool parse(const std::string &text, std::string &err);
     std::string write() const;
 
-    // Every node in display order (depth first), with its depth (root = 0).
+    // Every node in display order (depth first), with its depth (root = 0); the top-level menus
+    // follow the root's tree, at depth 0 too.
     void walk(std::vector<std::pair<Node *, int>> &out);
     Node *findById(const std::string &id);
     std::string uniqueId(Kind k);       // "button3": the first free id for a new object
     std::string baseName() const;       // the window's name as a C identifier ("main")
     std::vector<std::string> validate();   // problems that would stop the code from compiling
+    // --- basic --- the menus as rows, and back (false with err if the levels don't make a
+    // tree: the first row must be a title, and a row is at most one level below the one above)
+    std::vector<MenuRow> menuRows();
+    bool setMenuRows(const std::vector<MenuRow> &rows, std::string &err);
 };
 
 // C identifier from free text: "My App!" -> "My_App_"; never empty, never starts with a digit.

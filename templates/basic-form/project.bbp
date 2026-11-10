@@ -1,0 +1,4 @@
+# Boing BASIC project
+Name=${NAME}
+Startup=Form main
+Form=main.afg

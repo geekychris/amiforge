@@ -1,5 +1,6 @@
 // --- lang --- Language detection and per-language editing rules (see Languages.h).
 #include "Languages.h"
+#include "BasicSyntax.h"   // --- basic ---
 
 #include <cctype>
 #include <cstring>
@@ -53,6 +54,7 @@ const struct { Language lang; const char *id, *name; } names[] = {
     { Language::JSON, "json", "JSON" },
     { Language::YAML, "yaml", "YAML" },
     { Language::Markdown, "markdown", "Markdown" },
+    { Language::Basic, "basic", "Boing BASIC" },   // --- basic ---
 };
 
 const char pyKeywords[] =
@@ -132,6 +134,7 @@ const char *languageKeywords(Language l, int set)
     case Language::AmigaDOS: return set == 0 ? dosCommands : "";
     case Language::JSON: return set == 0 ? jsonKeywords : "";
     case Language::YAML: return set == 0 ? yamlKeywords : "";
+    case Language::Basic: return basic::keywords(set);   // --- basic ---
     default: return "";
     }
 }
@@ -189,6 +192,8 @@ Language languageFor(const std::string &fileName, const std::string &firstLine)
     if (ext == "yaml" || ext == "yml") return Language::YAML;
     if (ext == "md" || ext == "markdown") return Language::Markdown;
     if (ext == "dos" || ext == "script") return Language::AmigaDOS;
+    if (ext == "bas" || ext == "cls" || ext == "bi" || ext == "frm") return Language::Basic;   // --- basic ---
+    if (ext == "bbp") return Language::Props;
     // no (known) extension: the first line decides
     std::string first = lower(trimmed(firstLine));
     if (first.compare(0, 2, "#!") == 0) {
@@ -225,6 +230,7 @@ CommentStyle commentStyle(Language l)
     case Language::ARexx: return { nullptr, "/*", "*/" };
     case Language::JSON: return { nullptr, nullptr, nullptr };
     case Language::Markdown: return { nullptr, "<!--", "-->" };
+    case Language::Basic: return { "'", nullptr, nullptr };   // --- basic ---
     case Language::Text: return { "#", nullptr, nullptr };
     default: return { "#", nullptr, nullptr };   // Python, Perl, shell, YAML, make, props, diff
     }
@@ -235,7 +241,7 @@ IndentRule indentRule(Language l)
     switch (l) {
     case Language::C: case Language::Perl: case Language::Shell: case Language::JSON: return IndentRule::Braces;
     case Language::Python: return IndentRule::Colon;
-    case Language::Lua: case Language::ARexx: case Language::AmigaDOS: return IndentRule::Keywords;
+    case Language::Lua: case Language::ARexx: case Language::AmigaDOS: case Language::Basic: return IndentRule::Keywords;
     case Language::YAML: return IndentRule::Colon;
     default: return IndentRule::Keep;
     }
@@ -252,13 +258,14 @@ bool foldable(Language l)
 {
     switch (l) {
     case Language::C: case Language::Python: case Language::Lua: case Language::Perl: case Language::Shell:
-    case Language::ARexx: case Language::JSON: case Language::YAML: return true;
+    case Language::ARexx: case Language::JSON: case Language::YAML: case Language::Basic: return true;
     default: return false;
     }
 }
 
 std::string stripLineComment(Language l, const std::string &line)
 {
+    if (l == Language::Basic) return basic::stripComment(line);   // --- basic --- ' and Rem
     const CommentStyle cs = commentStyle(l);
     char quote = 0;
     size_t end = line.size();
@@ -299,6 +306,7 @@ std::string stripLineComment(Language l, const std::string &line)
 
 int indentChangeAfter(Language l, const std::string &line)
 {
+    if (l == Language::Basic) return basic::indentChangeAfter(line);   // --- basic ---
     const std::string code = trimmed(stripLineComment(l, line));
     if (code.empty()) return 0;
     const std::vector<std::string> w = words(code);

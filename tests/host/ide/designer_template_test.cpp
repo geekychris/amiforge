@@ -183,5 +183,5 @@ TEST(shipped_templates_are_complete)
         n++;
     }
     closedir(d);
-    CHECK_EQ(n, 10);   // --- lang --- with the Python script template
+    CHECK_EQ(n, 12);   // --- lang --- with the Python script template; --- basic --- and the two Boing BASIC ones
 }

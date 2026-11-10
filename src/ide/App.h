@@ -1,6 +1,8 @@
 // AmiForge - the application: main window, documents, project, build and debug.
 #pragma once
 
+#include "BasicModel.h"   // --- basic --- RuntimeMembers
+
 #include <string>
 #include <vector>
 #include <memory>
@@ -92,6 +94,15 @@ struct Project {
     bool isPython() const;
     std::string pythonMain() const;   // relative to dir; "" if the project has no .py file
     // --- end lang ---
+    // --- basic --- Boing BASIC projects (BasicModel.h): language=basic, the .bbp names the
+    // modules/forms/classes; Build runs boing check + boing build, Run runs boing run.
+    // `interpreter` is the boing command for them (empty: ENV:AmiForge/Boing, else found).
+    std::string bbp;            // the .bbp, relative to dir
+    bool isBasic() const;
+    std::string basicTarget() const;  // what boing is given: the .bbp, else the first .bas
+    bool loadBbp(const std::string &bbpPath, std::string &err);   // a project made from a .bbp
+    bool syncBbp(std::string &err);   // the .bbp's Module/Form/Class lines from `files`
+    // --- end basic ---
     std::vector<std::string> files;    // relative to dir
     std::vector<std::string> watches;
     struct Bp { std::string file; int line; bool enabled; std::string cond; };
@@ -128,6 +139,8 @@ public:
     bool startPython(const std::string &dir, const std::vector<std::pair<std::string, std::string>> &cmds,
                      const std::vector<std::pair<std::string, std::string>> &env);
     bool busy() const { return running; }
+    // --- basic --- local variables for the next startCommands (BOING_CFLAGS)
+    void setNextEnv(const std::vector<std::pair<std::string, std::string>> &env) { nextEnv = env; }
     void stop();
     // --- hotpatch
     static std::string compileCommand(const Project &p, const std::string &src, const std::string &obj);
@@ -718,6 +731,7 @@ public:
     void stopProgram();                         // Build > Stop Program (Shift-Ctrl-F5, the Stop button)
     bool programRunning();
     bool runQuitCheck();                        // before quitting: false = don't quit
+    bool quitForce = false;                     // ARexx QUIT FORCE: don't ask about running programs either
     void runCleanup();
     // the project browser is a normal (non-modal) window, handled by the event loop
     struct BrowserState *browser = nullptr;
@@ -744,6 +758,53 @@ public:
     void setNextStatement();                     // Shift-Ctrl-F10
     void runToFunction();                        // Alt-F10
     // --- end lang ---
+    // --- basic --- Boing BASIC projects (BasicUI.cpp, BasicDesign.cpp; the OS-free parts are in BasicModel.h)
+    std::string boingCommand(std::string *how = nullptr);   // project, ENV:AmiForge/Boing, or found
+    bool basicReady();                           // boing and something to give it, else explains
+    void buildBasic(const std::string &what);    // build, rebuild, clean, check
+    void runBasic();                             // boing run in a console
+    bool basicHasBreakpoints();                  // enabled breakpoints in .bas files (F5 debugs then)
+    void runTrackBasic(const std::string &errorFile);   // the run just started
+    void basicRunEnded(const std::string &errorFile);   // RunControl: its runtime error into the build log
+    int basicRuns = 0;
+    std::string basicLastWhat;                   // the last buildBasic's `what`
+    int basicStepKind = -1, basicStepGuard = 0;  // a step from a BASIC line (DebugUI.cpp)
+    bool basicAutoStep(const dbg_event &ev);
+    // the VB-style designer (BasicDesign.cpp): forms and their code-behind modules
+    bool basicFormMode(const std::string &afg);  // the designer edits code-behind, not C
+    void loadFormsEvents();                      // Boing BASIC's docs/forms-events.md, once
+    bool formsEventsTried = false;
+    std::string formsEventsFile;                 // where the control table came from ("" = built in)
+    std::string basicCodeText(const std::string &bas);           // the open document's text, else the file's
+    void basicSetText(Document *d, const std::string &text);     // as one undoable edit
+    Document *basicOpenCode(const std::string &afg, bool activate);   // the form's .bas (made if missing)
+    bool basicGotoEvent(const std::string &afg, const std::string &id, const std::string &kind, const std::string &event);
+    std::vector<int> basicEventStates(const std::string &afg, const std::string &id, const std::string &kind);   // per event: 0 none, 1 empty sub, 2 code
+    int basicRenameControl(const std::string &afg, const std::string &oldId, const std::string &newId,
+                           const std::string &kind, bool askFirst);
+    void basicViewToggle();                      // View Form / View Code (Alt-F7)
+    std::string designerPath();                  // the designer's .afg ("" if it isn't open)
+    void designerToFront();
+    void designerProjectChanged();               // a project switch closes a designer on the old project's form
+    bool designerCommand(const std::string &what, const std::string &arg1, const std::string &arg2,
+                         std::string &out, std::string &err);   // MCP DESIGNER ... (Designer.cpp)
+    std::string mcpLastSub;                      // the sub the last event jump went to
+    // Work an ARexx/MCP command does after it has replied (MainWindow's event loop runs it):
+    // making a project or opening the designer can take longer than a caller waits (the
+    // bridge's ARexx timeout is 10 s on a busy Amiga), so those commands answer first.
+    std::vector<std::function<void()>> deferredWork;
+    std::map<std::string, std::string> basicControlMap();   // the forms' controls: id -> kind (completion)
+    std::map<std::string, std::pair<int64_t, std::map<std::string, std::string>>> formCache;
+    // the runtime classes' members (Engine3D, Canvas, Audio...), from `boing members` once per
+    // boing; empty for a boing without the command (BasicUI.cpp)
+    const basic::RuntimeMembers &basicRuntimeMembers();
+    basic::RuntimeMembers runtimeMembers;
+    std::string runtimeMembersOf;                // the boing they came from
+    bool runtimeMembersTried = false;
+    // completion after "name.": a control's or form's members, else the runtime class name is
+    // declared as in `code`; `what` says which ("ok is a CommandButton", "v is a Canvas")
+    std::vector<std::string> basicMemberWords(const std::string &name, const std::string &code, std::string *what = nullptr);
+    // --- end basic ---
 };
 
 extern App *gApp;

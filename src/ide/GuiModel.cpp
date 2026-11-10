@@ -14,7 +14,7 @@ namespace gui {
 
 static const char *const FRAMES = "none|group|button|field";
 
-static std::vector<PropInfo> withCommon(std::vector<PropInfo> own, bool gadget)
+static std::vector<PropInfo> withCommon(std::vector<PropInfo> own, bool gadget, bool control = true)
 {
     std::vector<PropInfo> p = { { "id", "ID name", PropType::Ident, "", nullptr },
                                 { "label", "Label (left)", PropType::Text, "", nullptr } };
@@ -26,6 +26,22 @@ static std::vector<PropInfo> withCommon(std::vector<PropInfo> own, bool gadget)
         p.push_back({ "disabled", "Disabled", PropType::Bool, "0", nullptr });
         p.push_back({ "hint", "Help hint", PropType::Text, "", nullptr });
     }
+    // --- basic --- every control: the hidden menu the right mouse button opens over it
+    if (control) p.push_back({ "contextmenu", "Context menu (a hidden menu's ID)", PropType::Ident, "", nullptr, true });
+    return p;
+}
+
+// --- basic --- a property only Boing BASIC forms have
+static PropInfo B(const char *key, const char *title, PropType type, const char *def, const char *choices = nullptr)
+{
+    return { key, title, type, def, choices, true };
+}
+
+// --- basic --- bars take their own height unless given a weight (the runtime's default)
+static std::vector<PropInfo> weightZero(std::vector<PropInfo> p)
+{
+    for (auto &x : p)
+        if (std::string(x.key) == "weight") x.def = "0";
     return p;
 }
 
@@ -37,17 +53,26 @@ static const std::vector<KindInfo> &kinds()
             { "title", "Title", PropType::Text, "Untitled", nullptr },
             { "width", "Width (0 = automatic)", PropType::Int, "0", nullptr },
             { "height", "Height (0 = automatic)", PropType::Int, "0", nullptr },
-            { "resizable", "Resizable", PropType::Bool, "1", nullptr } } },
+            { "resizable", "Resizable", PropType::Bool, "1", nullptr },
+            B("remember", "Remember position and size", PropType::Bool, "0"),
+            B("iconify", "Iconify gadget", PropType::Bool, "0"),
+            B("toolwindow", "Tool window (no size/depth gadget)", PropType::Bool, "0"),
+            B("dropfiles", "Accept dropped icons (AppWindow)", PropType::Bool, "0"),
+            B("contextmenu", "Context menu (a hidden menu's ID)", PropType::Ident, "") } },
         { Kind::VLayout, "vlayout", "Vertical Group", true, false, "vgroup",
           withCommon({ { "title", "Frame title", PropType::Text, "", nullptr },
                        { "frame", "Frame", PropType::Choice, "none", FRAMES },
-                       { "even", "Even sizes", PropType::Bool, "0", nullptr } }, false) },
+                       { "even", "Even sizes", PropType::Bool, "0", nullptr },
+                       B("splitter", "Splitter bars (drag to resize)", PropType::Bool, "0") }, false, false) },
         { Kind::HLayout, "hlayout", "Horizontal Group", true, false, "hgroup",
           withCommon({ { "title", "Frame title", PropType::Text, "", nullptr },
                        { "frame", "Frame", PropType::Choice, "none", FRAMES },
-                       { "even", "Even sizes", PropType::Bool, "0", nullptr } }, false) },
+                       { "even", "Even sizes", PropType::Bool, "0", nullptr },
+                       B("splitter", "Splitter bars (drag to resize)", PropType::Bool, "0") }, false, false) },
         { Kind::Button, "button", "Button", false, true, "button",
-          withCommon({ { "text", "Text", PropType::Text, "Button", nullptr } }, true) },
+          withCommon({ { "text", "Text", PropType::Text, "Button", nullptr },
+                       B("image", "Picture file", PropType::Text, ""),
+                       B("selimage", "Pressed picture file", PropType::Text, "") }, true) },
         { Kind::String, "string", "String", false, true, "string",
           withCommon({ { "text", "Text", PropType::Text, "", nullptr },
                        { "maxchars", "Maximum length", PropType::Int, "128", nullptr } }, true) },
@@ -75,7 +100,11 @@ static const std::vector<KindInfo> &kinds()
                        { "top", "Top", PropType::Int, "0", nullptr },
                        { "vertical", "Vertical", PropType::Bool, "0", nullptr } }, true) },
         { Kind::ListBrowser, "listbrowser", "List", false, true, "list",
-          withCommon({ { "items", "Items (separate with |)", PropType::Items, "", nullptr } }, true) },
+          withCommon({ { "items", "Items (separate with |)", PropType::Items, "", nullptr },
+                       B("columns", "Column titles (separate with |)", PropType::Items, ""),
+                       B("widths", "Column weights (separate with |)", PropType::Items, ""),
+                       B("multiselect", "Multiple selection", PropType::Bool, "0"),
+                       B("sortable", "Sort by clicking a title", PropType::Bool, "0") }, true) },
         { Kind::Label, "label", "Text Label", false, false, "text",
           withCommon({ { "text", "Text", PropType::Text, "Text", nullptr } }, false) },
         { Kind::Space, "space", "Space", false, false, "space", withCommon({}, false) },
@@ -88,7 +117,73 @@ static const std::vector<KindInfo> &kinds()
                        { "pattern", "Pattern", PropType::Text, "", nullptr },
                        { "save", "Save mode", PropType::Bool, "0", nullptr } }, true) },
         { Kind::TextEditor, "texteditor", "Text Editor", false, true, "editor",
-          withCommon({ { "text", "Text", PropType::Text, "", nullptr } }, true) },
+          withCommon({ { "text", "Text", PropType::Text, "", nullptr },
+                       B("fixedfont", "Fixed-width font", PropType::Bool, "0") }, true) },
+        // --- basic --- no space in the window: Boing BASIC's runtime runs it on timer.device
+        { Kind::Timer, "timer", "Timer (BASIC)", false, false, "timer",
+          { { "id", "ID name", PropType::Ident, "", nullptr },
+            { "interval", "Interval (ms, 0 = off)", PropType::Int, "0", nullptr },
+            { "enabled", "Enabled", PropType::Bool, "1", nullptr } } },
+        { Kind::Canvas, "canvas", "Canvas (BASIC)", false, false, "canvas",
+          { { "id", "ID name", PropType::Ident, "", nullptr },
+            { "width", "Width (pixels)", PropType::Int, "320", nullptr },
+            { "height", "Height (pixels)", PropType::Int, "200", nullptr },
+            { "label", "Label (left)", PropType::Text, "", nullptr },
+            { "weight", "Weight (0 = minimum size)", PropType::Int, "", nullptr },
+            B("scale", "Scale (1 = a pixel per pixel)", PropType::Int, "1"),
+            B("mousemove", "MouseMove without a button down", PropType::Bool, "0"),
+            B("rmb", "Right button paints (not the menus)", PropType::Bool, "0"),
+            B("fill", "Fill the window (width/height = minimum)", PropType::Bool, "0"),
+            B("dropfiles", "Accept dropped icons", PropType::Bool, "0"),
+            B("contextmenu", "Context menu (a hidden menu's ID)", PropType::Ident, "") } },
+        // --- basic --- docs/ui.md's kinds; the defaults are the runtime's (src/runtime/afg.c)
+        { Kind::Menu, "menu", "Menu", true, false, "mnu",
+          { { "id", "ID name", PropType::Ident, "", nullptr },
+            B("text", "Caption (- = a separator bar)", PropType::Text, "Menu"),
+            B("key", "Shortcut (Amiga + one key)", PropType::Text, ""),
+            B("checkable", "Checkable (a toggle item)", PropType::Bool, "0"),
+            B("checked", "Checked", PropType::Bool, "0"),
+            B("radio", "Radio item (one of its panel)", PropType::Bool, "0"),
+            B("disabled", "Disabled", PropType::Bool, "0"),
+            B("hidden", "Hidden (a title: a context menu)", PropType::Bool, "0") } },
+        { Kind::Toolbar, "toolbar", "Toolbar", true, true, "toolbar",
+          weightZero(withCommon({ B("textonly", "Texts only", PropType::Bool, "0"),
+                                  B("imagesonly", "Pictures only", PropType::Bool, "0"),
+                                  B("vertical", "Vertical", PropType::Bool, "0") }, true)) },
+        { Kind::Tool, "tool", "Toolbar Button", false, false, "tool",
+          { { "id", "ID name", PropType::Ident, "", nullptr },
+            B("text", "Text", PropType::Text, ""),
+            B("image", "Picture file", PropType::Text, ""),
+            B("selimage", "Pressed picture file", PropType::Text, ""),
+            B("hint", "Help hint", PropType::Text, ""),
+            B("menu", "Menu item it stands for (ID)", PropType::Ident, ""),
+            B("toggle", "Toggle button", PropType::Bool, "0"),
+            B("checked", "Pressed (toggle)", PropType::Bool, "0"),
+            B("separator", "Separator", PropType::Bool, "0"),
+            B("disabled", "Disabled", PropType::Bool, "0") } },
+        { Kind::StatusBar, "statusbar", "Status Bar", false, false, "status",
+          weightZero(withCommon({ B("panels", "Panel texts (separate with |)", PropType::Items, "Ready"),
+                                  B("widths", "Panel widths (|, 0 = the rest)", PropType::Items, "") }, false)) },
+        { Kind::Image, "image", "Image", false, false, "image",
+          withCommon({ B("file", "Picture file", PropType::Text, ""),
+                       B("frame", "Recessed frame", PropType::Bool, "0") }, false) },
+        { Kind::CommonDialog, "commondialog", "Common Dialog", false, false, "dlg",
+          { { "id", "ID name", PropType::Ident, "", nullptr },
+            B("title", "Dialog title", PropType::Text, ""),
+            B("filter", "Filter (#?.txt or Text|#?.txt)", PropType::Text, ""),
+            B("initdir", "Initial drawer", PropType::Text, ""),
+            B("flags", "Flags (cdlOFN... values)", PropType::Int, "") } },
+        { Kind::Tabs, "tabs", "Tabs", true, true, "tabs",
+          withCommon({ B("selected", "Page shown (0 = first)", PropType::Int, "0") }, true) },
+        { Kind::TreeView, "treeview", "Tree View", false, true, "tree", withCommon({}, true) },
+        { Kind::Grid, "grid", "Grid", false, true, "grid",
+          withCommon({ B("rows", "Rows", PropType::Int, "10"),
+                       B("cols", "Columns", PropType::Int, "5"),
+                       B("fixedrows", "Title rows", PropType::Int, "1"),
+                       B("fixedcols", "Title columns", PropType::Int, "1"),
+                       B("headers", "A, B, C... and 1, 2, 3... in the titles", PropType::Bool, "0"),
+                       B("colwidth", "Column width (pixels)", PropType::Int, "64"),
+                       B("editable", "Editable", PropType::Bool, "1") }, true) },
     };
     return k;
 }
@@ -102,11 +197,78 @@ const KindInfo *kindByName(const std::string &name)
     return nullptr;
 }
 
-std::vector<Kind> paletteKinds()
+const char *paletteTitle(Kind k, bool basic)
 {
+    if (basic) switch (k) {
+        case Kind::Label: return "Label";
+        case Kind::String: return "TextBox";
+        case Kind::Button: return "CommandButton";
+        case Kind::CheckBox: return "CheckBox";
+        case Kind::Radio: return "OptionButtons";
+        case Kind::Chooser: return "ComboBox";
+        case Kind::ListBrowser: return "ListBox";
+        case Kind::Scroller: return "ScrollBar";
+        case Kind::Slider: return "Slider";
+        case Kind::Integer: return "Number field";
+        case Kind::Timer: return "Timer";
+        case Kind::Canvas: return "Canvas (PictureBox)";
+        case Kind::TextEditor: return "TextBox (multi-line)";
+        case Kind::GetFile: return "File chooser";
+        case Kind::FuelGauge: return "ProgressBar";
+        case Kind::VLayout: return "Frame: vertical group";
+        case Kind::HLayout: return "Frame: horizontal group";
+        case Kind::Space: return "Space";
+        case Kind::Image: return "Image";
+        case Kind::Tabs: return "TabStrip";
+        case Kind::Toolbar: return "Toolbar";
+        case Kind::Tool: return "Toolbar button";
+        case Kind::StatusBar: return "StatusBar";
+        case Kind::TreeView: return "TreeView";
+        case Kind::CommonDialog: return "CommonDialog";
+        case Kind::Grid: return "MSFlexGrid (Grid)";
+        case Kind::Menu: return "Menu";
+        default: break;
+    }
+    return kindInfo(k).title;
+}
+
+bool basicOnly(Kind k) { return k == Kind::Timer || k == Kind::Canvas || k >= Kind::Menu; }
+
+std::vector<Kind> paletteKinds(bool basic)
+{
+    // Visual Basic's Toolbox order (PictureBox, Label, TextBox, Frame, CommandButton...), then
+    // the Common Controls, CommonDialog and MSFlexGrid components, then what VB doesn't have.
+    // Menus are made in the Menu Editor, as in VB.
+    if (basic)
+        return { Kind::Canvas, Kind::Label, Kind::String, Kind::TextEditor, Kind::VLayout, Kind::HLayout,
+                 Kind::Button, Kind::CheckBox, Kind::Radio, Kind::Chooser, Kind::ListBrowser, Kind::Scroller,
+                 Kind::Timer, Kind::GetFile, Kind::Image,
+                 Kind::Tabs, Kind::Toolbar, Kind::Tool, Kind::StatusBar, Kind::FuelGauge, Kind::TreeView,
+                 Kind::Slider, Kind::CommonDialog, Kind::Grid,
+                 Kind::Integer, Kind::Space };
     std::vector<Kind> v;
-    for (int i = (int)Kind::VLayout; i < (int)Kind::Count; i++) v.push_back((Kind)i);
+    for (int i = (int)Kind::VLayout; i < (int)Kind::Count; i++)
+        if (basic || !basicOnly((Kind)i)) v.push_back((Kind)i);
     return v;
+}
+
+bool canHold(const Node *parent, Kind child, std::string *why)
+{
+    auto no = [&](const char *w) { if (why) *why = w; return false; };
+    if (!parent) return no("no parent");
+    bool layout = child == Kind::VLayout || child == Kind::HLayout;
+    if (parent->kind == Kind::Window) {
+        if (child == Kind::Menu) return parent->children.empty() ? no("menus come after the root layout") : true;
+        if (!parent->children.empty()) return no("only one root layout is allowed");
+        return layout ? true : no("the root must be a vlayout or hlayout");
+    }
+    if (!kindInfo(parent->kind).container) return no("this object can't contain objects");
+    if ((parent->kind == Kind::Menu) != (child == Kind::Menu))
+        return no("menus hold menus only, and only the window or a menu holds menus");
+    if ((parent->kind == Kind::Toolbar) != (child == Kind::Tool))
+        return no("a toolbar holds tools only, and tools go in a toolbar");
+    if (parent->kind == Kind::Tabs && !layout) return no("every page of tabs must be a vlayout or hlayout");
+    return true;
 }
 
 // --- nodes -------------------------------------------------------------------------------
@@ -312,8 +474,12 @@ bool Model::parse(const std::string &text, std::string &err)
         }
         while (!stack.empty() && stack.back().second >= (int)ind) stack.pop_back();
         Node *parent = stack.empty() ? &window : stack.back().first;
-        if (parent == &window && !window.children.empty()) {
+        if (parent == &window && !window.children.empty() && ki->kind != Kind::Menu) {
             err = "line " + std::to_string(lineNo) + ": only one root layout is allowed";
+            return false;
+        }
+        if (parent == &window && ki->kind == Kind::Menu && window.children.empty()) {
+            err = "line " + std::to_string(lineNo) + ": menus come after the root layout";
             return false;
         }
         if (parent == &window && !ki->container) {
@@ -322,6 +488,11 @@ bool Model::parse(const std::string &text, std::string &err)
         }
         if (!kindInfo(parent->kind).container) {
             err = "line " + std::to_string(lineNo) + ": a " + kindInfo(parent->kind).name + " can't contain objects";
+            return false;
+        }
+        std::string why;   // --- basic --- menus, toolbars, tabs
+        if (!canHold(parent, ki->kind, &why)) {
+            err = "line " + std::to_string(lineNo) + ": " + why;
             return false;
         }
         Node *n = parent->add(ki->kind);
@@ -371,6 +542,54 @@ void Model::walk(std::vector<std::pair<Node *, int>> &out)
 {
     out.clear();
     walkNode(root(), 0, out);
+    for (Node *m : menus()) walkNode(m, 0, out);   // --- basic ---
+}
+
+std::vector<Node *> Model::menus()
+{
+    root();
+    std::vector<Node *> v;
+    for (size_t i = 1; i < window.children.size(); i++)
+        if (window.children[i]->kind == Kind::Menu) v.push_back(window.children[i].get());
+    return v;
+}
+
+static void menuRowsOf(Node *n, int level, std::vector<MenuRow> &out)
+{
+    MenuRow r;
+    r.level = level;
+    r.props = n->props;
+    out.push_back(r);
+    for (auto &c : n->children) menuRowsOf(c.get(), level + 1, out);
+}
+
+std::vector<MenuRow> Model::menuRows()
+{
+    std::vector<MenuRow> out;
+    for (Node *m : menus()) menuRowsOf(m, 0, out);
+    return out;
+}
+
+bool Model::setMenuRows(const std::vector<MenuRow> &rows, std::string &err)
+{
+    for (size_t i = 0; i < rows.size(); i++) {
+        if (rows[i].level < 0 || (i == 0 && rows[i].level != 0)) { err = "the first menu must be a title (not indented)"; return false; }
+        if (i > 0 && rows[i].level > rows[i - 1].level + 1) {
+            err = "a menu can be at most one level below the one above it (row " + std::to_string(i + 1) + ")";
+            return false;
+        }
+    }
+    root();
+    window.children.resize(1);
+    std::vector<Node *> stack;   // stack[level] = the last menu at that level
+    for (auto &r : rows) {
+        Node *parent = r.level == 0 ? &window : stack[r.level - 1];
+        Node *n = parent->add(Kind::Menu);
+        n->props = r.props;
+        stack.resize(r.level);
+        stack.push_back(n);
+    }
+    return true;
 }
 
 Node *Model::findById(const std::string &id)
@@ -502,6 +721,7 @@ struct Gen {
             if (n->getBool("even")) tag("LAYOUT_EvenSize", "TRUE");
             for (auto &c : n->children) {
                 Node *ch = c.get();
+                if (basicOnly(ch->kind)) continue;   // --- basic --- Timer, Canvas: Boing BASIC's runtime makes them
                 bool image = ch->kind == Kind::Label;
                 s += I + (image ? "LAYOUT_AddImage, " : "LAYOUT_AddChild, ") + object(ch, ind + 4);
                 if (ch->has("label"))
@@ -614,6 +834,7 @@ struct Gen {
 
     void collect(Node *n)
     {
+        if (basicOnly(n->kind)) return;   // --- basic ---
         kindsUsed.insert(n->kind);
         if (n->has("label")) kindsUsed.insert(Kind::Label);
         if (!n->get("id").empty()) nodes.push_back(n);

@@ -1,0 +1,4 @@
+# Boing BASIC project
+Name=${NAME}
+Startup=Sub Main
+Module=Main.bas

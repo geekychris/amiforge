@@ -55,7 +55,7 @@ const std::vector<CommandDef> &commands()
         { "SUBST", "FILE,OLD/A,NEW,ALL/S", "Replace exact text (must be unique unless ALL); RESULT = count<tab>line" },
         { "SAVEALL", "", "Save every modified file" },
         { "REVERT", "FILE", "Drop unsaved changes: reload the file from disk" },
-        { "STARTBUILD", "REBUILD/S,CLEAN/S", "Start a build now (no requesters); poll GETSTATE for build=idle" },
+        { "STARTBUILD", "REBUILD/S,CLEAN/S,CHECK/S", "Start a build now (no requesters); poll GETSTATE for build=idle; CHECK: Boing BASIC's boing check only" },
         { "STOPBUILD", "", "Stop the running build" },
         { "ERRORS", "ALL/S", "RESULT = the last build's messages: kind, file, line, col, text, explanation" },
         { "BUILDLOG", "", "RESULT = the build log as shown" },
@@ -82,6 +82,19 @@ const std::vector<CommandDef> &commands()
         { "SYMBOLS", "FILE", "RESULT = the outline of a file: kind, name, line, detail" },
         { "REFERENCES", "NAME/A", "RESULT = every use of an identifier in the project: file, line, col, text" },
         { "GITSTATUS", "", "RESULT = \"repo<tab>branch\", then changed files: XY, path" },
+        // --- basic --- the VB-style designer (Boing BASIC forms)
+        { "DESIGN", "FILE", "Open the GUI designer on a .afg (none: the project's form); RESULT = file<tab>basic|c" },
+        { "DESIGNSELECT", "ID", "Select an object in the designer (the window: its name); RESULT = kind<tab>id" },
+        { "DESIGNEVENTS", "ID", "RESULT = the selected (or ID's) events: name<tab>code|empty|none<tab>params[<tab>default]" },
+        { "GOTOEVENT", "ID,EVENT", "Open the code-behind at Sub <id>_<event>, made if missing (EVENT: default event); RESULT = file<tab>line<tab>sub" },
+        { "DESIGNSET", "ID,KEY/A,VALUE/A/F", "Set a property of the selected (or ID's) object; a new id renames its event subs" },
+        { "DESIGNSAVE", "", "Save the designer's .afg" },
+        { "DESIGNADD", "ID,KIND/A", "Add an object (button, string, timer...) after the selected (or ID's) one, or into the selected group; RESULT = kind<tab>id" },
+        { "BASICMEMBERS", "NAME/A,FILE", "What completion offers after NAME. in FILE (a control's or a Boing class's members); RESULT = what, then one per line" },
+        { "DESIGNMENUS", "", "Open the designer's Menu Editor (Boing BASIC forms; after the reply, the dialog is modal)" },
+        { "VIEWTOGGLE", "", "View Form / View Code (Alt-F7); RESULT = current file<tab>designer's file" },
+        { "BASICSUBS", "FILE", "RESULT = the procedures of a Boing BASIC module (or a form's code): kind, name, line, end, code|empty, params" },
+        { "BASICCONTROLS", "", "RESULT = source=..., then per control kind: kind, BASIC type, default event, events" },
         // --- end mcp ---
     };
     return cmds;

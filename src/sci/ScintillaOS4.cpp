@@ -61,6 +61,7 @@
 #include "sci/PlatOS4.h"
 #include "sci/SciView.h"
 #include "sci/Languages.h"   // --- lang ---
+#include "sci/BasicSyntax.h"   // --- basic ---
 
 #include <proto/exec.h>
 #include <proto/graphics.h>
@@ -738,6 +739,24 @@ void ScintillaOS4::IndentNewLine() {
         std::string text;
         for (Sci::Position q = start; q < p; q++)
             text.push_back(pdoc->CharAt(q));
+        // --- basic --- End If, Next, Else, Case... just typed: line it up with its opener
+        if (lang == af::Language::Basic) {
+            std::vector<std::string> before;
+            std::vector<int> indents;
+            const Sci::Line first = line - 1 > 400 ? line - 1 - 400 : 0;
+            for (Sci::Line l = first; l < line - 1; l++) {
+                std::string t;
+                for (Sci::Position q = pdoc->LineStart(l), e = pdoc->LineEnd(l); q < e; q++)
+                    t.push_back(pdoc->CharAt(q));
+                before.push_back(t);
+                indents.push_back(pdoc->GetLineIndentation(l));
+            }
+            const int want = af::basic::closerIndent(text, before, indents, pdoc->IndentSize());
+            if (want >= 0 && want != indent) {
+                Call(SCI_SETLINEINDENTATION, line - 1, want);
+                indent = want;
+            }
+        }
         indent += af::indentChangeAfter(lang, text) * pdoc->IndentSize();
         if (indent < 0)
             indent = 0;

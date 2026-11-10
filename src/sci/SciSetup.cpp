@@ -18,6 +18,7 @@
 #include "sci/Theme.h"
 #include "sci/Languages.h"   // --- lang ---
 #include "sci/LexAmiga.h"    // --- lang ---
+#include "sci/LexBoing.h"    // --- basic ---
 
 extern const Lexilla::LexerModule lmCPP;
 // --- lang ---
@@ -352,6 +353,26 @@ void SetupARexx(Setup &s) {
     s.Style(AF_REXX_SPECIAL, t.type);
 }
 
+// --- basic ---
+void SetupBasic(Setup &s) {
+    const Theme &t = currentTheme();
+    s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmBoingBasic.Create()));
+    for (int i = 0; i < 3; i++) s.Keywords(i, languageKeywords(Language::Basic, i));
+    s.Property("fold", "1");
+    s.Style(AF_BAS_COMMENT, t.comment);
+    s.Style(AF_BAS_STRING, t.string);
+    s.Style(AF_BAS_STRINGEOL, t.string, t.stringEolBack);
+    s.Style(AF_BAS_NUMBER, t.number);
+    s.Style(AF_BAS_DATE, t.number);
+    s.Style(AF_BAS_KEYWORD, t.keyword);
+    s.Style(AF_BAS_BUILTIN, t.builtin);
+    s.Style(AF_BAS_TYPE, t.type);
+    s.Style(AF_BAS_OPERATOR, t.oper);
+    s.Style(AF_BAS_PREPROCESSOR, t.preprocessor);
+    s.Style(AF_BAS_LABEL, t.label);
+    s.Style(AF_BAS_PROCNAME, t.funcName);
+}
+
 void SetupAmigaDOS(Setup &s) {
     const Theme &t = currentTheme();
     s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmAmigaDOS.Create()));
@@ -574,6 +595,7 @@ void sciSetupSourceEditor(SciView *v, const char *fileName, int fontSize) {
     case Language::JSON: SetupJSON(s); break;
     case Language::YAML: SetupYAML(s); break;
     case Language::Markdown: SetupMarkdown(s); break;
+    case Language::Basic: SetupBasic(s); break;   // --- basic ---
     // --- end lang ---
     case Language::Text: s(SCI_SETILEXER, 0, reinterpret_cast<intptr_t>(lmNull.Create())); break;
     }

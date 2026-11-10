@@ -5,6 +5,7 @@
 // OS4 has no LhA that makes archives, but it has xad2lha, which turns anything XAD reads into
 // an LhA archive: the drawer is packed with the SDK's tar and converted.
 #include "App.h"
+#include "BasicModel.h"   // --- basic ---
 #include "ReleaseGen.h"
 
 #include <string.h>
@@ -219,6 +220,25 @@ void App::packageRelease()
     refreshMarkers();
     showBottomPage(0);
     pendingAfterBuild = 3;
+    // --- basic --- the release: boing build without --debug (optimised, no debug information)
+    if (project.isBasic()) {
+        if (!basicReady()) return;
+        BPTR rd = IDOS->CreateDir(project.abs("obj-release").c_str());
+        if (rd) IDOS->UnLock(rd);
+        std::vector<std::pair<std::string, std::string>> cmds = {
+            { "Checking " + project.basicTarget(), basic::checkCommand(boingCommand(), project.basicTarget()) },
+            { "Compiling the release (native, optimised)",
+              basic::buildCommand(boingCommand(), project.basicTarget(), rp.output, true) } };
+        basicLastWhat = "release";
+        if (!builder.startCommands(project.dir, cmds)) {
+            pendingAfterBuild = 0;
+            info("Couldn't start boing.");
+            return;
+        }
+        setStatus("Building the release of " + project.name + "...");
+        updateToolbar();
+        return;
+    }
     if (!builder.start(rp, "build")) {
         pendingAfterBuild = 0;
         info("There is nothing to build: the project has no C, C++ or assembler files.");

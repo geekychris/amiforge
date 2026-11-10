@@ -46,6 +46,8 @@ void App::build(const std::string &what)
     }
     if (!ensureProject()) return;
     if (project.isPython()) { buildPython(what); return; }   // --- lang --- no compiler involved
+    // --- basic --- a check needs no SDK (boing build does: it runs GCC)
+    if (project.isBasic() && (what == "check" || what == "clean")) { buildBasic(what); return; }
     if (what != "clean" && !sdkInstalled()) {
         info("Building needs the AmigaOS 4.1 SDK with GCC 11, and it isn't installed here\n"
              "(there is no SDK: assign).\n\n"
@@ -56,6 +58,7 @@ void App::build(const std::string &what)
         pendingAfterBuild = 0;
         return;
     }
+    if (project.isBasic()) { buildBasic(what); return; }   // --- basic --- boing check + boing build
     if (!saveAll()) return;
     saveProject();
     diagnostics.clear();
@@ -105,6 +108,10 @@ void App::pollBuild()
             std::string summary = ok ? strprintf("Build succeeded (%d warning%s).", builder.warnings, builder.warnings == 1 ? "" : "s")
                                      : strprintf("Build failed: %d error%s, %d warning%s.", builder.errors, builder.errors == 1 ? "" : "s",
                                                  builder.warnings, builder.warnings == 1 ? "" : "s");
+            if (project.isBasic() && basicLastWhat == "check")   // --- basic --- Run's check
+                summary = ok ? strprintf("No errors (%d warning%s).", builder.warnings, builder.warnings == 1 ? "" : "s")
+                             : strprintf("Check failed: %d error%s, %d warning%s.", builder.errors, builder.errors == 1 ? "" : "s",
+                                         builder.warnings, builder.warnings == 1 ? "" : "s");
             if (project.isPython())   // --- lang ---
                 summary = ok ? strprintf("No syntax errors (%d warning%s).", builder.warnings, builder.warnings == 1 ? "" : "s")
                              : strprintf("Syntax check failed: %d error%s, %d warning%s.", builder.errors, builder.errors == 1 ? "" : "s",
@@ -152,7 +159,9 @@ void App::pollBuild()
         if (l.kind == MsgKind::Output && l.text.find("Unknown command") != std::string::npos) {
             BuildLine hint;
             hint.kind = MsgKind::Error;
-            hint.text = "A build tool wasn't found: check that the SDK is installed and that SDK:gcc/bin contains it.";
+            hint.text = project.isBasic()   // --- basic ---
+                ? "The boing command wasn't found: set it in Project > Settings (Boing BASIC command)."
+                : "A build tool wasn't found: check that the SDK is installed and that SDK:gcc/bin contains it.";
             diagnostics.push_back(hint);
             struct Node *h = buildLog.add({hint.text}, (void *)(intptr_t)diagnostics.size());
             if (h) buildLog.setPens(h, penError);
@@ -173,6 +182,12 @@ bool App::buildBeforeRun(int after)
         else debugPython();
         return true;
     }
+    // --- basic --- Run: a quick boing check, then boing run (interpreted); Debug builds natively
+    if (project.isBasic() && after == 1) {
+        pendingAfterBuild = 1;
+        build("check");
+        return true;
+    }
     pendingAfterBuild = after;
     build("build");
     return true;
@@ -181,6 +196,7 @@ bool App::buildBeforeRun(int after)
 void App::runProgram()
 {
     if (project.isPython()) { runPython(); return; }   // --- lang ---
+    if (project.isBasic()) { runBasic(); return; }     // --- basic ---
     std::string exe = project.outputPath();
     // --- designer ---
     if (!project.runcmd.empty()) exe.clear();    // a run command instead of the program

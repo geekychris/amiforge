@@ -4,6 +4,8 @@
 //  - the AutoDocs (every OS function), and per interface after "IExec->", "IIntuition->"...,
 // and calltips with the AutoDoc prototype when "(" follows an OS function.
 #include "App.h"
+#include "BasicModel.h"   // --- basic ---
+#include "sci/BasicSyntax.h"
 
 #include <string.h>
 #include <strings.h>
@@ -102,6 +104,51 @@ void App::showCompletion(bool explicitRequest)
         }
     }
     std::set<std::string> words;
+    // --- basic --- after "ok." the members of the control (or form) called ok; otherwise the
+    // keywords as VB writes them, the project's words and the forms' control names
+    if (lang == Language::Basic) {
+        std::string obj;
+        if (start >= 1 && (char)S(editor, SCI_GETCHARAT, start - 1) == '.') {
+            intptr_t oe = start - 1, os = S(editor, SCI_WORDSTARTPOSITION, oe, 1);
+            if (oe > os) {
+                std::vector<char> buf(oe - os + 1);
+                struct Sci_TextRangeFull tr = { { os, oe }, buf.data() };
+                S(editor, SCI_GETTEXTRANGEFULL, 0, (intptr_t)&tr);
+                obj = buf.data();
+            }
+        }
+        std::map<std::string, std::string> ctl = basicControlMap();
+        if (!obj.empty()) {
+            // a control or form, else a variable declared As a runtime class (Canvas, Engine3D...)
+            intptr_t dlen = S(editor, SCI_GETLENGTH);
+            std::vector<char> text(dlen + 1);
+            S(editor, SCI_GETTEXT, dlen + 1, (intptr_t)text.data());
+            std::string what;
+            for (auto &m : basicMemberWords(obj, std::string(text.data(), dlen), &what)) words.insert(m);
+            if (words.empty()) {
+                if (!explicitRequest) return;
+                setStatus(obj + " isn't a control of a form in this project, nor declared as a Boing class");
+            } else if (!what.empty()) setStatus(what);
+        } else {
+            if (!explicitRequest && len < 3) return;
+            intptr_t dlen = S(editor, SCI_GETLENGTH);
+            std::vector<char> text(dlen + 1);
+            S(editor, SCI_GETTEXT, dlen + 1, (intptr_t)text.data());
+            std::set<std::string> local;
+            collectWords(basic::maskCode(std::string(text.data(), dlen)), local);
+            local.erase(prefix);
+            for (auto &w : local)
+                if (!basic::isKeyword(w)) words.insert(w);
+            refreshCompletionWords();
+            for (auto &c : wordCache)
+                if (basic::isBasicFile(c.first))
+                    for (auto &w : c.second.second) if (!basic::isKeyword(w)) words.insert(w);
+            for (auto &w : basic::completionWords()) words.insert(w);
+            for (auto &c : ctl) words.insert(c.first);
+            addSnippetWords(prefix, words);
+        }
+    } else {
+    // --- end basic ---
     std::string lib = libraryForInterface(iface);
     std::string scopeName;
     int scopeKind = lib.empty() && cLike ? scopeAt(start, scopeName) : 0;
@@ -152,6 +199,7 @@ void App::showCompletion(bool explicitRequest)
                 if (isalpha((unsigned char)e.func[0]) && e.func.find('-') == std::string::npos) words.insert(e.func);
         addSnippetWords(prefix, words);   // --- editor features: "for»" inserts the snippet ---
     }
+    }   // --- basic ---
     // keep those that start with the prefix
     std::string list;
     int count = 0;
@@ -332,11 +380,18 @@ void App::completionCharAdded(int ch)
         static const std::set<int> pyQuiet = { 1, 3, 4, 6, 7, 12, 13, 16, 17, 18, 19 };
         static const std::set<int> luaQuiet = { 1, 2, 3, 6, 7, 8, 12 };
         static const std::set<int> rexxQuiet = { 1, 2, 9 };
+        static const std::set<int> basQuiet = { 1, 2, 9, 10, 13 };   // --- basic --- comments, strings
         const std::set<int> *quiet = lang == Language::Python ? &pyQuiet : lang == Language::Lua ? &luaQuiet
-                                   : lang == Language::ARexx ? &rexxQuiet : nullptr;
+                                   : lang == Language::ARexx ? &rexxQuiet : lang == Language::Basic ? &basQuiet : nullptr;
         if (quiet) {
             intptr_t pos = S(editor, SCI_GETCURRENTPOS);
             int style = (int)S(editor, SCI_GETSTYLEAT, pos > 0 ? pos - 1 : 0);
+            // --- basic --- "ok." lists the control's properties and methods
+            if (lang == Language::Basic && ch == '.' && pos >= 2 && !quiet->count(style) &&
+                identChar((unsigned char)S(editor, SCI_GETCHARAT, pos - 2))) {
+                showCompletion(false);
+                return;
+            }
             if (identChar(ch) && !S(editor, SCI_AUTOCACTIVE) && !quiet->count(style) &&
                 pos - S(editor, SCI_WORDSTARTPOSITION, pos, 1) == 3)
                 showCompletion(false);

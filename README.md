@@ -28,6 +28,12 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
   the main script and puts a traceback's lines in the build log, Stop Program stops it, and F5
   offers pdb with the project's breakpoints. Completion of keywords and built-ins, Python
   snippets, a project template and an example.
+- **Boing BASIC** (a Visual Basic 6 style language for OS4): `.bbp` projects, Build with
+  `boing check`/`boing build` (errors clickable), Run in the interpreter with runtime errors in
+  the build log, and a Visual Basic style form designer: double-click a button to write its
+  `Click` Sub, an Events list per control, renaming a control renames its event Subs, View
+  Form / View Code. Highlighting, folding, auto-indent, outline, and completion of control
+  properties after `ok.`. Templates for a form app and a console app.
 - **Navigation**: Ctrl-click (or F12) opens an `#include`d header or goes to a definition. A
   context menu on the right mouse button has everything that applies to the word under the
   pointer.
@@ -62,7 +68,8 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
 - **GUI designer**: lay out a ReAction window with a live preview and generate its C code;
   hand-written code is kept when you regenerate.
 - **Templates**: new projects from ten templates (console C and C++, ReAction app, Intuition
-  window with menus, commodity, screen blanker, shared library, device, AHI player, Python script).
+  window with menus, commodity, screen blanker, shared library, device, AHI player, Python script,
+  Boing BASIC form app and console app).
 - **Hex, icon and picture editors**: binaries open in a hex editor; `.info` icons and IFF/PNG
   pictures open in their own viewers.
 - **ARexx**: an `AMIFORGE` port to script the IDE, and a Macros menu of your own `.rexx` macros.

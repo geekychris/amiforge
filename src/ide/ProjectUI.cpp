@@ -1,6 +1,7 @@
 // Project handling in the GUI: new/open/save/close, the file list, Find in Files.
 #include "App.h"
 #include "LangTools.h"   // --- lang ---
+#include "BasicModel.h"  // --- basic ---
 
 #include <algorithm>
 #include <string.h>
@@ -75,7 +76,8 @@ void App::newProject()
                 std::string n = (const char *)ed->Name;
                 std::string e = extension(n);
                 if (isSourceFile(n) || e == "h" || e == "hpp" || e == "i" || e == "inc" ||
-                    lang::isPythonFile(n))   // --- lang --- a drawer of .py files is a Python project
+                    lang::isPythonFile(n) ||   // --- lang --- a drawer of .py files is a Python project
+                    basic::isBasicFile(n) || e == "bbp" || e == "afg")   // --- basic ---
                     project.files.push_back(n);
             }
             IDOS->ReleaseDirContext(ctx);
@@ -83,6 +85,19 @@ void App::newProject()
         IDOS->UnLock(lock);
     }
     std::sort(project.files.begin(), project.files.end());
+    // --- basic --- a drawer with BASIC files is a Boing BASIC project
+    for (auto &f : project.files)
+        if (basic::isBasicFile(f) || extension(f) == "bbp") project.language = "basic";
+    if (project.isBasic()) {
+        for (auto &f : project.files)
+            if (extension(f) == "bbp" && project.bbp.empty()) project.bbp = f;
+        if (project.bbp.empty()) {
+            project.bbp = project.name + ".bbp";
+            project.files.insert(project.files.begin(), project.bbp);
+        }
+        std::string serr;
+        project.syncBbp(serr);
+    }
     if (project.files.empty()) {
         std::string main = project.abs("main.c");
         if (!fileExists(main)) writeFile(main, strprintf(helloC, "main.c", project.name.c_str()));
@@ -91,10 +106,12 @@ void App::newProject()
     std::string err;
     if (!project.save(err)) info(err);
     else makeProjectIcon(project.path);
+    designerProjectChanged();   // --- basic ---
     refreshProjectList();
     refreshBreakpointList();
     for (auto &f : project.files)
-        if (isSourceFile(f) || (project.isPython() && f == project.pythonMain())) { openFile(project.abs(f)); break; }   // --- lang ---
+        if (isSourceFile(f) || (project.isPython() && f == project.pythonMain()) ||   // --- lang ---
+            (project.isBasic() && basic::isBasicFile(f))) { openFile(project.abs(f)); break; }   // --- basic ---
     lastDir = project.dir;
     updateTitle();
     addRecent(project.path);
@@ -104,7 +121,7 @@ void App::newProject()
 void App::openProject(const std::string &pathIn)
 {
     std::string path = pathIn;
-    if (path.empty()) path = requestFile("Open Project", false, openProjectStart(), "#?.afp");   // --- projects ---
+    if (path.empty()) path = requestFile("Open Project", false, openProjectStart(), "#?.(afp|bbp)");   // --- projects --- --- basic ---
     if (path.empty()) return;
     if (!project.path.empty()) saveProject();
     Project p;
@@ -115,6 +132,7 @@ void App::openProject(const std::string &pathIn)
     }
     if (!closeProjectFiles(*this)) return;
     project = p;
+    designerProjectChanged();   // --- basic ---
     addRecent(project.path);
     lastDir = project.dir;
     refreshProjectList();
@@ -123,7 +141,7 @@ void App::openProject(const std::string &pathIn)
     // open the first source file (main.c if there is one)
     std::string first;
     for (auto &f : project.files) {
-        if (!isSourceFile(f)) continue;
+        if (!isSourceFile(f) && !(project.isBasic() && basic::isBasicFile(f))) continue;   // --- basic ---
         if (first.empty() || strncasecmp(fileName(f).c_str(), "main.", 5) == 0) first = f;
     }
     if (!first.empty()) openFile(project.abs(first));
@@ -172,6 +190,7 @@ void App::closeProject()
     if (debugging()) debugStop();
     saveProject();
     project = Project();
+    designerProjectChanged();   // --- basic ---
     diagnostics.clear();
     buildLog.clear();
     refreshProjectList();
@@ -185,8 +204,9 @@ bool App::ensureProject()
 {
     if (!project.files.empty()) return true;
     const bool py = cur && lang::isPythonFile(cur->path);   // --- lang ---
-    if (!cur || cur->path.empty() || (!isSourceFile(cur->path) && !py)) {
-        info("Open or create a project first (Project > New Project), or save this file as a .c, .cpp, .s or .py file.");
+    const bool bas = cur && basic::isBasicFile(cur->path);  // --- basic ---
+    if (!cur || cur->path.empty() || (!isSourceFile(cur->path) && !py && !bas)) {
+        info("Open or create a project first (Project > New Project), or save this file as a .c, .cpp, .s, .py or .bas file.");
         return false;
     }
     // an implicit, unsaved project for a single file
@@ -199,6 +219,7 @@ bool App::ensureProject()
     project.output = project.name;
     project.files.push_back(fileName(cur->path));
     if (py) project.language = "python";   // --- lang ---
+    if (bas) project.language = "basic";   // --- basic ---
     for (auto &b : bps) {
         b.file = project.rel(joinPath(dirName(keepPath.empty() ? cur->path : keepPath), b.file));
         project.breakpoints.push_back(b);
@@ -219,6 +240,10 @@ void App::addFilesToProject()
         if (std::find(project.files.begin(), project.files.end(), rel) == project.files.end())
             project.files.push_back(rel);
     }
+    if (project.isBasic()) {   // --- basic --- the .bbp lists the modules too
+        std::string err;
+        if (!project.syncBbp(err)) info(err);
+    }
     saveProject();
     refreshProjectList();
 }
@@ -235,6 +260,10 @@ void App::removeFileFromProject()
             "_Remove|_Cancel") != 1)
         return;
     project.files.erase(project.files.begin() + idx);
+    if (project.isBasic()) {   // --- basic ---
+        std::string err;
+        if (!project.syncBbp(err)) info(err);
+    }
     saveProject();
     refreshProjectList();
 }

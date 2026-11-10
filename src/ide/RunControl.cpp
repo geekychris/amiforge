@@ -30,7 +30,7 @@ struct RunCtl {
     bool offerPending = false;                  // show the "it won't stop" requester when idle
     // --- lang --- Python runs: Stop Program creates the stop file (the runner turns it into a
     // KeyboardInterrupt); when the program ends its traceback file goes into the build log
-    struct PyRun { struct DeathMessage *dm; std::string stopFile, tracebackFile; };
+    struct PyRun { struct DeathMessage *dm; std::string stopFile, tracebackFile; bool basic = false; };   // --- basic --- too
     std::vector<PyRun> py;
 };
 
@@ -112,7 +112,7 @@ static void act(App *app, RunCtl *rc, int bits)
         uint32 sigs = SIGBREAKF_CTRL_C;
         if (rc->model.alsoDEF()) sigs |= SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_E | SIGBREAKF_CTRL_F;
         signalPrograms(rc, sigs);
-        for (auto &p : rc->py) writeFile(p.stopFile, "stop\n");   // --- lang ---
+        for (auto &p : rc->py) if (!p.stopFile.empty()) writeFile(p.stopFile, "stop\n");   // --- lang --- (a boing run has none: Ctrl-C)
     }
     if (bits & robust::RA_ARM_TIMER) armTimer(rc, 3100);
     if (bits & robust::RA_OFFER_MORE) rc->offerPending = true;   // runIdle shows it (not under a dialog)
@@ -169,10 +169,12 @@ void App::runHandle()
             }
         // --- lang ---
         std::string pyTraceback;
+        bool basicRun = false;
         for (size_t i = 0; i < rc->py.size(); i++)
             if (rc->py[i].dm == dm) {
-                IDOS->Delete(rc->py[i].stopFile.c_str());
+                if (!rc->py[i].stopFile.empty()) IDOS->Delete(rc->py[i].stopFile.c_str());
                 pyTraceback = rc->py[i].tracebackFile;
+                basicRun = rc->py[i].basic;
                 rc->py.erase(rc->py.begin() + i);
                 break;
             }
@@ -187,7 +189,10 @@ void App::runHandle()
         } else {
             setStatus(rc->model.status());
         }
-        if (!pyTraceback.empty()) pythonRunEnded(pyTraceback);   // --- lang ---
+        if (!pyTraceback.empty()) {   // --- lang --- --- basic ---
+            if (basicRun) basicRunEnded(pyTraceback);
+            else pythonRunEnded(pyTraceback);
+        }
     }
     if (changed) updateToolbar();
 }
@@ -196,6 +201,12 @@ void App::runHandle()
 void App::runTrackPython(const std::string &stopFile, const std::string &tracebackFile)
 {
     if (runCtl && !runCtl->procs.empty()) runCtl->py.push_back({runCtl->procs.back(), stopFile, tracebackFile});
+}
+
+// --- basic --- a boing run: its error file goes into the build log when it ends
+void App::runTrackBasic(const std::string &errorFile)
+{
+    if (runCtl && !runCtl->procs.empty()) runCtl->py.push_back({runCtl->procs.back(), "", errorFile, true});
 }
 // --- end lang ---
 
@@ -227,7 +238,7 @@ bool App::programRunning()
 
 bool App::runQuitCheck()
 {
-    if (!programRunning()) return true;
+    if (!programRunning() || quitForce) return true;
     int c = ask("Quit", runCtl->model.name() + " (started with Run) is still running.\n\n"
                 "AmiForge can quit and leave it running, or send it Ctrl-C first.",
                 "_Quit|_Stop It First|_Cancel");

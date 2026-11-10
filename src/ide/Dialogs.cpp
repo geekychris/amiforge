@@ -427,7 +427,8 @@ bool App::editProjectSettings()
                 GA_ID, PS_PYTHON, GA_Text, (uint32)"Python project (Build checks the syntax, Run runs the main script)",
                 GA_Selected, project.isPython(), TAG_DONE),
             LAYOUT_AddChild, field(PS_MAIN, project.mainScript), CHILD_Label, label("Main script (empty: main.py)"),
-            LAYOUT_AddChild, field(PS_INTERP, project.interpreter), CHILD_Label, label("Python interpreter (empty: find it)"),
+            LAYOUT_AddChild, field(PS_INTERP, project.interpreter), CHILD_Label,
+                label(project.isBasic() ? "Boing BASIC command (empty: find it)" : "Python interpreter (empty: find it)"),   // --- basic ---
             // --- end lang ---
             LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr, LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
                 LAYOUT_EvenSize, TRUE,
@@ -486,7 +487,8 @@ bool App::editProjectSettings()
         // --- lang ---
         IIntuition->GetAttr(GA_Selected, g[PS_PYTHON], &v);
         bool wasPython = project.isPython();
-        if ((bool)v != wasPython || !project.language.empty()) project.language = v ? "python" : "c";
+        if (project.isBasic() && !v) {}   // --- basic --- stays a Boing BASIC project
+        else if ((bool)v != wasPython || !project.language.empty()) project.language = v ? "python" : "c";
         project.mainScript = get(PS_MAIN);
         project.interpreter = get(PS_INTERP);
         // --- end lang ---

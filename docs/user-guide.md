@@ -23,14 +23,15 @@ and use Git without leaving it.
 13. [Edit and Continue](#edit-and-continue)
 14. [Debugger tools: Windows inspector, leak tracker, profiler](#debugger-tools-windows-inspector-leak-tracker-profiler)
 15. [Python and other languages](#python-and-other-languages)
-16. [Git and GitHub](#git-and-github)
-17. [Git panel, resource editors, ARexx, distributed builds and explanations](#git-panel-resource-editors-arexx-distributed-builds-and-explanations)
-18. [Controlling AmiForge from an AI assistant (MCP)](#controlling-amiforge-from-an-ai-assistant-mcp)
-19. [The examples](#the-examples)
-20. [Running under QEMU](#running-under-qemu)
-21. [Troubleshooting](#troubleshooting)
-22. [Keyboard reference](#keyboard-reference)
-23. [Files and settings](#files-and-settings)
+16. [Boing BASIC projects](#boing-basic-projects)
+17. [Git and GitHub](#git-and-github)
+18. [Git panel, resource editors, ARexx, distributed builds and explanations](#git-panel-resource-editors-arexx-distributed-builds-and-explanations)
+19. [Controlling AmiForge from an AI assistant (MCP)](#controlling-amiforge-from-an-ai-assistant-mcp)
+20. [The examples](#the-examples)
+21. [Running under QEMU](#running-under-qemu)
+22. [Troubleshooting](#troubleshooting)
+23. [Keyboard reference](#keyboard-reference)
+24. [Files and settings](#files-and-settings)
 
 ---
 
@@ -1112,6 +1113,213 @@ The port can't load compiled extension modules (`.so` files): only the modules b
 interpreter (`math`, `json`, `_socket`, `zlib`, `_amiga` and others) and pure-Python modules
 work. The `sysinfo-py` example uses `_amiga`, the port's own module for exec and dos calls.
 
+## Boing BASIC projects
+
+[Boing BASIC](https://github.com/geekychris/boing-basic) is a Visual Basic 6 style language for
+AmigaOS 4.1. Its `boing` command interprets a program (`boing run`, which starts straight
+away) or compiles it to C and then to a native program with GCC (`boing build`). In AmiForge a
+Boing BASIC program is made the way Visual Basic programs are: you draw a window in the GUI
+designer, double-click a button, and type what happens when it is clicked.
+
+![A Boing BASIC form in the designer: its Events list and the preview](images/basic-designer.png)
+
+### Projects and files
+
+| File | What it is |
+|---|---|
+| `Hello.bbp` | The Boing BASIC project: `Name=`, `Startup=Form main` or `Startup=Sub Main`, and a `Module=`, `Form=` or `Class=` line for each file (like VB's `.vbp`) |
+| `Main.bas` | A module: Subs, Functions, `Dim`s, `Type`s... |
+| `main.afg` + `main.bas` | A form: the window (the designer's `.afg` file) and its code, the module with the same name beside it ("code-behind") |
+| `Counter.cls` | A class module |
+| `Hello.afp` | AmiForge's own project file beside the `.bbp` (`language=basic`, `bbp=Hello.bbp`): breakpoints, settings |
+
+**New Project from Template** has **Boing BASIC Form App** (a form with a text field and two
+buttons, opened in the designer) and **Boing BASIC Console App** (`Sub Main` printing to its
+console window). **Open Project** opens a `.bbp` too: AmiForge uses the `.afp` beside it, or
+makes one. Adding files to the project or removing them updates the `.bbp`'s `Module=`,
+`Form=` and `Class=` lines; a form's code-behind module isn't listed separately.
+
+### Editing BASIC
+
+`.bas`, `.cls` and `.bi` files have their own highlighter: keywords and type names whatever
+their case, strings (`""` is a quote), `'` and `Rem` comments, numbers (`&HFF`, `12%`), dates
+(`#1/2/2026#`), labels and line numbers, `#If` lines, and the name after `Sub`/`Function`.
+
+- **Folding**: `Sub`, `Function`, `Property`, block `If`, `For`, `Do`, `While`, `Select Case`,
+  `With`, `Type` and `Enum` fold. A one-line `If a Then b` doesn't.
+- **Auto-indent**: Return after a line that opens a block indents the next line; typing `End If`,
+  `Next`, `Loop`, `Else`, `Case` or `End Select` and pressing Return lines it up with the line
+  that opened its block (`Case` one level inside `Select Case`).
+- **Comment / Uncomment** (Amiga-/) puts `'` in front of the lines.
+- The **Symbols** tab lists the Subs, Functions, Properties, Types, Enums, Consts, Declares,
+  Events and module-level variables.
+- **Completion** (Ctrl-Space, or by itself after three letters) offers the keywords and built-in
+  functions written the way VB writes them (`ElseIf`, `MsgBox`, `UBound`), the names in the
+  project's files and the forms' control names. After `ok.` it lists the properties and methods
+  of the control called `ok` (`Text`, `Enabled`, `SetFocus`...); in a form's code `Me.` is the
+  form.
+- Find All References and Rename Symbol ignore case, as BASIC does.
+
+### Build, Run, Debug
+
+- **Build** (F7) runs `boing check` and then `boing build --debug`, which makes the program
+  (the project's output name) natively, with `#line` information. Errors arrive in the GCC
+  format, `main.bas:12:5: error: ...`, and are clickable in the Build tab like a compiler's.
+- **Run** (Ctrl-F5) runs `boing check` and then `boing run` (the interpreter, so it starts
+  straight away) in a console window, with the project's program arguments. **Stop Program**
+  (Shift-Ctrl-F5) sends it Ctrl-C. If the program stops with a runtime error
+  (`main.bas:12: runtime error 9: Subscript out of range`), the error goes into the Build tab
+  and the editor goes to the line.
+![A runtime error from boing run, in the Build tab and at its line](images/basic-runtime-error.png)
+
+- **Package Release** builds with `boing build` without `--debug` (optimised) and packages
+  that program.
+- **F5** is Visual Basic's Run: it checks and starts the project in the interpreter (the
+  `Startup=` form or `Sub Main`). When the project's `.bas` files have breakpoints (F9), F5
+  makes a native debug build instead and starts the debugger, so they stop.
+
+AmiForge looks for the `boing` command in **Project > Settings > Boing BASIC command**, then in
+the variable `AmiForge/Boing` (`setenv SAVE AmiForge/Boing Work:BoingBASIC/boing`), then in
+`C:boing`, `SDK:C/boing`, `BoingBASIC:boing`, `Boing:boing` and AmiForge's own drawer.
+
+### The designer, Visual Basic style
+
+In a Boing BASIC project (or for any `.afg` that has a `.bas` beside it) the GUI designer makes
+no C code. The form's code is its code-behind module, and every object with an **ID name**
+is a control of that name in BASIC: `who.Text`, `greet.Enabled = False`, `names.AddItem "x"`.
+The window is `Me` in its code and is called by its **Code name** elsewhere (`main.Show`).
+
+- The **palette** is laid out like Visual Basic's Toolbox, with VB's names: Canvas
+  (PictureBox), Label, TextBox, multi-line TextBox, the frames (vertical and horizontal
+  groups), CommandButton, CheckBox, OptionButtons, ComboBox, ListBox, ScrollBar, Timer, File
+  chooser, Image, then the components: TabStrip, Toolbar, Toolbar button, StatusBar,
+  ProgressBar, TreeView, Slider, CommonDialog, MSFlexGrid (Grid), and last Number field and
+  Space. Add puts an object where it may go: a Toolbar button into the selected toolbar,
+  a control into the first page of selected tabs, a group into tabs as a new page. New tabs
+  start with two pages, a new toolbar with one button.
+- The **Menu Editor...** button (BASIC forms) makes the form's menus, as in VB:
+  one list of every menu, titles at the left and their items indented under them (sub-items
+  once more). For the selected menu: its **Caption** (`-` is a separator bar), **Name** (made
+  from the caption if left empty: `Say hello` is `mnuSayHello`, and its event Sub is
+  `mnuSayHello_Click`), **Shortcut** (one character: Amiga + that key) and **Checkable**,
+  **Checked**, **Radio**, **Enabled**, **Visible** (a hidden title is a context menu, for a
+  control's **Context menu** property or `Me.PopupMenu`). The arrows change the level and the
+  order; **Next** goes to the next menu (a new item at the end), **Insert** adds one before
+  the selected one. OK puts the menus into the form. The menus are also rows of the Layout
+  tree: double-click one there, or choose it from the preview's menu strip, to write its
+  `Click` Sub.
+- The **preview** shows the menus as its menu strip, a toolbar as a row of buttons, a status
+  bar as its panels, tabs as a clicktab with its pages, a grid as a list with its columns, a
+  tree view as a list with sample nodes, and an image as a box with the picture's name.
+  Timers and CommonDialogs take no space.
+- **Double-click a control** in the Layout tree, or click it twice in the preview, and the
+  editor opens the form's `.bas` at its default event's Sub: `Sub greet_Click()` for a
+  button, `who_Change` for a text field, `Form_Load` for the window. A Sub that isn't there yet
+  is added (empty, with the event's parameters, such as `Form_Unload(Cancel As Integer)`) and
+  the cursor is put inside it, indented. A control without events of its own (Label, Canvas,
+  ProgressBar) opens `Form_Load` (a Canvas: `Form_KeyDown` once that has code), where such
+  controls are driven from.
+- The **Events** list under the properties shows every event of the selected object. Events
+  that have code are marked **code**, empty Subs **empty**. Click one to go to its Sub (it's
+  made if it's missing).
+- **Renaming a control** (its ID name) offers to rename its event Subs (`ok_Click` to
+  `go_Click`) and the code's uses of the old name. Comments and strings aren't touched.
+- **View Code** (the button that replaces Generate Code) saves the form and opens its code.
+  **Tools > View Form / View Code** (Alt-F7) switches between a form and its code, from the
+  editor or the designer.
+
+![Choosing Unload in the Events list made Form_Unload(Cancel As Integer)](images/basic-event-sub.png)
+
+| Control | BASIC (VB) type | Default event | Events |
+|---|---|---|---|
+| window | Form | Load | Load, Activate, Deactivate, Resize, KeyDown, KeyUp, KeyPress, QueryUnload, Unload |
+| button | CommandButton | Click | Click |
+| string | TextBox | Change | Change, KeyPress |
+| integer | (number field) | Change | Change |
+| checkbox | CheckBox | Click | Click |
+| chooser | ComboBox | Click | Click |
+| radio | (OptionButton group) | Click | Click |
+| slider | Slider | Change | Change, Scroll |
+| scroller | HScrollBar / VScrollBar | Change | Change, Scroll |
+| listbrowser | ListBox | Click | Click, DblClick |
+| getfile | (file chooser) | Change | Change |
+| texteditor | (multi-line TextBox) | Change | Change |
+| timer | Timer | Timer | Timer |
+| canvas | (PictureBox) | MouseDown | MouseDown, MouseUp, MouseMove, DblClick, MouseWheel, OLEDragDrop |
+| menu | Menu | Click | Click |
+| tool | (Toolbar button) | Click | Click |
+| tabs | TabStrip | Click | Click |
+| treeview | TreeView | NodeClick | NodeClick, DblClick, Expand, Collapse |
+| grid | MSFlexGrid | AfterEdit | EnterCell, LeaveCell, BeforeEdit, AfterEdit, Click, DblClick, KeyDown, Scroll |
+| toolbar, statusbar, image, commondialog | Toolbar, StatusBar, Image, CommonDialog | - | none |
+
+Labels, spaces and fuel gauges have no events (nor toolbars, status bars, images and
+CommonDialogs: double-clicking one opens `Form_Load`). The palette has a **Timer (BASIC)** in a Boing
+BASIC form: it takes no space in the window (the preview leaves it out) and has an
+**Interval** in milliseconds and **Enabled**; `<id>_Timer` runs every Interval. **Canvas
+(BASIC)** is a drawing surface for graphics and games (`view.Cls`, `view.Line`,
+`view.Refresh`...) of **Width** x **Height** pixels; the preview shows a box of that size.
+The properties of Boing BASIC's newer keys are in the property list too: the window's
+Remember, Iconify, Tool window and Accept dropped icons, Splitter bars on groups, Picture
+files on buttons, columns, widths, multiple selection and sorting on lists, a fixed-width
+font on text editors, Context menu on every control, and the grid's rows, columns, title
+rows and columns, headers, column width and Editable.
+
+Completion after `v.` also knows Boing BASIC's runtime classes: for a variable declared
+`As Canvas`, `As Engine3D`, `As Audio` (or `As Boing.Canvas`, `As New ...`, a parameter
+`ByVal v As Canvas`) it offers that class's methods and properties. AmiForge asks `boing members`
+for them once per session (an older boing without that command just gives no list).
+
+The table, with each control's properties and methods (which completion offers after `ok.`),
+comes from Boing BASIC's `docs/forms-events.md`, the contract between its forms runtime and
+the designer. AmiForge has a copy built in, and reads a newer one when it finds it: in the
+drawer named by the variable `AmiForge/BoingDocs`, in `docs/` beside the `boing` command (or
+one drawer up), or in `PROGDIR:Docs`. The ARexx command `BASICCONTROLS` says which one is in
+use.
+
+### Debugging BASIC
+
+The debugger works on the native program Build makes. `boing build --debug` writes C with
+`#line` directives that point at the `.bas` files; AmiForge compiles it with stabs debug
+information (it sets `BOING_CFLAGS=-gstabs`, as the debugger reads stabs) and keeps the C file
+beside the program. Then:
+
+- breakpoints set with F9 in a `.bas` file stop on that BASIC line;
+- **Step Over** (F10) and **Step Into** (F11) go from BASIC line to BASIC line: a step that
+  lands in the generated C, in one of the runtime's inline helpers (`boing.h`) or in the
+  runtime carries on until it's back on a BASIC line;
+- **Locals** in a BASIC procedure show the BASIC names and types (`total`, `Long`, `String`) and
+  leave out the compiler's temporaries; the **Call Stack** shows the procedures (`main`,
+  `ok_click`: the compiler writes them in lower case);
+- a String shows as the runtime's `bb_str` structure (expand it: `len` and `data`);
+- BASIC projects don't stop at `main()` (that's the generated C's): set a breakpoint instead.
+
+![Stopped at a breakpoint in a BASIC function: the Locals show n, twice and r as Long](images/basic-debugger.png)
+
+Tested on the QEMU guest with a program built by `boing build --debug`: breakpoints, the call
+stack, stepping over BASIC lines and the BASIC-named Locals work. The MCP/ARexx `LOCALS` and
+`STACK` commands give the C names (`l_total`, `p1_main`), which `EVAL` takes. Stepping through
+the interpreter (`boing run`) isn't possible.
+
+### ARexx commands for the designer
+
+These work like the other MCP commands (see [Commands for assistants and scripts](#commands-for-assistants-and-scripts)) and let a script or an AI assistant drive the designer:
+
+| Command | What it does |
+|---|---|
+| `DESIGN [FILE]` | Open the designer on a `.afg` (none: the project's form). RESULT `file<tab>basic` or `c` |
+| `DESIGNSELECT [ID]` | Select an object (the window: its code name). RESULT `kind<tab>id` |
+| `DESIGNEVENTS [ID]` | The events of the selected object: `name<tab>code/empty/none<tab>parameters[<tab>default]` |
+| `GOTOEVENT [ID] [EVENT]` | Open the code at `Sub <id>_<event>`, made if missing (no EVENT: the default event). RESULT `file<tab>line<tab>sub` |
+| `DESIGNSET [ID] KEY VALUE` | Set a property; a new `id` renames the control's event Subs without asking |
+| `DESIGNSAVE` | Save the `.afg` |
+| `DESIGNADD [ID] KIND` | Add an object (as the palette's Add does) after the selected object or into the selected group. RESULT `kind<tab>id` |
+| `DESIGNMENUS` | Open the Menu Editor (after the reply: the dialog is modal) |
+| `BASICMEMBERS NAME [FILE]` | What completion offers after `NAME.` in FILE: a control's members, or those of the Boing class NAME is declared as. RESULT: `NAME is a Canvas`, then one member per line |
+| `VIEWTOGGLE` | View Form / View Code |
+| `BASICSUBS [FILE]` | The procedures of a module or of a form's code: kind, name, line, end line, code/empty, parameters |
+| `BASICCONTROLS` | The control table: kind, BASIC type, default event, events |
+
 ## Git and GitHub
 
 The **Git** menu works on the repository that holds the project, meaning the nearest drawer
@@ -1670,8 +1878,10 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | Alt-F5 / Break | Pause the program being debugged |
 | Shift-Alt-F5 | Restart debugging |
 | Ctrl-F5 / F6 | Build and run |
+| F5 (Boing BASIC project) | Run in the interpreter, or debug when `.bas` files have breakpoints |
 | Shift-Ctrl-F5 | Stop the program Run started (sends Ctrl-C) |
 | F7 | Build |
+| Alt-F7 | Boing BASIC: View Form / View Code |
 | F8 | Step one instruction |
 | F9 | Toggle breakpoint |
 | Alt-F9 | Enable / disable the breakpoint on the line |

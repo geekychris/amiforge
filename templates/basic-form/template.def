@@ -1,0 +1,15 @@
+[template]
+name=Boing BASIC Form App
+description=A window designed in the GUI Designer with its code in Boing BASIC, Visual Basic style: double-click a control to write its Click or Change event. Run (Ctrl-F5) interprets it at once, Build makes a native program.
+order=16
+[project]
+language=basic
+stopatmain=0
+bbp=${NAME}.bbp
+output=${LOWER}
+[files]
+file=project.bbp -> ${NAME}.bbp
+file=main.afg
+file=main.bas
+open=main.bas
+open=main.afg

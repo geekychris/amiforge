@@ -385,6 +385,7 @@ bool Builder::startCommands(const std::string &dir, const std::vector<std::pair<
     for (auto &c : cmds) j->cmds.push_back({c.first, c.second});
     j->python = nextPython;   // --- lang ---
     j->env = nextEnv;
+    nextEnv.clear();   // --- basic --- set again for each start
     gJob = j;
     j->proc = IDOS->CreateNewProcTags(NP_Entry, builderMain, NP_Name, "AmiForge commands",
                                       NP_Child, TRUE, NP_StackSize, 64 * 1024,

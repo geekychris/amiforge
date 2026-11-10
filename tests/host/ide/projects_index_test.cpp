@@ -221,3 +221,23 @@ TEST(on_off)
     CHECK(!parseOnOff(" off\n"));
     CHECK(!parseOnOff("No"));
 }
+
+// The browser's list shows Latin-1: UTF-8 READMEs (em dashes) showed as empty boxes
+TEST(projects_latin1_text)
+{
+    CHECK_EQ(af::pidx::toLatin1("Stack Tower \xE2\x80\x94 a 3D game"), std::string("Stack Tower - a 3D game"));
+    CHECK_EQ(af::pidx::toLatin1("\xE2\x80\x9CHi\xE2\x80\x9D it\xE2\x80\x99s\xE2\x80\xA6"), std::string("\"Hi\" it's..."));
+    CHECK_EQ(af::pidx::toLatin1("Caf\xC3\xA9"), std::string("Caf\xE9"));          // UTF-8 e-acute -> Latin-1
+    CHECK_EQ(af::pidx::toLatin1("Caf\xE9 au lait"), std::string("Caf\xE9 au lait"));   // already Latin-1
+    CHECK_EQ(af::pidx::toLatin1("snow \xE2\x98\x83!"), std::string("snow ?!"));
+    CHECK_EQ(af::pidx::toLatin1("plain"), std::string("plain"));
+    // describe() uses it for README lines
+    std::vector<af::pidx::DirItem> items = { { "README.md", false } };
+    auto read = [](const std::string &p, std::string &out) {
+        if (p.find("README") == std::string::npos) return false;
+        out = "# Lander \xE2\x80\x94 land it\n";
+        return true;
+    };
+    af::pidx::Project p = af::pidx::describe("Work:Lander/Lander.afp", items, read);
+    CHECK_EQ(p.description, std::string("Lander - land it"));
+}
