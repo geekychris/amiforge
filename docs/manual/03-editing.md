@@ -212,7 +212,7 @@ snippet loop  count down
 
 ![The hex editor](images/integrations-hex.png)
 
-*The hex editor, on an IFF picture*
+*The hex editor, on an object file (`window.o`)*
 
 Files that aren't text (or any file, with **File > Open as Hex...**) open in a hex editor tab:
 

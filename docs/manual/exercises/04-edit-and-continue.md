@@ -46,9 +46,13 @@ Change the line to `return x * 2 + 1000;` and press **Ctrl-F9** (or **Debug > Ap
 Changes**). The Build tab shows the file being compiled and then:
 
 ```text
-Applied the changes to compute.c: compute(). compute() is running: the current call
-finishes in the old code, the next call uses the new code.
+Applied the changes to compute.c: compute(), main(). compute(), main() are running: the
+current call finishes in the old code, the next call uses the new code.
 ```
+
+Every function in the file is replaced, so `main()` is listed too, although only `compute()`
+changed. Both are in the middle of a call: `main()` stays in its loop in the old code, and
+that old code's next call to `compute()` goes to the new one.
 
 Remove the breakpoint (**F9** on the line) and press **F5** to carry on. The console shows:
 

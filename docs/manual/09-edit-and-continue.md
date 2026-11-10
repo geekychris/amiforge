@@ -16,11 +16,12 @@ program keeps its state: its variables, open windows, files and memory stay as t
 
 AmiForge saves the files, compiles each source that changed since the program was built (or
 since the last time you applied changes) with the project's flags, and applies it. The Build
-tab shows the compile and a summary such as:
+tab shows the compile and a summary that lists every function of the file (each one is
+replaced), such as:
 
 ```text
-Applied the changes to compute.c: compute(). compute() is running: the current call
-finishes in the old code, the next call uses the new code.
+Applied the changes to compute.c: compute(), main(). compute(), main() are running: the
+current call finishes in the old code, the next call uses the new code.
 ```
 
 Then continue (**F5**) or step as usual. Breakpoints in the file move to the new code, and
