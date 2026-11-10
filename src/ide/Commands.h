@@ -55,7 +55,7 @@ enum Command {
     CMD_BASIC_VIEW_TOGGLE = 1800,   // --- basic --- View Form / View Code
     // --- end lang ---
     // --- markdown ---
-    CMD_MD_PREVIEW = 1800, CMD_MD_REFRESH, CMD_MD_SHOW_PENDING,
+    CMD_MD_PREVIEW = 1850, CMD_MD_REFRESH, CMD_MD_SHOW_PENDING,
 };
 
 } // namespace af
