@@ -21,7 +21,7 @@ anything. Many early conclusions here turned out wrong for exactly this reason.
 | Does the trap reach the hook? | Yes. `tw 31,0,0` (0x7FE00008) arrives as `DBHMT_EXCEPTION` with `Traptype` 0x700 and `ip` at the trap. The hook's context has `Flags` = 3 (`ECF_FULL_GPRS \| ECF_FPU`), so it is a complete register set. The pointer is a fixed kernel buffer (0x02168230 every time), so copy it. |
 | What state is the task in after the hook returns 1? | `TS_SUSPENDED`. `RestartTask` resumes it at the trap address (put the original instruction back first). `WriteTaskContext` changes are honoured: `ip := main+4` resumed there. |
 | How do we get the exit code? | `NP_NotifyOnDeathMessage`: `dm_ReturnCode` is the program's return value. `DBHMT_REMTASK` arrives too. |
-| How do we kill? | There is no DOS `Exit()`. The entry point (`_start`) is trapped once and its context kept. To kill, write it back with `ip = lr` (the return into RunCommand) and `r3 = 20`, remove all traps, and `RestartTask`. The program returns, RunCommand returns 20, and the launcher exits normally. |
+| How do we kill? | There is no DOS `Exit()`. Once the program is held in its own code, make it call newlib's `exit(20)`: `ip` = the vector at `INewlib + 1620` (what libc.a's `exit` stub, `li r12,1620; b __NewlibCall`, jumps to), `r3 = 20`, `r12 = 1620`, then `RestartTask`. newlib's cleanup and `_start`'s run, RunCommand returns 20, and the launcher exits normally (see "Killing through exit()"). If that isn't possible, the entry point's context (`_start`, trapped once) is written back with `ip = lr` and `r3 = 20`, as before. |
 | Does the MSR trace bit work? | Not tried: stepping is done in software. |
 | Can kernel code be read for disassembly? | `GetMemoryAttrs` reports kernel pages as not user-readable, so `dbg_read_memory` refuses them. `IDebug->DisassembleNative` and direct reads of them do work. |
 
@@ -116,6 +116,25 @@ number of kicks, an exception on the way out, or a timeout with the task state.
 `dbgtest DIR oskill` kills `pausetest` in `Wait()` (with and without a pause pending) and
 while it prints with `Delay()`. It checks the exit code and that no task is left over, and
 stops at the first failure.
+
+## Killing through exit()
+
+Up to v0.3.1 a kill always unwound to the entry point, returning straight into RunCommand. That
+skips everything after `main()` returns: newlib's exit code and the end of `_start`, which
+drops the program's interfaces and closes its libraries. Among the things never given back was
+a lock on the program's current directory, which is its own drawer. After you stopped a program
+with Debug > Stop, the drawer stayed "in use" until a reboot, and couldn't be deleted or renamed.
+
+`kill_by_exit` now runs the program's own way out instead: from where it is held (in its own
+code, as for the unwind), it calls newlib's `exit(EXIT_KILLED)`. It finds the function through
+the program's `INewlib`, at offset 1620, the offset libc.a's `exit` stub uses. `exit()` runs the
+`atexit` handlers and destructors, closes the files, and returns through `_start`. If the
+program has no `INewlib` (it isn't a newlib program), or `exit()` crashes or hasn't ended it
+within `KILL_EXIT_MS` (3 s), the kill takes the task back and unwinds as before.
+
+`dbgtest DIR locks` runs `basic` from a new drawer in RAM:. It ends the program by itself, at a
+breakpoint, after it has printed, and after a crash, and checks after each that the drawer can
+be deleted. Before the fix, the three kills failed with error 202 (object in use).
 
 ## The traps (each of these hung a program or the whole guest)
 
