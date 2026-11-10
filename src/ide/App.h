@@ -798,6 +798,10 @@ public:
     // the runtime classes' members (Engine3D, Canvas, Audio...), from `boing members` once per
     // boing; empty for a boing without the command (BasicUI.cpp)
     const basic::RuntimeMembers &basicRuntimeMembers();
+    // --- linked extensions --- (BasicUI.cpp)
+    bool basicProjectBbp(basic::Bbp &b);
+    std::string basicRunInterpreter(bool *stale = nullptr);   // boing, or T:boing-<project> for one with extensions
+    std::string basicCallTip(const std::string &obj, const std::string &name, const std::string &code);
     basic::RuntimeMembers runtimeMembers;
     std::string runtimeMembersOf;                // the boing they came from
     bool runtimeMembersTried = false;

@@ -1,6 +1,7 @@
 // Requesters and small windows: file requesters, message/string/number requesters,
 // Find & Replace, Project Settings, About.
 #include "App.h"
+#include "BasicModel.h"   // --- linked extensions ---
 #include "Commands.h"
 
 #include <string.h>
@@ -386,8 +387,17 @@ bool App::editProjectSettings()
 {
     enum { PS_NAME = 1, PS_OUTPUT, PS_CC, PS_CXX, PS_CFLAGS, PS_CXXFLAGS, PS_ASFLAGS, PS_LDFLAGS, PS_LIBS,
            PS_ARGS, PS_CONSOLE, PS_STOPMAIN, PS_OK, PS_CANCEL, PS_TRACKLEAKS /* debugtools */, PS_RUNCMD /* designer */,
-           PS_PYTHON, PS_INTERP, PS_MAIN /* --- lang --- */, PS_N };
+           PS_PYTHON, PS_INTERP, PS_MAIN /* --- lang --- */, PS_EXT, PS_CSRC /* --- linked extensions --- */, PS_N };
     Object *g[PS_N] = {};
+    // --- linked extensions --- a Boing BASIC project's Extension= and CSource= lines (its .bbp)
+    basic::Bbp bbpNow;
+    bool haveBbp = project.isBasic() && basicProjectBbp(bbpNow);
+    auto joined = [](const std::vector<std::string> &v) {
+        std::string s;
+        for (auto &x : v) s += (s.empty() ? "" : " ") + x;
+        return s;
+    };
+    std::string extText = joined(bbpNow.extensions), csrcText = joined(bbpNow.csources);
     Class *string = IString->STRING_GetClass();
     Class *layout = ILayout->LAYOUT_GetClass();
     auto label = [](const char *t) {
@@ -430,6 +440,10 @@ bool App::editProjectSettings()
             LAYOUT_AddChild, field(PS_INTERP, project.interpreter), CHILD_Label,
                 label(project.isBasic() ? "Boing BASIC command (empty: find it)" : "Python interpreter (empty: find it)"),   // --- basic ---
             // --- end lang ---
+            haveBbp ? LAYOUT_AddChild : TAG_IGNORE, haveBbp ? (uint32)field(PS_EXT, extText) : 0,
+            haveBbp ? CHILD_Label : TAG_IGNORE, haveBbp ? (uint32)label("Extensions (dir/name, separate with spaces)") : 0,
+            haveBbp ? LAYOUT_AddChild : TAG_IGNORE, haveBbp ? (uint32)field(PS_CSRC, csrcText) : 0,
+            haveBbp ? CHILD_Label : TAG_IGNORE, haveBbp ? (uint32)label("C sources for Lib \"C\" (separate with spaces)") : 0,
             LAYOUT_AddChild, IIntuition->NewObject(layout, nullptr, LAYOUT_Orientation, LAYOUT_ORIENT_HORIZ,
                 LAYOUT_EvenSize, TRUE,
                 LAYOUT_AddChild, g[PS_OK] = IIntuition->NewObject(IButton->BUTTON_GetClass(), nullptr,
@@ -492,6 +506,27 @@ bool App::editProjectSettings()
         project.mainScript = get(PS_MAIN);
         project.interpreter = get(PS_INTERP);
         // --- end lang ---
+        // --- linked extensions --- into the .bbp, its other lines kept
+        if (haveBbp) {
+            auto split = [](const std::string &s) {
+                std::vector<std::string> v;
+                std::string cur;
+                for (char c : s + " ") {
+                    if (c == ' ' || c == ',' || c == ';' || c == '\t') { if (!cur.empty()) v.push_back(cur); cur.clear(); }
+                    else cur += c;
+                }
+                return v;
+            };
+            std::vector<std::string> ext = split(get(PS_EXT)), csrc = split(get(PS_CSRC));
+            if (ext != bbpNow.extensions || csrc != bbpNow.csources) {
+                std::string file = project.abs(project.basicTarget()), text;
+                readFile(file, text);
+                bbpNow.extensions = ext;
+                bbpNow.csources = csrc;
+                if (!writeFile(file, basic::updateBbp(text, bbpNow))) info("Can't write " + file);
+                else setStatus("Saved the extensions in " + fileName(file) + "; the next Run links them");
+            }
+        }
         rebuildMenus();
         if (project.output.empty()) project.output = project.name.empty() ? "program" : project.name;
     }

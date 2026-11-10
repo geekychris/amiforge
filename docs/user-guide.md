@@ -1277,6 +1277,26 @@ drawer named by the variable `AmiForge/BoingDocs`, in `docs/` beside the `boing`
 one drawer up), or in `PROGDIR:Docs`. The ARexx command `BASICCONTROLS` says which one is in
 use.
 
+### Linked extensions (C and C++)
+
+A Boing BASIC project can use classes and functions written in C or C++ (Boing BASIC's
+`docs/extensions.md`): `Extension=dir/name` lines in the `.bbp` (`dir/name.c` or `.cpp` and its
+descriptor `dir/name.bbx`), and `CSource=file.c` for `Declare ... Lib "C"` functions.
+**Project > Settings** has a field for each (names separated by spaces); AmiForge writes them
+into the `.bbp` and leaves its other lines alone.
+
+- **Run** (Ctrl-F5) interprets the program with an interpreter built for the project:
+  `boing vm --project P.bbp -o T:boing-P` (the SDK's GCC; tens of seconds, minutes on a slow
+  machine), shown in the build log after the check. It's built again only when the `.bbp`, an
+  extension's `.bbx`/`.c`/`.cpp`, a C source or `boing` itself is newer than it. The standard
+  `boing` would stop such a program with "... is not linked into this interpreter".
+- **Build** (F7) makes a native program with the extensions linked in, as `boing build` does.
+- Completion after `c.` (for `Dim c As Counter`) lists the extension class's members, and typing
+  `c.Add(` or `Clamp(` shows a call tip with the signature from the `.bbx` (`boing members
+  --project`). Extension functions are in the completion list too.
+- `boing vm` needs `libboingvm.a` beside `libboing.a` (in `lib/` next to `boing`) and the headers in
+  `include/`.
+
 ### Debugging BASIC
 
 The debugger works on the native program Build makes. `boing build --debug` writes C with

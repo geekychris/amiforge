@@ -854,3 +854,65 @@ TEST(basic_runtime_class_members)
     CHECK(classMemberCompletions("nobody", code, rm).empty());
     CHECK(classMemberCompletions("eng", code, RuntimeMembers()).empty());   // an old boing: no list
 }
+
+// --- basic --- linked extensions (boing's docs/extensions.md): the .bbp's Extension=/CSource=,
+// the interpreter AmiForge builds for them, members with signatures, call tips
+TEST(basic_extensions)
+{
+    const std::string bbp = "# demo\nName=CounterDemo\nStartup=Sub Main\nModule=demo.bas\nExtension=ext/counter\n"
+                            "CSource=mathc.c\nStack=100000\n";
+    Bbp b;
+    CHECK(parseBbp(bbp, b));
+    CHECK(b.extensions.size() == 1 && b.extensions[0] == "ext/counter");
+    CHECK(b.csources.size() == 1 && b.csources[0] == "mathc.c");
+    CHECK(b.needsVm());
+    CHECK_EQ(b.other.size(), (size_t)1);   // Stack= only
+    // unchanged lists: the same text; a new extension goes after the last one
+    CHECK_EQ(updateBbp(bbp, b), bbp);
+    b.extensions.push_back("shapes");
+    b.csources.clear();
+    std::string out = updateBbp(bbp, b);
+    CHECK(out.find("Extension=ext/counter\nExtension=shapes\n") != std::string::npos);
+    CHECK(out.find("CSource=") == std::string::npos && out.find("Stack=100000") != std::string::npos);
+    Bbp n;
+    n.name = "X";
+    n.extensions = { "e" };
+    n.csources = { "c.c" };
+    CHECK(writeBbp(n).find("Extension=e\nCSource=c.c\n") != std::string::npos);
+    Bbp plain;
+    parseBbp("Name=A\nModule=a.bas\n", plain);
+    CHECK(!plain.needsVm());
+    // the file list keeps them: the project dialog's change goes through updateBbp
+    bbpFromFiles({ "CounterDemo.bbp", "demo.bas" }, b);
+    CHECK(b.extensions.size() == 2);
+
+    CHECK_EQ(vmCommand("boing", "CounterDemo.bbp", "T:boing-CounterDemo"),
+             std::string("boing vm --project CounterDemo.bbp -o T:boing-CounterDemo"));
+    CHECK_EQ(vmInterpreterPath("Work:x/My Game.bbp"), std::string("T:boing-My_Game"));
+    CHECK_EQ(vmInterpreterPath("demo.bbp"), std::string("T:boing-demo"));
+    auto deps = vmDependencies(b, "Work:x/CounterDemo.bbp");
+    CHECK_EQ(deps[0], std::string("CounterDemo.bbp"));
+    CHECK(std::find(deps.begin(), deps.end(), "ext/counter.bbx") != deps.end());
+    CHECK(std::find(deps.begin(), deps.end(), "shapes.cpp") != deps.end());
+    CHECK_EQ(membersCommand("boing", "P.bbp"), std::string("boing members --project P.bbp"));
+
+    // `boing members --project` with an extension class and globals
+    RuntimeMembers rm = parseMembers("Counter\tAdd\tmethod\tByVal n As Long\tLong\n"
+                                     "Counter\tReset\tmethod\t\t\n"
+                                     "Counter\tCount\tproperty-ro\t\tLong\n"
+                                     "\tClamp\tfunction\tByVal x As Long, ByVal lo As Long, ByVal hi As Long\tLong\n"
+                                     "\tBeep2\tsub\tByVal hz As Long\t\n"
+                                     "Canvas\tCls\tmethod\n");
+    CHECK_EQ(rm["counter"].size(), (size_t)3);
+    CHECK_EQ(rm[""].size(), (size_t)2);
+    const std::string code = "Dim c As New Counter\nDim v As Canvas\n";
+    CHECK_EQ(basicCallTip(code, "c", "add", rm), std::string("Add(ByVal n As Long) As Long"));
+    CHECK_EQ(basicCallTip(code, "c", "Reset", rm), std::string("Reset()"));
+    CHECK_EQ(basicCallTip(code, "c", "Count", rm), std::string(""));      // a property
+    CHECK_EQ(basicCallTip(code, "", "clamp", rm), std::string("Clamp(ByVal x As Long, ByVal lo As Long, ByVal hi As Long) As Long"));
+    CHECK_EQ(basicCallTip(code, "", "Beep2", rm), std::string("Beep2(ByVal hz As Long)"));
+    CHECK_EQ(basicCallTip(code, "v", "Cls", rm), std::string("Cls()"));
+    CHECK_EQ(basicCallTip(code, "nobody", "Add", rm), std::string(""));
+    auto mc = classMemberCompletions("c", code, rm);
+    CHECK(mc.size() == 3 && mc[0] == "Add" && mc[1] == "Count");
+}

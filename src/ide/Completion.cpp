@@ -145,6 +145,10 @@ void App::showCompletion(bool explicitRequest)
                     for (auto &w : c.second.second) if (!basic::isKeyword(w)) words.insert(w);
             for (auto &w : basic::completionWords()) words.insert(w);
             for (auto &c : ctl) words.insert(c.first);
+            // --- linked extensions --- the project's extension functions (Clamp, Beep2...)
+            auto g = basicRuntimeMembers().find("");
+            if (g != basicRuntimeMembers().end())
+                for (auto &m : g->second) words.insert(m.name);
             addSnippetWords(prefix, words);
         }
     } else {
@@ -391,6 +395,36 @@ void App::completionCharAdded(int ch)
                 identChar((unsigned char)S(editor, SCI_GETCHARAT, pos - 2))) {
                 showCompletion(false);
                 return;
+            }
+            // --- linked extensions --- "c.Add(" / "Clamp(": the signature from `boing members`
+            if (lang == Language::Basic && ch == '(' && !quiet->count(style)) {
+                intptr_t e = pos - 1, s = S(editor, SCI_WORDSTARTPOSITION, e, 1);
+                auto range = [&](intptr_t a, intptr_t b) {
+                    std::vector<char> buf(b - a + 1);
+                    struct Sci_TextRangeFull tr = { { a, b }, buf.data() };
+                    S(editor, SCI_GETTEXTRANGEFULL, 0, (intptr_t)&tr);
+                    return std::string(buf.data());
+                };
+                std::string name = e > s ? range(s, e) : "", obj;
+                if (s >= 2 && (char)S(editor, SCI_GETCHARAT, s - 1) == '.') {
+                    intptr_t os = S(editor, SCI_WORDSTARTPOSITION, s - 1, 1);
+                    if (s - 1 > os) obj = range(os, s - 1);
+                }
+                if (!name.empty()) {
+                    intptr_t dlen = S(editor, SCI_GETLENGTH);
+                    std::string tip = basicCallTip(obj, name, range(0, dlen));
+                    if (!tip.empty()) {
+                        callTipParen = pos - 1;
+                        callTipFirst = tip;
+                        S(editor, SCI_CALLTIPSHOW, pos, (intptr_t)tip.c_str());
+                        updateCallTipHighlight();
+                    }
+                }
+                return;
+            }
+            if (lang == Language::Basic && S(editor, SCI_CALLTIPACTIVE) && callTipParen >= 0) {
+                updateCallTipHighlight();   // "," moves to the next argument, ")" ends it
+                if (ch == ',' || ch == ')') return;
             }
             if (identChar(ch) && !S(editor, SCI_AUTOCACTIVE) && !quiet->count(style) &&
                 pos - S(editor, SCI_WORDSTARTPOSITION, pos, 1) == 3)

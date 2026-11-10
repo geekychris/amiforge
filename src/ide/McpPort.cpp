@@ -523,7 +523,7 @@ std::string App::mcpCommand(const std::string &cmd, const rexx::Args &a, int &rc
         }
         std::string cmdline = project.runcmd.empty()
             ? "\"" + project.outputPath() + "\"" + (project.args.empty() ? "" : " " + project.args) : project.runcmd;
-        if (bas && project.runcmd.empty()) cmdline = basic::runCommand(boingCommand(), project.basicTarget(), project.args);
+        if (bas && project.runcmd.empty()) cmdline = basic::runCommand(basicRunInterpreter(), project.basicTarget(), project.args);
         mcpRunTask = "AmiForge MCP run " + project.name;
         BPTR dir = IDOS->Lock(project.dir.c_str(), SHARED_LOCK);
         BPTR old = dir ? IDOS->SetCurrentDir(dir) : 0;
