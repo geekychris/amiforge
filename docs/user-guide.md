@@ -192,8 +192,9 @@ Ctrl-Space still gives the general list there.
 
 ### The context menu
 
-Click the **right mouse button** in the editor for a menu of what applies to the word or line
-under the pointer:
+Hold **Shift** (or **Ctrl**) and click the **right mouse button** in the editor (or the split
+view) for a menu of what applies to the word or line under the pointer. The right button alone
+shows the menu bar there, as everywhere on the Amiga:
 - open the `#include`d header, go to the definition, its AutoDoc, or complete the word;
 - toggle a breakpoint, run to the cursor, or add a watch for the word;
 - cut, copy and paste;
@@ -242,7 +243,7 @@ AmiForge remembers whether it's on (`ENVARC:AmiForge/Minimap`).
 | To... | Do this |
 |---|---|
 | Add a cursor | **Alt-click** where you want it (Ctrl-click is Go to Definition) |
-| Select the word at the cursor, then each next occurrence | **Edit > Add Next Occurrence** (**Amiga-T**), or right-click > Add Next Occurrence |
+| Select the word at the cursor, then each next occurrence | **Edit > Add Next Occurrence** (**Amiga-T**), or Shift-right-click > Add Next Occurrence |
 | Select every occurrence at once | **Edit > Select All Occurrences** |
 | Go back to one cursor | **Esc** |
 
@@ -254,7 +255,7 @@ Typing, Delete/Backspace and Paste act at every cursor.
 
 Type a snippet's name and press **Tab** to insert it. Snippets also appear in the completion
 list, marked with `»` (for example `for»`); pick one there with Tab or Return. **Edit > Insert
-Snippet...** (or the right-click menu) lists them all.
+Snippet...** (or the Shift-right-click menu) lists them all.
 
 After a snippet goes in, its fields are outlined:
 - Type over the selected field.
@@ -322,7 +323,7 @@ Click an entry to go there. The list updates about a second after you stop typin
 ### Find All References
 
 Put the cursor on a name and press **Shift-F12** (or **Edit > Find All References**, or
-right-click). Every use of the name as a whole word, outside comments and strings, is listed in
+Shift-right-click). Every use of the name as a whole word, outside comments and strings, is listed in
 the **Find** tab, across the project's files and any other open files. Click a line to go there.
 The uses in open files are highlighted; **Esc** clears the highlights.
 
@@ -330,7 +331,7 @@ The uses in open files are highlighted; **Esc** clears the highlights.
 
 ### Rename Symbol
 
-Put the cursor on a name and press **F2** (or **Edit > Rename Symbol...**, or right-click), then
+Put the cursor on a name and press **F2** (or **Edit > Rename Symbol...**, or Shift-right-click), then
 type the new name.
 1. A requester shows how many changes there will be in which files, and warns if the new name is
    already in use.
@@ -705,7 +706,7 @@ it stops at the start of `main`.
 | Step over (the next line; calls run at full speed) | F10 |
 | Step into (into functions that have source) | F11 |
 | Step out (until the current function returns) | Shift-F11 |
-| Run to the line with the cursor | Ctrl-F10, or right-click > Run to Cursor |
+| Run to the line with the cursor | Ctrl-F10, or Shift-right-click > Run to Cursor |
 | Run until a function is called (asks for its name; the word at the cursor is the default) | Alt-F10 |
 | Set Next Statement: go on from the cursor's line (in the same function) | Shift-Ctrl-F10 |
 | Step one machine instruction | F8 |
@@ -741,7 +742,7 @@ and Edit menus, or Help for F1.
 - **Locals**: the parameters and local variables of the selected frame. Structs, arrays and
   pointers open with their arrow. Values that changed since the last stop are red.
 - **Watches**: expressions evaluated at every stop. Add one with the field under the list, from
-  Debug > Add Watch (which uses the selection), or with right-click > Add Watch. Expressions can
+  Debug > Add Watch (which uses the selection), or with Shift-right-click > Add Watch. Expressions can
   use:
   - variables, `.`, `->`, `[i]`, `*`, `&` and casts;
   - arithmetic and comparisons;
@@ -1890,7 +1891,8 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | F1 / Help | AutoDoc for the word at the cursor |
 | Ctrl-Space | Complete the word |
 | Ctrl-click / F12 | Open an `#include` / go to a definition |
-| Right mouse button | Context menu |
+| Right mouse button | The menu bar |
+| Shift (or Ctrl) + right mouse button | The editor's context menu |
 | F3 / Shift-F3 | Find next / previous |
 | F4 / Shift-F4 | Next / previous error |
 | F5 | Debug / continue |

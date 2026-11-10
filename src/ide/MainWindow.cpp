@@ -773,6 +773,28 @@ void App::busyPointer(bool busy)
 // Input
 // ---------------------------------------------------------------------------------------
 
+// Shift or Ctrl in a message's qualifier; for a Shift/Ctrl key itself the state after it
+static bool rmbQualifier(const struct IntuiMessage *im)
+{
+    const uint16 shiftCtrl = IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CONTROL;
+    uint16 q = im->Qualifier & shiftCtrl;
+    if (im->Class == IDCMP_RAWKEY) {
+        uint16 key = im->Code & ~IECODE_UP_PREFIX;
+        uint16 bit = key == 0x60 ? IEQUALIFIER_LSHIFT : key == 0x61 ? IEQUALIFIER_RSHIFT : key == 0x63 ? IEQUALIFIER_CONTROL : 0;
+        if (bit) q = (im->Code & IECODE_UP_PREFIX) ? (q & ~bit) : (q | bit);
+    }
+    return q != 0;
+}
+
+void App::updateRmbTrap(const struct IntuiMessage *im)
+{
+    if (!win) return;
+    SciView *v = viewAt(im->MouseX, im->MouseY);
+    bool trap = v && v != miniView && rmbQualifier(im);
+    if (trap) win->Flags |= WFLG_RMBTRAP;
+    else win->Flags &= ~WFLG_RMBTRAP;
+}
+
 uint32_t App::idcmpHook(struct IntuiMessage *im)
 {
     // --- robust --- a modal dialog is open (Modal.cpp): nothing reaches the editor; a click or
@@ -784,6 +806,12 @@ uint32_t App::idcmpHook(struct IntuiMessage *im)
         return 0;
     }
     // --- end robust ---
+    // The right mouse button over an edit view: plain = the menu bar (as everywhere on the
+    // Amiga), Shift or Ctrl held = the editor's context menu. WFLG_RMBTRAP must already be set
+    // when the button goes down, so it follows the pointer and the qualifier keys (taken from
+    // the messages: input.device's PeekQualifier doesn't see injected keys).
+    if (im->Class == IDCMP_MOUSEMOVE || im->Class == IDCMP_RAWKEY || im->Class == IDCMP_MOUSEBUTTONS)
+        updateRmbTrap(im);
     // --- editor features: several views, the minimap, snippets' Tab, Alt-click ---
     uint32_t handled;
     if (editorIdcmp(im, handled)) return handled;
@@ -840,14 +868,11 @@ uint32_t App::idcmpHook(struct IntuiMessage *im)
         return 0;
     }
     case IDCMP_MOUSEMOVE: {
-        // over the editor the right button opens its context menu, elsewhere the menu bar
+        // the right button: the menu bar, or with Shift/Ctrl over an edit view the context menu (updateRmbTrap)
         if (editor && win) {
             int l, t, w, h;
             editor->getBounds(&l, &t, &w, &h);
-            bool inside = im->MouseX >= l && im->MouseX < l + w && im->MouseY >= t && im->MouseY < t + h;
-            if (inside) win->Flags |= WFLG_RMBTRAP;
-            else win->Flags &= ~WFLG_RMBTRAP;
-            editor->handleMessage(im);
+            editor->handleMessage(im);   // (the right button: updateRmbTrap)
         }
         return 0;
     }

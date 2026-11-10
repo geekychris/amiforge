@@ -443,12 +443,7 @@ bool App::editorIdcmp(struct IntuiMessage *im, uint32_t &result)
             editor->handleMessage(&copy);
             return true;
         }
-        // the right button opens the context menu over any edit view
-        SciView *v = viewAt(im->MouseX, im->MouseY);
-        if (win) {
-            if (v && v != miniView) win->Flags |= WFLG_RMBTRAP;
-            else win->Flags &= ~WFLG_RMBTRAP;
-        }
+        // (the right button: updateRmbTrap, called before this)
         for (SciView *e : { mainView, splitView })
             if (e) e->handleMessage(im);
         return true;
