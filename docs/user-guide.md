@@ -352,9 +352,36 @@ and AmigaDOS scripts names are found whatever their case.
 | Shift-F12 | Find All References |
 | F2 | Rename Symbol |
 | Amiga-T | Add Next Occurrence |
+| Amiga-M | Markdown Preview |
 | Alt-click | Add a cursor |
 | Esc | One cursor again; end a snippet; clear reference highlights |
 | name + Tab | Insert a snippet; Tab / Shift-Tab move between its fields |
+
+### Markdown preview
+
+**View > Markdown Preview** (Amiga-M) shows the current `.md` file rendered in a window beside
+the editor; opening a `.md` file shows it too. It follows what you type (0.3 s after you stop)
+and the file you switch to.
+
+- Headings (ATX `#` and underlined), paragraphs wrapped to the window, **bold**, *italic*,
+  ~~strikethrough~~, `code` on a shaded background, code blocks (not wrapped: the bottom
+  scroller moves sideways), block quotes, bullet, numbered and task lists (nested), rules and
+  GitHub tables with their alignment.
+- Pictures (`![alt](shots/a.png)`, and the HTML `<img src=... width=...>` READMEs use) load
+  through picture.datatype, scaled down to fit. One that can't be loaded (or a web address)
+  shows its alt text in a frame. HTML tables of pictures, as on GitHub, are tables.
+- Links: click one. A file next to the document (`docs/ui.md`) opens in the editor, `#a-heading`
+  scrolls to it, and a web address goes to your browser through openurl.library's OpenURL
+  (without openurl.library the status bar shows the address).
+- Text is UTF-8: characters outside Latin-1 that the screen fonts can't show are replaced
+  (dashes and quotes by their ASCII forms, arrows by `->`, the rest by `?`).
+- The headings use the screen font at bigger sizes (bold), code DejaVu Sans Mono (or the
+  system's fixed-width font). Scroll with the scrollers, the mouse wheel, the cursor keys,
+  Page Up/Down (or Space), Home and End.
+- Not shown: raw HTML other than pictures, links, line breaks, emphasis and tables;
+  footnotes, math and pictures from the web.
+
+The parser is md4c 0.5.2 (MIT, `third_party/md4c`).
 
 ### Limitations
 
@@ -1498,6 +1525,12 @@ without FILE, the current file.
 | MCP | COMMAND/A/F | Runs a command without requesters; always RC 0, RESULT `AF1 rc more length payload` |
 | MCPMORE | | The next part of a long MCP result |
 | MCPBUF | SLOT/N/A,CLEAR/S,TEXT | Appends text to slot 1-9, used as `\@1` in a later command |
+| PREVIEWMARKDOWN | FILE | Show FILE (or the current `.md`) in the Markdown preview. It replies first and loads afterwards: poll MDSTATE (its `file=`). RESULT = the file |
+| MDBLOCKS | FILE | The Markdown block tree, one block per line (`h1 "Title"`, `li [x] "done"`, `td align=r "2"`...), then `link N href` and `image N src` lines |
+| MDLINKS | | The links visible in the preview: `index<tab>href<tab>x<tab>y<tab>w<tab>h<tab>text` (screen coordinates) |
+| MDSTATE | | `key=value`: file, blocks, links, images, pictures_drawn, alt_boxes, pictures_loaded, pictures_failed, width, height, view, scroll, truncated |
+| MDCLICK | LINK/A | Follow link number LINK as a click would |
+| MDSCROLL | Y/A | Scroll the preview to Y |
 | GETSTATE | | `key=value` lines: port, project, projectdir, projectsfolder, file, line, col, documents, modified, build (idle/running), buildresult (none/ok/failed), errors, warnings, debug (none/loaded/running/stopped), sessions, stopreason, stopfile, stopline, stopfunction, stoptext, exitcode, program (a RUNPROGRAM CAPTURE run: idle/running), status |
 | DOCUMENTS | | Open files: path, modified (0/1), current (0/1), lines |
 | PROJECTINFO | | `key=value`: path, name, dir, output, outputpath, cc, cflags, ldflags, libs, args, stopatmain, built... |

@@ -187,6 +187,7 @@ static struct NewMenu menus[] = {
     ITEM("Split Editor", 0, CMD_SPLIT_VIEW),
     ITEM("Minimap", 0, CMD_MINIMAP),
     ITEM("Symbols", 0, CMD_SHOW_SYMBOLS),
+    ITEM("Markdown Preview", "M", CMD_MD_PREVIEW),   // --- markdown ---
     ITEM("Theme", 0, 0),                     // its submenu is filled in by rebuildMenus
 
     TITLE("Build"),
@@ -926,9 +927,10 @@ void App::eventLoop()
         if (docWinObj) IIntuition->GetAttr(WINDOW_SigMask, docWinObj, &docSig);
         uint32 dbgSig = dbg ? dbg_signal_mask(dbg) : 0;
         uint32 designerSig = designerSignals();   // designer
+        uint32 mdSig = mdSignals();               // --- markdown ---
         uint32 integSig = integrationsSignals();   // --- integrations ---
         uint32 robustSig = browserSignal() | runSignals();   // --- robust ---
-        uint32 got = IExec->Wait(winSig | findSig | docSig | builder.signalMask() | dbgSig | designerSig | integSig | robustSig | SIGBREAKF_CTRL_C);
+        uint32 got = IExec->Wait(winSig | findSig | docSig | builder.signalMask() | dbgSig | designerSig | mdSig | integSig | robustSig | SIGBREAKF_CTRL_C);
         if (got & SIGBREAKF_CTRL_C) quit = true;
 
         if (got & winSig) {
@@ -969,6 +971,7 @@ void App::eventLoop()
         if (findWinObj && (got & findSig)) handleFindWindow();
         if (docWinObj && (got & docSig)) handleDocWindow();
         if (got & designerSig) handleDesigner(got);   // designer
+        if (got & mdSig) mdHandle();                  // --- markdown ---
         if (got & builder.signalMask()) pollBuild();
         if (dbg && (got & dbgSig)) pollDebugger();
         if (got & integSig) integrationsHandle(got);   // --- integrations ---

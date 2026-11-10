@@ -51,6 +51,8 @@ DBG_OBJS  = $(patsubst %,$(O)/%.o,$(DBG_SRC))
 
 # --- the IDE ---
 IDE_SRC   = $(wildcard src/ide/*.cpp) $(wildcard src/ide/*.c)
+# --- markdown --- md4c 0.5.2 (MIT, third_party/md4c/LICENSE.md): the Markdown parser
+IDE_SRC  += third_party/md4c/md4c.c
 IDE_OBJS  = $(patsubst %,$(O)/%.o,$(IDE_SRC))
 
 all: $(B)/AmiForge $(B)/QEMUCopyFix tests check-cpu
@@ -131,6 +133,8 @@ $(O)/tests/targets/%.S.o: tests/targets/%.S
 # --- compile rules ---
 $(O)/third_party/%.cxx.o: third_party/%.cxx
 	@mkdir -p $(@D); $(CXX) $(TPFLAGS) -c $< -o $@
+$(O)/third_party/md4c/%.c.o: third_party/md4c/%.c
+	@mkdir -p $(@D); $(CC) $(BASE) -std=gnu11 -c $< -o $@
 $(O)/%.cpp.o: %.cpp
 	@mkdir -p $(@D); $(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 $(O)/%.c.o: %.c
