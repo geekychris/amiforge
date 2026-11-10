@@ -178,7 +178,7 @@ Ctrl-Space still gives the general list there.
 
 | To... | Do this |
 |---|---|
-| Open a header named in an `#include` | **Ctrl-click** the line, or put the cursor on it and press **F12** (or Amiga-D) |
+| Open a header named in an `#include` | **Ctrl-click** the line, or put the cursor on it and press **F12** (or Amiga-J) |
 | Go to where something is defined | **Ctrl-click** it, or **F12** (or Amiga-J) |
 
 - **Headers:** `"quoted"` headers are looked for next to the file, then in the project.
@@ -1950,7 +1950,8 @@ AmiForge works on QEMU's `sam460ex` machine with AmigaOS 4.1 FE, with one fix ne
 | Amiga-P | Open project |
 | Amiga-U | Browse projects |
 | Amiga-F / R / H / L | Find / replace / find in files / go to line |
-| Amiga-D / J | Open include / go to definition |
+| Amiga-J | Go to definition (on an `#include` line: open the header) |
+| Amiga-D | Start / continue debugging (like F5) |
 | Amiga-/ | Comment / uncomment |
 | Amiga-B / K / E | Build / compile file / run |
 | Amiga-Q | Quit |
