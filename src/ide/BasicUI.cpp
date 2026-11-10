@@ -116,6 +116,13 @@ void App::buildBasic(const std::string &what)
     const std::string boing = boingCommand();
     const std::string target = project.basicTarget();
     cmds.push_back({"Checking " + target, basic::checkCommand(boing, target)});
+    // --- linked extensions --- Run interprets with an interpreter built for the project's
+    // extensions and C sources; (re)built when they or the .bbp changed
+    bool stale = false;
+    std::string interp = basicRunInterpreter(&stale);
+    if (what == "check" && stale)
+        cmds.push_back({"Linking the extensions into an interpreter (" + interp + ")",
+                        basic::vmCommand(boing, target, interp)});
     if (what != "check")
         cmds.push_back({"Compiling " + target + " to " + fileName(project.output) + " (native, with debug information)",
                         basic::buildCommand(boing, target, project.output, false, "--keep-c")});
@@ -139,11 +146,51 @@ bool App::basicHasBreakpoints()
     return false;
 }
 
+// --- linked extensions --- the project's .bbp (false if there's none)
+bool App::basicProjectBbp(basic::Bbp &b)
+{
+    std::string target = project.basicTarget();
+    if (target.empty() || extension(target) != "bbp") return false;
+    std::string text;
+    if (!readFile(project.abs(target), text)) return false;
+    return basic::parseBbp(text, b);
+}
+
+// a file's time, without an "insert volume" requester for a volume that isn't there (-1: none)
+static int64_t quietTime(const std::string &path)
+{
+    return existsQuietly(path) ? fileTime(path) : -1;
+}
+
+// What runs the program: the standard boing, or for a project with Extension=/CSource= the
+// interpreter `boing vm --project` built for it (T:boing-<project>). `stale`: it has to be
+// (re)built: it's missing, or older than the .bbp, an extension's files, a C source or boing.
+std::string App::basicRunInterpreter(bool *stale)
+{
+    if (stale) *stale = false;
+    basic::Bbp b;
+    if (!basicProjectBbp(b) || !b.needsVm()) return boingCommand();
+    std::string target = project.basicTarget();
+    std::string interp = basic::vmInterpreterPath(target);
+    if (stale) {
+        int64_t built = quietTime(interp);
+        bool old = built < 0 || quietTime(boingCommand()) > built;
+        for (auto &d : basic::vmDependencies(b, target)) old = old || quietTime(project.abs(d)) > built;
+        *stale = old;
+    }
+    return interp;
+}
+
 void App::runBasic()
 {
     if (!basicReady()) return;
-    const std::string boing = boingCommand();
+    const std::string boing = basicRunInterpreter();   // --- linked extensions --- T:boing-<project>
     const std::string target = project.basicTarget();
+    if (boing != boingCommand() && !existsQuietly(boing)) {
+        info("This project links extensions (Extension=/CSource=), and the interpreter built for it (" + boing +
+             ") isn't there: the build that makes it (boing vm --project) failed. See the build log.");
+        return;
+    }
     int n = ++basicRuns;
     std::string errFile = strprintf("T:AmiForge-bberr.%d", n);
     IDOS->Delete(errFile.c_str());
@@ -238,9 +285,19 @@ void App::basicRunEnded(const std::string &errorFile)
 const basic::RuntimeMembers &App::basicRuntimeMembers()
 {
     std::string boing = boingCommand();
-    if (runtimeMembersTried && runtimeMembersOf == boing) return runtimeMembers;
+    // --- linked extensions --- with the project's extensions: `boing members --project`, again
+    // when the .bbp or a .bbx changes
+    basic::Bbp b;
+    std::string bbp, key = boing;
+    if (basicProjectBbp(b) && !b.extensions.empty()) {
+        bbp = project.basicTarget();
+        int64_t stamp = quietTime(project.abs(bbp));
+        for (auto &e : b.extensions) stamp = std::max(stamp, quietTime(project.abs(e + ".bbx")));
+        key += "|" + project.abs(bbp) + "|" + std::to_string((long long)stamp);
+    }
+    if (runtimeMembersTried && runtimeMembersOf == key) return runtimeMembers;
     runtimeMembersTried = true;
-    runtimeMembersOf = boing;
+    runtimeMembersOf = key;
     runtimeMembers.clear();
     // a boing on a volume that isn't there would pop an "insert volume" requester
     if (boing.empty() || (boing.find(':') != std::string::npos && !existsQuietly(boing))) return runtimeMembers;
@@ -249,8 +306,14 @@ const basic::RuntimeMembers &App::basicRuntimeMembers()
     BPTR in = IDOS->Open("NIL:", MODE_OLDFILE);
     if (out && in) {
         // synchronous: the handles stay ours; an old boing without the command just prints an error
-        IDOS->SystemTags(basic::membersCommand(boing).c_str(), SYS_Input, in, SYS_Output, out,
+        BPTR dir = bbp.empty() ? 0 : IDOS->Lock(project.dir.c_str(), SHARED_LOCK);
+        BPTR old = dir ? IDOS->SetCurrentDir(dir) : 0;
+        IDOS->SystemTags(basic::membersCommand(boing, bbp).c_str(), SYS_Input, in, SYS_Output, out,
                          SYS_StackSize, 256 * 1024, NP_Name, (uint32)"AmiForge boing members", TAG_END);
+        if (dir) {
+            IDOS->SetCurrentDir(old);
+            IDOS->UnLock(dir);
+        }
     }
     if (out) IDOS->Close(out);
     if (in) IDOS->Close(in);
@@ -283,6 +346,11 @@ std::vector<std::string> App::basicMemberWords(const std::string &name, const st
     words = basic::classMemberCompletions(name, code, basicRuntimeMembers(), &cls);
     if (what) *what = words.empty() ? "" : name + " is " + aOrAn(cls);
     return words;
+}
+
+std::string App::basicCallTip(const std::string &obj, const std::string &name, const std::string &code)
+{
+    return basic::basicCallTip(code, obj, name, basicRuntimeMembers());
 }
 
 } // namespace af

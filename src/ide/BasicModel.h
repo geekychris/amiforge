@@ -121,13 +121,17 @@ struct Bbp {
     std::string name;
     std::string startup;                   // "Form main" or "Sub Main"
     std::vector<std::string> modules, forms, classes;   // relative paths
+    // linked extensions (Extension=dir/name: dir/name.c or .cpp and dir/name.bbx) and C files
+    // for Declare ... Lib "C" (CSource=): Boing BASIC's docs/extensions.md
+    std::vector<std::string> extensions, csources;
+    bool needsVm() const { return !extensions.empty() || !csources.empty(); }
     std::vector<std::pair<std::string, std::string>> other;   // everything else, in order (Stack=, Icon=)
     bool isFormApp() const { return !forms.empty(); }
     std::vector<std::string> allFiles() const;   // modules, forms, their code-behind modules, classes
 };
 bool parseBbp(const std::string &text, Bbp &out);
 std::string writeBbp(const Bbp &b);
-// The .bbp text with its Module=/Form=/Class= lines made `want`'s (and Name=/Startup= added if
+// The .bbp text with its Module=/Form=/Class=/Extension=/CSource= lines made `want`'s (and Name=/Startup= added if
 // missing): every other line (comments, keys AmiForge doesn't know, their order) is kept as it
 // is, entries still wanted keep their line, new ones go after the last line of their kind.
 std::string updateBbp(const std::string &text, const Bbp &want);
@@ -174,8 +178,22 @@ struct ClassMember {
     std::string name, kind, signature, type;
 };
 using RuntimeMembers = std::map<std::string, std::vector<ClassMember>>;
+// A line with an empty class is a global function or sub of an extension (key "").
 RuntimeMembers parseMembers(const std::string &output);
-std::string membersCommand(const std::string &boing);   // "boing members"
+// "boing members", with a project: "boing members --project P.bbp" (its extensions too)
+std::string membersCommand(const std::string &boing, const std::string &bbp = "");
+// --- linked extensions: an interpreter built for the project (docs/extensions.md) ---
+// "boing vm --project P.bbp -o OUT"
+std::string vmCommand(const std::string &boing, const std::string &bbp, const std::string &out);
+// where AmiForge keeps it: "T:boing-<project>" ("My Game.bbp" -> "T:boing-My_Game")
+std::string vmInterpreterPath(const std::string &bbp);
+// the files it's built from, relative to the .bbp's drawer: the .bbp, each extension's .bbx,
+// .c and .cpp (the one that exists counts), the C sources; rebuild when one is newer
+std::vector<std::string> vmDependencies(const Bbp &b, const std::string &bbp);
+// The call tip for "name(" (obj "" = a global function) or "obj.name(" where obj is declared As
+// a class of `members` in `code`: "Add(ByVal n As Long) As Long"; "" if there's none.
+std::string basicCallTip(const std::string &code, const std::string &obj, const std::string &name,
+                         const RuntimeMembers &members);
 // The class a variable is declared as in BASIC code: Dim/Private/Public/Global/Static/Const
 // lists and procedure parameters, "As [New] [Boing.]Class". Lower-case variable -> class as
 // written without "Boing.". Comments and strings don't count.

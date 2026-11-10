@@ -854,6 +854,8 @@ bool parseBbp(const std::string &text, Bbp &out)
         else if (lk == "module") out.modules.push_back(v);
         else if (lk == "form") out.forms.push_back(v);
         else if (lk == "class") out.classes.push_back(v);
+        else if (lk == "extension") out.extensions.push_back(v);
+        else if (lk == "csource") out.csources.push_back(v);
         else out.other.push_back({ k, v });
     }
     return any;
@@ -867,6 +869,8 @@ std::string writeBbp(const Bbp &b)
     for (auto &f : b.modules) s += "Module=" + f + "\n";
     for (auto &f : b.forms) s += "Form=" + f + "\n";
     for (auto &f : b.classes) s += "Class=" + f + "\n";
+    for (auto &f : b.extensions) s += "Extension=" + f + "\n";
+    for (auto &f : b.csources) s += "CSource=" + f + "\n";
     for (auto &kv : b.other) s += kv.first + "=" + kv.second + "\n";
     return s;
 }
@@ -911,18 +915,20 @@ std::string updateBbp(const std::string &text, const Bbp &want)
         lines.push_back(ln);
     }
     if (!lines.empty() && lines.back().text.empty() && text.back() == '\n') lines.pop_back();
-    const std::vector<std::string> *lists[3] = { &want.modules, &want.forms, &want.classes };
-    const char *keys[3] = { "module", "form", "class" }, *names[3] = { "Module", "Form", "Class" };
+    const int NL = 5;
+    const std::vector<std::string> *lists[NL] = { &want.modules, &want.forms, &want.classes, &want.extensions, &want.csources };
+    const char *keys[NL] = { "module", "form", "class", "extension", "csource" };
+    const char *names[NL] = { "Module", "Form", "Class", "Extension", "CSource" };
     auto has = [](const std::vector<std::string> &v, const std::string &x) {
         for (auto &e : v) if (equalsNoCase(e, x)) return true;
         return false;
     };
     // drop the entries no longer wanted
     std::vector<Line> out;
-    std::vector<std::string> kept[3];
+    std::vector<std::string> kept[NL];
     for (auto &ln : lines) {
         int k = -1;
-        for (int i = 0; i < 3; i++) if (ln.key == keys[i]) k = i;
+        for (int i = 0; i < NL; i++) if (ln.key == keys[i]) k = i;
         if (k >= 0) {
             if (!has(*lists[k], ln.value) || has(kept[k], ln.value)) continue;
             kept[k].push_back(ln.value);
@@ -943,7 +949,7 @@ std::string updateBbp(const std::string &text, const Bbp &want)
     if (find("startup") < 0 && !want.startup.empty())
         out.insert(out.begin() + find("name") + 1, Line{ "Startup=" + want.startup, "startup", want.startup });
     // the new entries: after the last line of their kind (or of the kind before it, or Startup)
-    for (int k = 0; k < 3; k++)
+    for (int k = 0; k < NL; k++)
         for (auto &f : *lists[k]) {
             if (has(kept[k], f)) continue;
             int at = -1;
@@ -1125,7 +1131,7 @@ RuntimeMembers parseMembers(const std::string &output)
             if (t == std::string::npos) break;
             a = t + 1;
         }
-        if (f.size() < 3 || trimmed(f[0]).empty() || trimmed(f[1]).empty()) continue;
+        if (f.size() < 3 || trimmed(f[1]).empty()) continue;   // an empty class: a global
         ClassMember m;
         m.name = trimmed(f[1]);
         m.kind = lower(trimmed(f[2]));
@@ -1138,7 +1144,58 @@ RuntimeMembers parseMembers(const std::string &output)
     return out;
 }
 
-std::string membersCommand(const std::string &boing) { return quoteArg(boing) + " members"; }
+std::string membersCommand(const std::string &boing, const std::string &bbp)
+{
+    return quoteArg(boing) + " members" + (bbp.empty() ? "" : " --project " + quoteArg(bbp));
+}
+
+std::string vmCommand(const std::string &boing, const std::string &bbp, const std::string &out)
+{
+    return quoteArg(boing) + " vm --project " + quoteArg(bbp) + " -o " + quoteArg(out);
+}
+
+std::string vmInterpreterPath(const std::string &bbp)
+{
+    size_t slash = bbp.find_last_of("/:");
+    std::string base = slash == std::string::npos ? bbp : bbp.substr(slash + 1);
+    size_t dot = base.rfind('.');
+    if (dot != std::string::npos) base.resize(dot);
+    std::string id;
+    for (unsigned char c : base) id += (isalnum(c) && c < 128) || c == '_' || c == '-' ? (char)c : '_';
+    return "T:boing-" + (id.empty() ? std::string("project") : id);
+}
+
+std::vector<std::string> vmDependencies(const Bbp &b, const std::string &bbp)
+{
+    std::vector<std::string> v;
+    size_t slash = bbp.find_last_of("/:");
+    v.push_back(slash == std::string::npos ? bbp : bbp.substr(slash + 1));
+    for (auto &e : b.extensions)
+        for (const char *x : { ".bbx", ".c", ".cpp" }) v.push_back(e + x);
+    for (auto &c : b.csources) v.push_back(c);
+    return v;
+}
+
+std::string basicCallTip(const std::string &code, const std::string &obj, const std::string &name,
+                         const RuntimeMembers &members)
+{
+    const std::vector<ClassMember> *list = nullptr;
+    if (obj.empty()) {
+        auto g = members.find("");
+        if (g != members.end()) list = &g->second;
+    } else {
+        auto types = declaredTypes(code);
+        auto t = types.find(lower(obj));
+        if (t == types.end()) return "";
+        auto c = members.find(lower(t->second));
+        if (c != members.end()) list = &c->second;
+    }
+    if (!list) return "";
+    for (auto &m : *list)
+        if (equalsNoCase(m.name, name) && (m.kind == "method" || m.kind == "function" || m.kind == "sub"))
+            return m.name + "(" + m.signature + ")" + (m.type.empty() ? "" : " As " + m.type);
+    return "";
+}
 
 std::map<std::string, std::string> declaredTypes(const std::string &code)
 {
