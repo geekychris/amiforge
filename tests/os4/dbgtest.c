@@ -3,7 +3,7 @@
  * AmigaOS 4. Prints PASS/FAIL lines and a summary; every wait has a timeout.
  *   dbgtest [DIR [SECTION|all [trace|-] [LOGFILE]]]
  * DIR holds the targets and src/ with their sources (default DH1:AmiForge). SECTION runs one
- * group (exit, basic, crash, pause, oscall, oskill, cplus, asm). "trace" prints the runtime trace. LOGFILE gets
+ * group (exit, basic, crash, pause, oscall, oskill, cplus, asm, locks). "trace" prints the runtime trace. LOGFILE gets
  * a copy of the output, closed after every line (it survives a hang).
  */
 #undef __USE_INLINE__
@@ -620,6 +620,64 @@ static void test_cplus(void)
     expect_exit("C++ program exits", 26);
 }
 
+/* ------------------------------------------------------------------ locks
+ * A program the debugger stopped must give back what its C library holds, like one that ends by
+ * itself: killing it once skipped newlib's cleanup, and the lock on its current directory (its
+ * own drawer) stayed for good, so the drawer could never be deleted. Each case runs a copy of
+ * basic in a drawer of its own, ends it, and deletes the drawer. */
+
+/* a new drawer every run: one an older build leaked can't be used again before a reboot */
+static char g_locks_dir[64], g_locks_file[80];
+
+static int copy_file(const char *from, const char *to)
+{
+    FILE *a = fopen(from, "rb"), *b = a ? fopen(to, "wb") : NULL;
+    char buf[4096];
+    size_t n;
+    int good = a && b;
+    while (good && (n = fread(buf, 1, sizeof buf, a)) > 0) good = fwrite(buf, 1, n, b) == n;
+    if (a) fclose(a);
+    if (b) fclose(b);
+    return good;
+}
+
+static void locks_case(const char *what, const char *args, const char *marker, int crash)
+{
+    snprintf(g_locks_dir, sizeof g_locks_dir, "RAM:dbgtest-locks.%lx", (unsigned long)now_ms());
+    snprintf(g_locks_file, sizeof g_locks_file, "%s/basic", g_locks_dir);
+    BPTR l = IDOS->CreateDir(g_locks_dir);
+    if (l) IDOS->UnLock(l);
+    if (!copy_file(P("basic"), g_locks_file)) { ok(0, "%s: copy basic to %s", what, g_locks_dir); return; }
+    if (!dbg_load(S, g_locks_file, args, NULL, NULL)) { ok(0, "%s: load: %s", what, dbg_last_error(S)); return; }
+    dbg_set_source_path(S, P("src"));
+    if (marker) dbg_bp_add(S, "basic.c", L("basic.c", marker), NULL);
+    dbg_run(S, 0);
+    if (marker || crash) {
+        dbg_event ev;
+        if (!wait_event(&ev, 8000) || ev.type != DBG_EV_STOPPED) { ok(0, "%s: didn't stop", what); cleanup(); }
+        else {
+            ok(dbg_kill(S), "%s: kill", what);
+            expect_exit(what, 20);
+        }
+    } else {
+        expect_exit(what, -1);
+    }
+    cleanup();                                        /* unloads it too */
+    int file = IDOS->Delete(g_locks_file);
+    int dir = IDOS->Delete(g_locks_dir);
+    ok(file && dir, "%s: its drawer can be deleted afterwards (file %d, drawer %d, error %ld)", what, file, dir,
+       (file && dir) ? 0L : (long)IDOS->IoErr());
+}
+
+static void test_locks(void)
+{
+    printf("== locks: a stopped program gives back its locks\n");
+    locks_case("runs to its end", "", NULL, 0);
+    locks_case("killed at a breakpoint", "", "loop_body", 0);
+    locks_case("killed after printing", "", "main_ret", 0);
+    locks_case("killed after a crash", "crash", NULL, 1);
+}
+
 static void test_asm(void)
 {
     printf("== assembler: stepping through a .S function\n");
@@ -721,7 +779,7 @@ int main(int argc, char **argv)
     if (argc > 3 && !strcmp(argv[3], "memtrace")) { g_memtrace = 1; dbg_set_trace(S, memtrace_line, NULL); }
 
     struct { const char *name; void (*fn)(void); } tests[] = {
-        { "exit", test_exit }, { "basic", test_basic }, { "crash", test_crash }, { "pause", test_pause }, { "oscall", test_oscall }, { "oskill", test_oskill }, { "cplus", test_cplus }, { "asm", test_asm },
+        { "exit", test_exit }, { "basic", test_basic }, { "crash", test_crash }, { "pause", test_pause }, { "oscall", test_oscall }, { "oskill", test_oskill }, { "cplus", test_cplus }, { "asm", test_asm }, { "locks", test_locks },
     };
     const char *only = argc > 2 && strcmp(argv[2], "all") ? argv[2] : NULL;
     for (size_t i = 0; i < sizeof tests / sizeof tests[0]; i++) {

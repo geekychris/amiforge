@@ -76,7 +76,8 @@ programs in `DH1:AmiForge` and their sources in `DH1:AmiForge/src`. Its `oscall`
 (`tests/targets/pausetest.c`) pauses a program that prints to a console window and one that
 sits in `Wait()`, and checks that every stop is in the program's code and that `LockIBase`
 still returns. `oskill` stops (kills) the same programs inside those calls and checks that
-nothing is left behind.
+nothing is left behind. `locks` checks that a program the debugger stopped leaves no lock on
+its drawer.
 
 ## Testing the features
 
