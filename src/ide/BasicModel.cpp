@@ -1176,6 +1176,35 @@ std::vector<std::string> vmDependencies(const Bbp &b, const std::string &bbp)
     return v;
 }
 
+std::string extensionsCommand(const std::string &boing)
+{
+    return quoteArg(boing) + " extensions";
+}
+
+std::vector<std::string> parseExtensions(const std::string &output)
+{
+    std::vector<std::string> v;
+    for (const std::string &raw : splitLines(output)) {
+        std::string l = trimmed(raw);
+        if (!l.empty() && l.back() == '\r') l.pop_back();
+        // a name only: an old boing's usage or error text has spaces
+        if (l.empty() || l.find_first_of(" \t:/") != std::string::npos) return {};
+        v.push_back(lower(l));
+    }
+    return v;
+}
+
+bool runsWithStockBoing(const Bbp &b, const std::vector<std::string> &linked,
+                        const std::function<bool(const std::string &)> &hasLocalBbx)
+{
+    if (!b.csources.empty() || b.extensions.empty()) return false;
+    for (const std::string &e : b.extensions) {
+        if (e.find_first_of("/:") != std::string::npos || hasLocalBbx(e)) return false;
+        if (std::find(linked.begin(), linked.end(), lower(e)) == linked.end()) return false;
+    }
+    return true;
+}
+
 std::string basicCallTip(const std::string &code, const std::string &obj, const std::string &name,
                          const RuntimeMembers &members)
 {
