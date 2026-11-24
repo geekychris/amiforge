@@ -157,7 +157,8 @@ static struct NewMenu menus[] = {
     ITEM("Replace...", "R", CMD_REPLACE),
     ITEM("Find in Files...", "H", CMD_FIND_IN_FILES),
     ITEM("Go to Line...", "L", CMD_GOTO_LINE),
-    ITEM("Open Include File  (Ctrl-Click)", "D", CMD_OPEN_INCLUDE),
+    // (no Amiga key: Amiga-D is Debug > Start / Continue; F12 and Amiga-J open the header too)
+    ITEM("Open Include File  (Ctrl-Click, F12)", 0, CMD_OPEN_INCLUDE),
     ITEM("Go to Definition  (F12, Ctrl-Click)", "J", CMD_GOTO_DEF),
     // --- editor features ---
     ITEM("Find All References  (Shift F12)", 0, CMD_FIND_REFS),

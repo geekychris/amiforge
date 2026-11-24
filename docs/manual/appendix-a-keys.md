@@ -79,7 +79,6 @@ thing: Intuition takes the first item with that letter.
 | Amiga-R | Edit > Replace... |
 | Amiga-H | Edit > Find in Files... |
 | Amiga-L | Edit > Go to Line... |
-| Amiga-D | Edit > Open Include File  (Ctrl-Click) |
 | Amiga-J | Edit > Go to Definition  (F12, Ctrl-Click) |
 | Amiga-T | Edit > Add Next Occurrence |
 | Amiga-/ | Edit > Comment/Uncomment Lines |

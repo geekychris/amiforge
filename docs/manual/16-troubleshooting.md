@@ -39,7 +39,6 @@
 | F1 says the SDK isn't installed | The AutoDocs come from `SDK:Documentation/AutoDocs` |
 | The editor shows two or three columns of code | The split view or the minimap is on: click the pressed **Split** or **Map** button |
 | The right mouse button shows the menu bar over the editor | That's what it does: hold **Shift** (or **Ctrl**) for the editor's context menu |
-| **Amiga-D** opens an include file instead of starting the debugger | Both **Edit > Open Include File** and **Debug > Start / Continue** have the key D, and Intuition takes the first: use **F5** to debug |
 
 ## Git
 

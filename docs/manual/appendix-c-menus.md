@@ -52,7 +52,7 @@ made from AmiForge's source.
 | Replace... | Amiga-R |
 | Find in Files... | Amiga-H |
 | Go to Line... | Amiga-L |
-| Open Include File  (Ctrl-Click) | Amiga-D |
+| Open Include File  (Ctrl-Click, F12) |  |
 | Go to Definition  (F12, Ctrl-Click) | Amiga-J |
 | Find All References  (Shift F12) |  |
 | Rename Symbol...  (F2) |  |
