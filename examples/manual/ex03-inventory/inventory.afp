@@ -1,0 +1,19 @@
+# AmiForge project
+[project]
+name=inventory
+output=inventory
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=
+console=
+stopatmain=0
+description=Manual, exercise 3: finding a crash with the debugger (inventory-crash.c has the bug)
+
+[files]
+file=inventory.c

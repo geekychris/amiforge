@@ -1,0 +1,7 @@
+# AmiForge GUI (edit with Tools > GUI Designer)
+window name=converter title=Temperature width=280
+vlayout id=root
+  hlayout id=row
+    string id=celsius label=_Celsius text=20 maxchars=16
+    button id=convert text=Con_vert weight=0
+  string id=fahrenheit label=_Fahrenheit maxchars=16

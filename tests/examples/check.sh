@@ -9,7 +9,9 @@ here=${0:A:h}; root=${here:h:h}
 out=$root/build/excheck
 rm -rf $out; mkdir -p $out
 names=($@)
-[[ ${#names} -gt 0 ]] || names=($root/examples/*(/:t))
+# (examples/manual holds the manual's exercise solutions, one drawer each: tools/manual-check.py
+# builds those)
+[[ ${#names} -gt 0 ]] || { names=($root/examples/*(/:t)); names=(${names:#manual}) }
 script=$out/build.sh
 echo 'set -e; fail=0' > $script
 for ex in $names; do

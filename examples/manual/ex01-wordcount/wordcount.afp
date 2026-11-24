@@ -1,0 +1,19 @@
+# AmiForge project
+[project]
+name=wordcount
+output=wordcount
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=S:Startup-Sequence LONGEST
+console=
+stopatmain=1
+description=Manual, exercise 1: counts the lines, words and characters of a file
+
+[files]
+file=wordcount.c

@@ -189,6 +189,7 @@ void App::handleMenu(uint32_t cmd)
     case CMD_DOC_LOOKUP: docForWordAtCaret(); break;
     case CMD_DOC_BROWSER: openDocWindow(); break;
     case CMD_SDK_DOCS: openSdkDocs(); break;
+    case CMD_USER_MANUAL: openUserManual(); break;
     case CMD_SHORTCUTS: showShortcuts(); break;
     case CMD_CONTEXT_MENU: showContextMenu(); break;
     case CMD_OPEN_INCLUDE:

@@ -28,9 +28,9 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
   the main script and puts a traceback's lines in the build log, Stop Program stops it, and F5
   offers pdb with the project's breakpoints. Completion of keywords and built-ins, Python
   snippets, a project template and an example.
-- **Boing BASIC** (a Visual Basic 6 style language for OS4): `.bbp` projects, Build with
+- **Boing BASIC** (a structured BASIC for AmigaOS 4): `.bbp` projects, Build with
   `boing check`/`boing build` (errors clickable), Run in the interpreter with runtime errors in
-  the build log, and a Visual Basic style form designer: double-click a button to write its
+  the build log, and a form designer: double-click a button to write its
   `Click` Sub, an Events list per control, renaming a control renames its event Subs, View
   Form / View Code. Highlighting, folding, auto-indent, outline, and completion of control
   properties after `ok.`. Templates for a form app and a console app.
@@ -75,7 +75,7 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
 - **ARexx**: an `AMIFORGE` port to script the IDE, and a Macros menu of your own `.rexx` macros.
 - **AI assistants (MCP)**: Claude Code or another MCP client on the host can open projects,
   read and edit files, build and read the errors, run, set breakpoints and debug, through the
-  amiga-devbench's `amiforge_*` tools ([user guide](docs/user-guide.md#controlling-amiforge-from-an-ai-assistant-mcp)).
+  amiga-devbench's `amiforge_*` tools ([manual](docs/manual/13-arexx-mcp.md#ai-assistants-mcp)).
 - **Projects**: `.afp` files with Workbench icons, recent projects, and breakpoints and watches
   that are saved with the project. A projects folder (the examples by default) and a project
   browser that lists every project in it, with descriptions.
@@ -103,9 +103,11 @@ the SDK's GCC, a source-level debugger, the AutoDocs one key away, and Git.
 Under QEMU's `sam460ex`, also run `Tools/QEMUCopyFix` at boot. QEMU doesn't emulate the DMA
 engine that exec uses for large memory copies, and without it C++ compiles fail.
 
-The **[user guide](docs/user-guide.md)** covers everything: a five-minute tour, editing,
-completion and navigation, AutoDocs, projects, building, debugging, Git and GitHub, the
-examples, QEMU, troubleshooting, and every key.
+The **[user manual](docs/manual/README.md)** covers everything: a five-minute tour, editing,
+completion and navigation, AutoDocs, projects, building, the GUI designer, debugging, Git and
+GitHub, ARexx, QEMU, troubleshooting, exercises, and every key, menu item and command. It's
+also built as a PDF (`make manual-pdf`) and as an AmigaGuide, which **Help > User Manual**
+opens.
 
 ## Examples
 

@@ -328,6 +328,7 @@ public:
     void docForWordAtCaret();
     void docLinkClicked(intptr_t position);
     void openSdkDocs();
+    void openUserManual();   // Help > User Manual: Docs/AmiForge-Manual.guide (HelpManual.h)
     // navigation (Navigate.cpp)
     std::string resolveInclude(const std::string &name, bool quoted, const std::string &fromFile);
     std::string wordAt(intptr_t pos);

@@ -1,0 +1,14 @@
+# AmiForge project
+[project]
+name=Dice
+language=basic
+bbp=Dice.bbp
+output=dice
+stopatmain=0
+description=Manual, exercise 5: a Boing BASIC program with a class written in C
+
+[files]
+file=Dice.bbp
+file=Main.bas
+file=dice.c
+file=dice.bbx

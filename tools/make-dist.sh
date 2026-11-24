@@ -4,8 +4,10 @@
 #   AmiForge.info                 drawer icon
 #   AmiForge/AmiForge(.info)      the IDE (stripped build/AmiForge) and its tool icon
 #   AmiForge/Examples/<name>/     every drawer in examples/, each .afp with a project icon
-#                                 (PROGDIR:Examples is the default projects folder)
-#   AmiForge/Docs/                README.txt, user-guide.txt (Latin-1 text from the Markdown)
+#                                 (PROGDIR:Examples is the default projects folder); the manual's
+#                                 exercise solutions in AmiForge/Examples/Manual/<exercise>/
+#   AmiForge/Docs/                README.txt (Latin-1 text from the Markdown), the user manual as
+#                                 AmiForge-Manual.guide and AmiForge-Manual.txt, its pictures in Manual/
 #   AmiForge/Install-AmiForge     AmigaDOS script: copies the drawer to a destination
 #   AmiForge/Templates/<id>/      project templates (template.def + files)
 #   AmiForge/Rexx/                example ARexx macros (the Macros menu)
@@ -36,7 +38,7 @@ d=$stage/AmiForge
 cp $icons/AmiForge-drawer.info $stage/AmiForge.info
 cp $bin $d/AmiForge
 cp $icons/AmiForge.info $d/AmiForge.info
-# for QEMU's sam460ex machine: see Docs/user-guide.txt
+# for QEMU's sam460ex machine: see the manual's "Running under QEMU"
 if [ -f $root/build/QEMUCopyFix ]; then
     mkdir -p $d/Tools
     cp $root/build/QEMUCopyFix $d/Tools/QEMUCopyFix
@@ -50,13 +52,24 @@ cp $icons/drawer.info $d/Rexx.info
 
 # examples: sources plus a project icon per .afp
 cp $icons/drawer.info $d/Examples.info
-for ex in $root/examples/*(/:t); do
+exs=($root/examples/*(/:t))
+for ex in ${exs:#manual}; do
     ls $root/examples/$ex/*.afp >/dev/null 2>&1 || { print -u2 "make-dist: examples/$ex has no .afp"; exit 1 }
     mkdir -p $d/Examples/$ex
     cp $root/examples/$ex/*(.) $d/Examples/$ex/
     rm -f $d/Examples/$ex/*.o(N)
     cp $icons/drawer.info $d/Examples/$ex.info
     for afp in $d/Examples/$ex/*.afp(N); do cp $icons/project.info $afp.info; done
+done
+# the manual's exercise solutions (examples/manual/<exercise>/) in Examples/Manual
+mkdir -p $d/Examples/Manual
+cp $icons/drawer.info $d/Examples/Manual.info
+cp $root/examples/manual/README.md $d/Examples/Manual/
+for ex in $root/examples/manual/*(/:t); do
+    mkdir -p $d/Examples/Manual/$ex
+    cp $root/examples/manual/$ex/*(.D) $d/Examples/Manual/$ex/
+    cp $icons/drawer.info $d/Examples/Manual/$ex.info
+    for afp in $d/Examples/Manual/$ex/*.afp(N); do cp $icons/project.info $afp.info; done
 done
 
 # --- designer ---
@@ -104,9 +117,12 @@ open(dst, "wb").write(text.encode("latin-1", errors="replace"))
 EOF
 }
 md2txt $root/README.md $d/Docs/README.txt
-md2txt $root/docs/user-guide.md $d/Docs/user-guide.txt
 cp $icons/doc.info $d/Docs/README.txt.info
-cp $icons/doc.info $d/Docs/user-guide.txt.info
+# the user manual (docs/manual): AmigaGuide and text, with its pictures in Docs/Manual/images/
+# (Help > User Manual opens the guide)
+python3 $root/tools/manual-guide.py $d/Docs >/dev/null
+cp $icons/doc.info $d/Docs/AmiForge-Manual.guide.info
+cp $icons/doc.info $d/Docs/AmiForge-Manual.txt.info
 
 # the installer script
 cat > $d/Install-AmiForge <<'EOF'

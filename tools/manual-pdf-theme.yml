@@ -1,0 +1,111 @@
+# manual-pdf-theme.yml - the look of the manual's PDF (tools/manual-pdf.py).
+# Extends asciidoctor-pdf's default theme. Fonts are the bundled Noto Serif (text) and M+ 1mn
+# (code), both covering Latin-1. Colours: the Workbench blue and grey, with Boing red as accent.
+extends: default
+base:
+  font-size: 10
+  line-height: 1.4
+  font-color: 222222
+  text-align: left
+page:
+  margin: [22mm, 20mm, 22mm, 22mm]
+  margin-inner: 24mm
+  margin-outer: 18mm
+heading:
+  font-color: 1f3f7a
+  font-style: bold
+  h2-font-size: 20
+  h3-font-size: 14
+  h4-font-size: 12
+  h5-font-size: 10.5
+  margin-top: 12
+  margin-bottom: 6
+title-page:
+  align: center
+  title:
+    top: 40%
+    font-size: 30
+    font-color: 1f3f7a
+    font-style: bold
+  subtitle:
+    font-size: 15
+    font-color: 555555
+    font-style: italic
+  logo:
+    top: 8%
+    align: center
+  revision:
+    font-color: 777777
+    font-size: 10
+part:
+  title:
+    font-color: 1f3f7a
+chapter:
+  title:
+    font-color: 1f3f7a
+link:
+  font-color: 1f5fae
+  text-decoration: none
+code:
+  font-family: M+ 1mn
+  font-size: 8.5
+  line-height: 1.25
+  background-color: f3f5f8
+  border-color: c6ccd6
+  border-width: 0.5
+  border-radius: 3
+  padding: [6, 8, 6, 8]
+codespan:
+  font-family: M+ 1mn
+  font-color: 6b1f1f
+  font-size: 0.92em
+caption:
+  font-color: 1f3f7a
+  font-style: bold
+  font-size: 9
+  align: left
+  margin-inside: 3
+  margin-outside: 2
+table:
+  font-size: 9
+  head:
+    background-color: dde4ee
+    font-style: bold
+  border-color: b7c0cc
+  grid-color: c9d0da
+  cell-padding: [3, 5, 3, 5]
+image:
+  align: center
+admonition:
+  column-rule-color: cc1420
+sidebar:
+  background-color: f6f1e6
+  border-color: d8c8a0
+quote:
+  border-left-color: cc1420
+header:
+  height: 14mm
+  font-size: 8.5
+  font-color: 666666
+  border-color: c6ccd6
+  border-width: 0.25
+  recto:
+    right:
+      content: '{chapter-title}'
+  verso:
+    left:
+      content: '{chapter-title}'
+footer:
+  height: 14mm
+  font-size: 8.5
+  font-color: 666666
+  recto:
+    right:
+      content: '{page-number}'
+    left:
+      content: '{manual-name}'
+  verso:
+    left:
+      content: '{page-number}'
+    right:
+      content: '{manual-name}'
