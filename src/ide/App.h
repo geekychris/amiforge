@@ -328,6 +328,7 @@ public:
     void docForWordAtCaret();
     void docLinkClicked(intptr_t position);
     void openSdkDocs();
+    void openUserManual();   // Help > User Manual: Docs/AmiForge-Manual.guide (HelpManual.h)
     // navigation (Navigate.cpp)
     std::string resolveInclude(const std::string &name, bool quoted, const std::string &fromFile);
     std::string wordAt(intptr_t pos);
@@ -823,6 +824,11 @@ public:
     basic::RuntimeMembers runtimeMembers;
     std::string runtimeMembersOf;                // the boing they came from
     bool runtimeMembersTried = false;
+    // "boing extensions": the standard extensions the boing has built in (run once per boing)
+    const std::vector<std::string> &basicStockExtensions();
+    std::vector<std::string> stockExtensions;
+    std::string stockExtensionsOf;
+    bool stockExtensionsTried = false;
     // completion after "name.": a control's or form's members, else the runtime class name is
     // declared as in `code`; `what` says which ("ok is a CommandButton", "v is a Canvas")
     std::vector<std::string> basicMemberWords(const std::string &name, const std::string &code, std::string *what = nullptr);

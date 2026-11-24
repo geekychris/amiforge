@@ -42,6 +42,10 @@
 #define KILL_WAIT_MS   5000     /* how long a kill waits for the unwound program to end */
 #define DEFAULT_STACK  (256 * 1024)
 #define EXIT_KILLED    20       /* RETURN_FAIL */
+/* newlib's exit() in the INewlib vector table: libc.a's stub is "li r12,1620; b __NewlibCall",
+ * and __NewlibCall jumps to *(INewlib + r12), with r12 still set */
+#define NEWLIB_EXIT    1620
+#define KILL_EXIT_MS   3000     /* how long a kill waits for exit() to end the program */
 #define MAX_FRAMES     64
 #define SETTLE_MS      10       /* after a hook suspension, before touching the task */
 #define PAUSE_RESAMPLE 25       /* polls between looks at a program with a pause pending (~250 ms) */
@@ -1827,7 +1831,43 @@ static int kill_reach_program(dbg_session *s, int was_waiting)
     return 0;
 }
 
-/* Makes the program return from its entry point with EXIT_KILLED. */
+/* Makes the held program (s->ctx, in its own code) call newlib's exit(EXIT_KILLED), the way it
+ * would end itself: newlib's cleanup and the startup code's run, so the libraries, files and
+ * locks the program's C library holds are given back. (Returning from the entry point instead
+ * skips them: among others, the lock on its current directory stayed, and the drawer could
+ * never be deleted.) Returns 1 if the program ended; 0, with the task suspended in the hook
+ * or as it was, if it isn't a newlib program or exit() crashed. */
+static int kill_by_exit(dbg_session *s)
+{
+    /* what __NewlibCall does, through the INewlib every newlib program has (the stub is only
+     * there if it calls a C library function) */
+    uint32_t inl = info_symbol_addr(s->di, "INewlib"), iface = 0, call = 0;
+    if (!inl || !mem_read(s, inl, &iface, 4) || !iface || !mem_read(s, iface + NEWLIB_EXIT, &call, 4) || !call) {
+        trace(s, "kill: no INewlib, so not newlib: unwinding");
+        return 0;
+    }
+    struct Task *t = (struct Task *)s->proc;
+    struct ExceptionContext c = s->ctx;
+    c.ip = call;
+    c.gpr[3] = EXIT_KILLED;
+    c.gpr[12] = NEWLIB_EXIT;
+    trace(s, "kill: exit(%d) from %08lx", EXIT_KILLED, (unsigned long)s->ctx.ip);
+    s->seen = s->exc_count;
+    s->idebug->WriteTaskContext(t, &c, RTCF_STATE | RTCF_GENERAL);
+    IExec->RestartTask(t, 0);
+    wait_death(s, KILL_EXIT_MS, 1);
+    if (!s->proc) return 1;
+    /* still there: crashed in exit() (wait_death saw the exception; the hook holds the task) or
+     * stuck in it: take it back for the unwind */
+    if (s->exc_count != s->seen) s->seen = s->exc_count;
+    else IExec->SuspendTask(t, 0);
+    wait_suspended(s);
+    check_death(s);
+    return !s->proc;
+}
+
+/* Makes the program end with EXIT_KILLED: through exit() if it can (kill_by_exit), else by
+ * returning from its entry point. */
 static void kill_now(dbg_session *s)
 {
     if (!s->proc) return;
@@ -1883,6 +1923,8 @@ static void kill_now(dbg_session *s)
     if (!s->proc) return;                            /* it ended meanwhile */
     t = (struct Task *)s->proc;
     remove_all_traps(s);
+    if (kill_by_exit(s)) return;
+    if (!s->proc) return;
     struct ExceptionContext c = s->entry_ctx;
     c.ip = c.lr;
     c.gpr[3] = EXIT_KILLED;

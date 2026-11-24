@@ -1,0 +1,7 @@
+# dice.bbx - what the dice extension registers (dice.c)
+class Dice
+  method Roll() As Long
+  property Sides As Long
+  property Rolls As Long ReadOnly
+  property Seed As Long
+function Percent(ByVal part As Long, ByVal whole As Long) As Long

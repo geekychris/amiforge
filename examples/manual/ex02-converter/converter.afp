@@ -1,0 +1,22 @@
+# AmiForge project
+[project]
+name=converter
+output=converter
+cc=gcc
+cxx=g++
+cflags=-O0 -gstabs -Wall
+cxxflags=-O0 -gstabs+ -Wall
+asflags=-gstabs
+ldflags=
+libs=-lauto
+objdir=obj
+args=
+console=
+stopatmain=1
+description=Manual, exercise 2: Celsius to Fahrenheit in a window made with the GUI designer
+
+[files]
+file=main.c
+file=converter_gui.c
+file=converter_gui.h
+file=converter.afg

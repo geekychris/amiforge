@@ -13,6 +13,7 @@
 
 #include <map>
 #include <set>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -190,6 +191,15 @@ std::string vmInterpreterPath(const std::string &bbp);
 // the files it's built from, relative to the .bbp's drawer: the .bbp, each extension's .bbx,
 // .c and .cpp (the one that exists counts), the C sources; rebuild when one is newer
 std::vector<std::string> vmDependencies(const Bbp &b, const std::string &bbp);
+// "boing extensions": the standard extensions linked into an interpreter (the kit's: sqlite,
+// opengl), one per line; an old boing without the command gives an error text, i.e. none
+std::string extensionsCommand(const std::string &boing);
+std::vector<std::string> parseExtensions(const std::string &output);
+// True when the project needs no interpreter of its own: no CSource=, and every Extension= is a
+// standard extension (a bare NAME, no NAME.bbx beside the project: `hasLocalBbx(NAME)`) that
+// `linked` (from "boing extensions") has, so the stock boing runs it as it is
+bool runsWithStockBoing(const Bbp &b, const std::vector<std::string> &linked,
+                        const std::function<bool(const std::string &)> &hasLocalBbx);
 // The call tip for "name(" (obj "" = a global function) or "obj.name(" where obj is declared As
 // a class of `members` in `code`: "Add(ByVal n As Long) As Long"; "" if there's none.
 std::string basicCallTip(const std::string &code, const std::string &obj, const std::string &name,
