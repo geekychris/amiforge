@@ -162,14 +162,44 @@ static int64_t quietTime(const std::string &path)
     return existsQuietly(path) ? fileTime(path) : -1;
 }
 
+// The standard extensions linked into boing ("boing extensions": the kit's has sqlite and opengl),
+// asked once per boing; none for a boing without the command
+const std::vector<std::string> &App::basicStockExtensions()
+{
+    std::string boing = boingCommand();
+    if (stockExtensionsTried && stockExtensionsOf == boing) return stockExtensions;
+    stockExtensionsTried = true;
+    stockExtensionsOf = boing;
+    stockExtensions.clear();
+    if (boing.empty() || (boing.find(':') != std::string::npos && !existsQuietly(boing))) return stockExtensions;
+    const char *outFile = "T:AmiForge-extensions.txt";
+    BPTR out = IDOS->Open(outFile, MODE_NEWFILE);
+    BPTR in = IDOS->Open("NIL:", MODE_OLDFILE);
+    if (out && in)
+        IDOS->SystemTags(basic::extensionsCommand(boing).c_str(), SYS_Input, in, SYS_Output, out,
+                         SYS_StackSize, 256 * 1024, NP_Name, (uint32)"AmiForge boing extensions", TAG_END);
+    if (out) IDOS->Close(out);
+    if (in) IDOS->Close(in);
+    std::string text;
+    if (readFile(outFile, text)) stockExtensions = basic::parseExtensions(text);
+    IDOS->Delete(outFile);
+    return stockExtensions;
+}
+
 // What runs the program: the standard boing, or for a project with Extension=/CSource= the
-// interpreter `boing vm --project` built for it (T:boing-<project>). `stale`: it has to be
-// (re)built: it's missing, or older than the .bbp, an extension's files, a C source or boing.
+// interpreter `boing vm --project` built for it (T:boing-<project>). A project whose extensions
+// are all standard ones boing has built in (Extension=opengl, sqlite) runs with boing itself: no
+// two-minute GCC build on the Amiga. `stale`: the interpreter has to be (re)built: it's missing, or
+// older than the .bbp, an extension's files, a C source or boing.
 std::string App::basicRunInterpreter(bool *stale)
 {
     if (stale) *stale = false;
     basic::Bbp b;
     if (!basicProjectBbp(b) || !b.needsVm()) return boingCommand();
+    if (basic::runsWithStockBoing(b, basicStockExtensions(), [this](const std::string &name) {
+            return existsQuietly(project.abs(name + ".bbx"));
+        }))
+        return boingCommand();
     std::string target = project.basicTarget();
     std::string interp = basic::vmInterpreterPath(target);
     if (stale) {

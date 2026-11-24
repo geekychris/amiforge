@@ -896,6 +896,30 @@ TEST(basic_extensions)
     CHECK(std::find(deps.begin(), deps.end(), "shapes.cpp") != deps.end());
     CHECK_EQ(membersCommand("boing", "P.bbp"), std::string("boing members --project P.bbp"));
 
+    // standard extensions built into boing ("boing extensions"): such a project runs with boing
+    CHECK_EQ(extensionsCommand("boing"), std::string("boing extensions"));
+    std::vector<std::string> kit = parseExtensions("sqlite\nopengl\n");
+    CHECK(kit.size() == 2 && kit[1] == "opengl");
+    CHECK(parseExtensions("").empty());
+    CHECK(parseExtensions("usage: boing run prog.bas\n").empty());     // an old boing
+    auto noBbx = [](const std::string &) { return false; };
+    Bbp gl;
+    parseBbp("Name=G\nModule=g.bas\nExtension=OpenGL\n", gl);
+    CHECK(gl.needsVm());
+    CHECK(runsWithStockBoing(gl, kit, noBbx));
+    CHECK(!runsWithStockBoing(gl, {}, noBbx));                            // a boing without it
+    CHECK(!runsWithStockBoing(gl, kit, [](const std::string &n) { return n == "OpenGL"; }));   // opengl.bbx beside it
+    Bbp both;
+    parseBbp("Name=G\nModule=g.bas\nExtension=opengl\nExtension=sqlite\n", both);
+    CHECK(runsWithStockBoing(both, kit, noBbx));
+    Bbp local;
+    parseBbp("Name=G\nModule=g.bas\nExtension=opengl\nExtension=ext/counter\n", local);
+    CHECK(!runsWithStockBoing(local, kit, noBbx));                       // an extension of its own
+    Bbp withC;
+    parseBbp("Name=G\nModule=g.bas\nExtension=opengl\nCSource=m.c\n", withC);
+    CHECK(!runsWithStockBoing(withC, kit, noBbx));                       // Lib "C" functions
+    CHECK(!runsWithStockBoing(plain, kit, noBbx));                       // nothing to link: boing anyway
+
     // `boing members --project` with an extension class and globals
     RuntimeMembers rm = parseMembers("Counter\tAdd\tmethod\tByVal n As Long\tLong\n"
                                      "Counter\tReset\tmethod\t\t\n"
